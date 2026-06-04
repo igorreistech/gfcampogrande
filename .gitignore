@@ -1,0 +1,17 @@
+# System
+.DS_Store
+Thumbs.db
+*.log
+
+# Node
+node_modules/
+pnpm-lock.yaml
+yarn.lock
+package-lock.json
+
+# VS Code
+.vscode/
+
+# Build artifacts
+dist/
+build/
