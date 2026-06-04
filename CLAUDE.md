@@ -1,0 +1,1 @@
+Sempre faça commit e push automaticamente após qualquer alteração no código, usando uma mensagem descritiva que explique claramente a mudança.
