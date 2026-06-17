@@ -39,6 +39,7 @@
 
       // ─── NOTIFICAÇÕES PUSH ───
       window._notifStatusAnterior = null; // null = primeira carga, não notifica
+      window._resumoInicialMostrado = false;
 
       async function solicitarPermissaoNotificacoes() {
         if (!('Notification' in window)) return;
@@ -50,6 +51,8 @@
 
       function notificarMudancaStatus(proc, statusAnterior) {
         if (!('Notification' in window) || Notification.permission !== 'granted') return;
+        const u = window._currentUser;
+        if (u && u.role === 'agendador' && proc.cadastradoPor !== u.uid) return;
         const labels = {
           a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação',
           agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado',
@@ -68,6 +71,123 @@
           });
           n.onclick = () => { window.focus(); n.close(); };
         } catch(e) { console.warn('Notificação:', e); }
+      }
+
+      function notificarNovaCirurgia(proc) {
+        const labels = {
+          a_agendar:'Autorizado', andamento:'Em Procedimento', preparacao:'Em Separação',
+          agendado:'Agendado', em_transito:'Em Trânsito', concluido:'Concluído', cancelado:'Cancelado',
+          reagendado:'Reagendado', a_retirar:'Aguardando Retirada',
+          urgencia:'URGÊNCIA', coleta_urgente:'Coleta Prioritária'
+        };
+        // Push notification
+        if ('Notification' in window && Notification.permission === 'granted') {
+          try {
+            const n = new Notification('🏥 Nova cirurgia adicionada', {
+              body: (proc.paciente || 'Paciente') + ' · ' + (labels[proc.status] || proc.status || ''),
+              tag: 'nova-' + proc._docId
+            });
+            n.onclick = () => { window.focus(); n.close(); };
+          } catch(e) {}
+        }
+        // CSS da animação (injeta uma vez)
+        if (!document.getElementById('nova-cir-css')) {
+          const s = document.createElement('style');
+          s.id = 'nova-cir-css';
+          s.textContent =
+            '@keyframes novaCirIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}' +
+            '@keyframes novaCirPulse{0%,100%{box-shadow:0 4px 24px rgba(99,102,241,.35)}50%{box-shadow:0 4px 48px rgba(99,102,241,.7),0 0 0 5px rgba(99,102,241,.12)}}' +
+            '.nova-cir-banner{animation:novaCirIn .3s ease forwards,novaCirPulse 1.8s .3s ease-in-out infinite}';
+          document.head.appendChild(s);
+        }
+        const existentes = document.querySelectorAll('.nova-cir-banner').length;
+        const top = 20 + existentes * 115;
+        const id = 'ncb-' + (proc._docId || Date.now());
+        if (document.getElementById(id)) return;
+        const el = document.createElement('div');
+        el.id = id;
+        el.className = 'nova-cir-banner';
+        el.style.cssText = 'position:fixed;top:' + top + 'px;right:16px;background:linear-gradient(135deg,#6366f1,#8b5cf6);' +
+          'color:#fff;padding:13px 15px;border-radius:14px;z-index:99999;font-size:.82rem;max-width:290px;cursor:pointer;';
+        el.innerHTML =
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">' +
+            '<span style="font-size:1.05rem">🏥</span>' +
+            '<strong style="font-size:.86rem">Nova cirurgia adicionada</strong>' +
+            '<span class="ncb-close" style="margin-left:auto;opacity:.75;font-size:.95rem;padding:0 4px">✕</span>' +
+          '</div>' +
+          '<div style="opacity:.92;line-height:1.65;font-size:.8rem">' +
+            '👤 <strong>' + (proc.paciente || 'Paciente não informado') + '</strong><br>' +
+            (proc.hospital ? '🏥 ' + proc.hospital + '<br>' : '') +
+            '<span style="display:inline-block;margin-top:3px;background:rgba(255,255,255,.2);padding:1px 8px;border-radius:99px;font-size:.73rem">' +
+              (labels[proc.status] || proc.status || '—') +
+            '</span>' +
+          '</div>';
+        const fechar = () => {
+          el.style.transition = 'opacity .3s,transform .3s';
+          el.style.opacity = '0';
+          el.style.transform = 'translateX(40px)';
+          setTimeout(() => el.remove(), 320);
+        };
+        el.querySelector('.ncb-close').addEventListener('click', e => { e.stopPropagation(); fechar(); });
+        el.addEventListener('click', fechar);
+        document.body.appendChild(el);
+        setTimeout(fechar, 8000);
+      }
+
+      function mostrarResumoInicial() {
+        if (window._resumoInicialMostrado) return;
+        window._resumoInicialMostrado = true;
+        const procs = window.procedimentos || [];
+        const total = procs.length;
+        const hora = new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+        const grupos = [
+          { key:'urgencia',       label:'🚨 Urgência',           cor:'#ef4444' },
+          { key:'coleta_urgente', label:'✈️ Coleta Prioritária', cor:'#6366f1' },
+          { key:'a_agendar',      label:'📅 Autorizados',         cor:'#06b6d4' },
+          { key:'agendado',       label:'📋 Agendados',           cor:'#3b82f6' },
+          { key:'preparacao',     label:'⚙️ Em Separação',        cor:'#f59e0b' },
+          { key:'em_transito',    label:'🚚 Em Trânsito',         cor:'#8b5cf6' },
+          { key:'andamento',      label:'🔬 Em Procedimento',     cor:'#10b981' },
+          { key:'a_retirar',      label:'📦 A Retirar',           cor:'#f97316' },
+          { key:'reagendado',     label:'↺ Reagendados',          cor:'#a78bfa' },
+          { key:'concluido',      label:'✅ Concluídos',          cor:'#22c55e' },
+          { key:'cancelado',      label:'❌ Cancelados',           cor:'#6b7280' },
+        ];
+        const rows = grupos.map(g => {
+          const n = procs.filter(p => p.status === g.key).length;
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:9px;background:rgba(255,255,255,${n>0?'0.07':'0.03'});">
+            <span style="font-size:0.83rem;color:${n>0?'var(--text,#0f172a)':'var(--text-dim,#94a3b8)'}">${g.label}</span>
+            <span style="font-family:var(--mono,monospace);font-size:1.05rem;font-weight:700;color:${n>0?g.cor:'var(--text-dim,#94a3b8)'};">${n}</span>
+          </div>`;
+        }).join('');
+        if (!document.getElementById('resumo-css')) {
+          const s = document.createElement('style');
+          s.id = 'resumo-css';
+          s.textContent = '@keyframes resumoIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}';
+          document.head.appendChild(s);
+        }
+        const ov = document.createElement('div');
+        ov.id = 'resumo-inicial-ov';
+        ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.58);z-index:99998;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(5px);';
+        ov.innerHTML = `
+          <div style="background:var(--surface,#fff);border-radius:18px;padding:26px 26px 20px;max-width:380px;width:92%;box-shadow:0 24px 64px rgba(0,0,0,0.3);animation:resumoIn .3s ease;">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;">
+              <div>
+                <div style="font-family:var(--mono,monospace);font-size:0.65rem;font-weight:700;color:var(--text-dim,#94a3b8);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:3px;">Monitor Cirúrgico · ${hora}</div>
+                <div style="font-size:1.1rem;font-weight:700;color:var(--text,#0f172a);">Resumo · ${total} procedimento${total!==1?'s':''}</div>
+              </div>
+              <button id="resumo-fechar" style="background:rgba(107,114,128,0.1);border:none;border-radius:8px;padding:5px 9px;cursor:pointer;color:var(--text-dim,#6b7280);font-size:0.9rem;">✕</button>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:3px;max-height:52vh;overflow-y:auto;">${rows}</div>
+            <button id="resumo-entrar" style="margin-top:16px;width:100%;padding:11px;border-radius:10px;background:linear-gradient(135deg,#4db87a,#22c55e);border:none;color:#fff;font-family:var(--mono,monospace);font-size:0.78rem;font-weight:700;cursor:pointer;letter-spacing:0.07em;">
+              ENTRAR NO MONITOR →
+            </button>
+          </div>`;
+        const fechar = () => ov.remove();
+        ov.querySelector('#resumo-fechar').addEventListener('click', fechar);
+        ov.querySelector('#resumo-entrar').addEventListener('click', fechar);
+        ov.addEventListener('click', e => { if (e.target === ov) fechar(); });
+        document.body.appendChild(ov);
       }
 
       // ─── AUTH ───
@@ -233,12 +353,41 @@
                 <td>${p.medico||'-'}</td>
                 <td>${p.data||'-'}</td>
                 <td><span class="agendador-status status-${p.status||''}">${labels[p.status]||p.status||'-'}</span></td>
-                <td style="display:flex;gap:6px;align-items:center;">
-                  <button class="agendador-btn-edit" onclick="editProc('${p._docId}')">✏ Editar</button>
+                <td style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                  ${p.status === 'a_retirar' ? `<button class="agendador-btn-retirada" onclick="confirmarRetiradaAgendador('${p._docId}')">📦 Confirmar Retirada</button>` : `<button class="agendador-btn-edit" onclick="editProc('${p._docId}')">✏ Editar</button>`}
                   <button class="agendador-btn-del" onclick="deleteProc('${p._docId}')">🗑</button>
                 </td>
               </tr>`).join('')
             }</tbody></table>`;
+      };
+
+      window.confirmarRetiradaAgendador = async function(docId) {
+        const proc = (window.procedimentos||[]).find(p => p._docId === docId);
+        if (!proc) return;
+        const nome = proc.paciente || proc.hospital || 'este registro';
+        const ov = document.createElement('div');
+        ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(3px);';
+        ov.innerHTML = `<div style="background:var(--surface,#fff);border:1px solid var(--border);border-top:3px solid #059669;border-radius:18px;padding:28px 24px;max-width:360px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3);font-family:'Inter',sans-serif;">
+          <div style="font-size:2rem;text-align:center;margin-bottom:10px;">📦</div>
+          <div style="font-weight:700;font-size:1rem;color:#111;text-align:center;margin-bottom:6px;">Confirmar Retirada?</div>
+          <div style="color:#666;font-size:0.83rem;text-align:center;margin-bottom:22px;font-family:var(--mono);">${nome}</div>
+          <div style="display:flex;gap:10px;">
+            <button id="btnCancelRet" style="flex:1;padding:11px;border-radius:10px;border:1px solid var(--border);background:transparent;color:#555;font-family:var(--mono);font-size:0.8rem;font-weight:700;cursor:pointer;">Cancelar</button>
+            <button id="btnConfirmRet" style="flex:1;padding:11px;border-radius:10px;border:none;background:#059669;color:#fff;font-family:var(--mono);font-size:0.8rem;font-weight:700;cursor:pointer;">✓ Confirmar</button>
+          </div>
+        </div>`;
+        document.body.appendChild(ov);
+        ov.querySelector('#btnCancelRet').onclick = () => ov.remove();
+        ov.onclick = e => { if (e.target === ov) ov.remove(); };
+        ov.querySelector('#btnConfirmRet').onclick = async () => {
+          ov.remove();
+          const idx = window.procedimentos.findIndex(p => p._docId === docId);
+          if (idx !== -1) window.procedimentos[idx].status = 'concluido';
+          window.renderAgendadorLista();
+          const { doc: docFn, setDoc: sd } = window._fbModules;
+          try { await sd(docFn(window._fbDb, window._fbColl, docId), { ...window.procedimentos[idx] }); }
+          catch(e) { alert('Erro ao confirmar: ' + e.message); }
+        };
       };
 
       // Retry renderAgendadorLista após login para garantir que dados do Firestore já chegaram
@@ -401,6 +550,7 @@
             dados.forEach(p => {
               const prev = window._notifStatusAnterior[p._docId];
               if (prev !== undefined && prev !== p.status) notificarMudancaStatus(p, prev);
+              else if (prev === undefined) notificarNovaCirurgia(p);
               window._notifStatusAnterior[p._docId] = p.status;
             });
             const ids = new Set(dados.map(p => p._docId));
@@ -459,6 +609,7 @@
               window.updatePeriodResult();
               window.updateAlerts();
               window.showSyncToast('🔄 Sincronizado');
+              if (!window._resumoInicialMostrado) mostrarResumoInicial();
             } catch(e) { console.error('Erro ao aplicar dados:', e); }
           }
           aplicar();
@@ -4707,6 +4858,7 @@
         <button class="view-tab active" id="tab-table" onclick="switchView('table')">🏥 Central Cirúrgica</button>
         <button class="view-tab" id="tab-dashboard" onclick="switchView('dashboard')">📊 Dashboard</button>
         <button class="view-tab" id="tab-coleta" onclick="switchView('coleta')" style="color:#818cf8;border-color:rgba(99,102,241,0.5);">✈️ Coleta Prioritária</button>
+        <button class="view-tab" id="tab-semana" onclick="switchView('semana')" style="color:#06b6d4;border-color:rgba(6,182,212,0.5);">📅 Semana</button>
         <button class="view-tab" id="tab-opme" onclick="window.open('fichas-opme.html','_blank')" style="color:#f59e0b;border-color:rgba(245,158,11,0.5);">📋 Fichas OPME</button>
         <button id="btn-toggle-ocultos" onclick="toggleOcultos()" style="margin-left:auto;padding:7px 14px;background:rgba(107,114,128,0.12);border:1.5px solid rgba(107,114,128,0.35);color:#6b7280;border-radius:8px;cursor:pointer;font-family:var(--mono);font-size:0.75rem;font-weight:700;letter-spacing:0.05em;transition:all 0.2s;" title="Mostrar/ocultar Concluídos e Cancelados">👁 Ocultos</button>
     </div>
@@ -19992,5 +20144,91 @@ else init();
         +
     </button>
 </div>
+
+<!-- CALENDÁRIO SEMANAL -->
+<div id="semana-view" style="display:none;padding:24px 0 60px;"></div>
+
+<style>
+.sem-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:10px; margin-top:16px; }
+@media(max-width:700px){ .sem-grid { grid-template-columns:repeat(2,1fr); } }
+.sem-col { background:var(--surface); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
+.sem-col-head { padding:10px 12px; font-family:var(--mono); font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; border-bottom:1px solid var(--border); }
+.sem-col-head.hoje { background:rgba(5,150,105,0.12); color:#059669; border-bottom-color:rgba(5,150,105,0.3); }
+.sem-col-head.passado { color:var(--text-dim); }
+.sem-item { padding:8px 10px; border-bottom:1px solid var(--border2,rgba(0,0,0,0.05)); font-size:0.78rem; }
+.sem-item:last-child { border-bottom:none; }
+.sem-item-pac { font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sem-item-hosp { font-family:var(--mono); font-size:0.68rem; color:var(--text-dim); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sem-pill { display:inline-block; padding:2px 7px; border-radius:99px; font-family:var(--mono); font-size:0.62rem; font-weight:700; margin-top:3px; }
+.sem-empty { padding:16px 10px; text-align:center; font-family:var(--mono); font-size:0.68rem; color:var(--text-dim); opacity:0.5; }
+.sem-nav { display:flex; align-items:center; gap:12px; margin-bottom:4px; }
+.sem-nav button { padding:6px 14px; border-radius:8px; border:1px solid var(--border); background:transparent; color:var(--text-dim); font-family:var(--mono); font-size:0.75rem; font-weight:700; cursor:pointer; }
+.sem-nav button:hover { background:rgba(0,0,0,0.05); }
+.sem-nav .sem-label { font-family:var(--mono); font-size:0.78rem; font-weight:700; color:var(--text); }
+</style>
+
+<script>
+(function(){
+const statusColors = { a_agendar:'#06b6d4', agendado:'#4db87a', preparacao:'#d4920a', em_transito:'#6366f1', andamento:'#d94f4f', a_retirar:'#f97316', concluido:'#64748b', cancelado:'#f87171', reagendado:'#a78bfa', urgencia:'#ef4444' };
+const statusLabels = { a_agendar:'Autorizado', agendado:'Agendado', preparacao:'Em Separação', em_transito:'Em Trânsito', andamento:'Em Procedimento', a_retirar:'Aguard. Retirada', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', urgencia:'Urgência' };
+let _semOffset = 0;
+
+function getSegunda(offset) {
+    const d = new Date(); d.setHours(0,0,0,0);
+    const day = d.getDay(); const diff = (day === 0 ? -6 : 1 - day);
+    d.setDate(d.getDate() + diff + offset * 7);
+    return d;
+}
+function fmtDate(d) { return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function fmtLabel(d) { return d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'}); }
+
+window.renderCalendarioSemanal = function() {
+    const el = document.getElementById('semana-view');
+    if (!el) return;
+    const hoje = fmtDate(new Date());
+    const seg = getSegunda(_semOffset);
+    const dias = Array.from({length:7}, (_,i) => { const d = new Date(seg); d.setDate(d.getDate()+i); return d; });
+    const procs = (window.procedimentos||[]);
+    const diasLabel = dias.map(d => { const s = fmtDate(d); const isHoje = s===hoje; const isPast = s<hoje; return `<div class="sem-col">
+        <div class="sem-col-head ${isHoje?'hoje':isPast?'passado':''}">${fmtLabel(d)}${isHoje?' · HOJE':''}</div>
+        ${procs.filter(p=>p.data===s).length === 0
+            ? '<div class="sem-empty">—</div>'
+            : procs.filter(p=>p.data===s).map(p=>`<div class="sem-item" title="${p.paciente||''} · ${p.hospital||''}">
+                <div class="sem-item-pac">${p.paciente||'-'}</div>
+                <div class="sem-item-hosp">${p.hospital||'-'}</div>
+                <span class="sem-pill" style="background:${statusColors[p.status]||'#888'}22;color:${statusColors[p.status]||'#888'};border:1px solid ${statusColors[p.status]||'#888'}44;">${statusLabels[p.status]||p.status}</span>
+              </div>`).join('')}
+    </div>`; }).join('');
+    const semInicio = dias[0].toLocaleDateString('pt-BR',{day:'2-digit',month:'short'});
+    const semFim    = dias[6].toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'});
+    el.innerHTML = `<div class="sem-nav">
+        <button onclick="window._semNavegar(-1)">← Anterior</button>
+        <span class="sem-label">${semInicio} — ${semFim}</span>
+        <button onclick="window._semNavegar(1)">Próxima →</button>
+        ${_semOffset!==0?`<button onclick="window._semNavegar(0,true)" style="color:#059669;border-color:rgba(5,150,105,0.4);">Hoje</button>`:''}
+    </div>
+    <div class="sem-grid">${diasLabel}</div>`;
+};
+window._semNavegar = function(dir, reset) { _semOffset = reset ? 0 : _semOffset + dir; window.renderCalendarioSemanal(); };
+
+const _origSwitch = window.switchView;
+window.switchView = function(v) {
+    const isSemana = v === 'semana';
+    if (_origSwitch) _origSwitch.apply(this, arguments);
+    const semEl = document.getElementById('semana-view');
+    const tabSemana = document.getElementById('tab-semana');
+    if (semEl) semEl.style.display = isSemana ? '' : 'none';
+    if (tabSemana) tabSemana.classList.toggle('active', isSemana);
+    if (isSemana) window.renderCalendarioSemanal();
+};
+
+const _origRenderCards = window.renderCards;
+window.renderCards = function() {
+    if (typeof _origRenderCards === 'function') _origRenderCards.apply(this, arguments);
+    if (document.getElementById('semana-view') && document.getElementById('semana-view').style.display !== 'none')
+        window.renderCalendarioSemanal();
+};
+})();
+</script>
 </body>
 </html>
