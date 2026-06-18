@@ -16688,9 +16688,7 @@ window.exportarColetasExcel = function() {
 
     // Gerar CSV com BOM para Excel reconhecer UTF-8
     const cols = Object.keys(rows[0]);
-    const csv = '﻿' + cols.join(';') + '
-' + rows.map(r => cols.map(c => `"${(r[c]||'').replace(/"/g,'""')}"`).join(';')).join('
-');
+    const csv = '﻿' + [cols.join(';'), ...rows.map(r => cols.map(c => `"${(r[c]||'').replace(/"/g,'""')}"`).join(';'))].join('\r\n');
     const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -17277,7 +17275,7 @@ window.executarPesquisaGlobal = function(q) {
         const titulo = isColeta ? (p.coletaFornecedor||'Coleta') : (p.paciente||'—');
         const sub = isColeta ? (p.coletaTransportadora||p.nfCompra||'') : (p.hospital||'');
         const st = labelSt[p.status]||p.status;
-        return `<div onclick="$('modal-pesquisa-global').remove();window.switchView&&window.switchView(${isColeta?''coleta'':''table''});setTimeout(()=>{const el=document.querySelector('[data-id=\'${id}\']');if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.style.outline='2px solid #6366f1';setTimeout(()=>el.style.outline='',2000);}},300);"
+        return `<div onclick="$('modal-pesquisa-global').remove();window.switchView&&window.switchView('${isColeta ? 'coleta' : 'table'}');setTimeout(()=>{const el=document.querySelector('[data-id=\\'${id}\\']');if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.style.outline='2px solid #6366f1';setTimeout(()=>el.style.outline='',2000);}},300);"
             style="padding:10px 0;border-bottom:1px solid var(--border,#f3f4f6);cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;">
             <div style="flex:1;min-width:0;">
                 <div style="font-family:var(--mono);font-size:0.82rem;font-weight:700;color:var(--text,#111);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${titulo}</div>
