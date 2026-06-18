@@ -186,14 +186,15 @@ tbody tr:hover .row-acts{opacity:1}
 .uzone-pv .uzone-label{color:var(--s1-c)}
 .uzone-title{font-family:var(--display);font-size:0.75rem;font-weight:600;color:var(--text2);margin-bottom:2px}
 .uzone-sub{font-size:0.62rem;color:var(--text3)}
-.uzone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
-.file-preview{display:none;align-items:center;gap:6px;margin-top:6px;padding:5px 8px;border-radius:6px;background:rgba(255,255,255,0.7);border:1px solid var(--border)}
+.uzone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:1}
+.uzone-icon,.uzone-label,.uzone-title,.uzone-sub{position:relative;z-index:0;pointer-events:none}
+.file-preview{display:none;align-items:center;gap:6px;margin-top:6px;padding:5px 8px;border-radius:6px;background:rgba(255,255,255,0.7);border:1px solid var(--border);position:relative;z-index:2}
 .file-preview.show{display:flex}
 .fp-name{font-size:0.65rem;font-weight:500;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fp-size{font-family:var(--mono);font-size:0.6rem;color:var(--text3);flex-shrink:0}
 .fp-remove{background:none;border:none;cursor:pointer;color:var(--text3);font-size:0.78rem;padding:0 2px;transition:color 0.12s;flex-shrink:0}
 .fp-remove:hover{color:#ef4444}
-.import-badge{display:none;align-items:center;gap:5px;padding:3px 8px;border-radius:6px;background:rgba(26,122,74,0.1);border:1px solid rgba(26,122,74,0.2);color:var(--accent);font-family:var(--mono);font-size:0.6rem;font-weight:600;margin-top:4px}
+.import-badge{display:none;align-items:center;gap:5px;padding:3px 8px;border-radius:6px;background:rgba(26,122,74,0.1);border:1px solid rgba(26,122,74,0.2);color:var(--accent);font-family:var(--mono);font-size:0.6rem;font-weight:600;margin-top:4px;position:relative;z-index:2}
 .import-badge.show{display:inline-flex}
 .itens-section{margin-bottom:14px}
 .itens-hdr{font-family:var(--mono);font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center}
@@ -994,22 +995,34 @@ function renderHistoricoStatus(f) {
     }).join('');
 }
 
+function formErro(msg, fieldId) {
+  toast(msg, 'err');
+  const el = fieldId ? document.getElementById(fieldId) : null;
+  if (el) {
+    el.focus();
+    el.style.borderColor = '#ef4444';
+    setTimeout(() => { el.style.borderColor = ''; }, 1600);
+  }
+}
+
 window.salvarFicha = async () => {
   const pac  = document.getElementById('f-pac').value.trim();
   const med  = document.getElementById('f-med').value.trim();
   const proc = document.getElementById('f-proc').value.trim();
-  if (!pac)  { alert('Informe o paciente.'); return; }
-  if (!med)  { alert('Informe o médico.'); return; }
-  if (!proc) { alert('Informe o procedimento.'); return; }
+  if (!pac)  { formErro('Informe o paciente.', 'f-pac'); return; }
+  if (!med)  { formErro('Informe o médico.', 'f-med'); return; }
+  if (!proc) { formErro('Informe o procedimento.', 'f-proc'); return; }
   const numeroPedido = document.getElementById('f-pedido').value.trim();
   if (numeroPedido && fichas.some(f => f._id !== editingId && String(f.numeroPedido || '').trim() === numeroPedido)) {
-    alert('Já existe uma ficha com este Nº Pedido de Venda.');
+    formErro('Já existe uma ficha com este Nº Pedido de Venda.', 'f-pedido');
     return;
   }
   coletarItens();
+  const parcialSemDescricao = itens.find(i => !(i.descricao||'').trim() && ((i.referencia||'').trim() || (i.lote||'').trim() || Number(i.precoUnit) > 0 || Number(i.qtd) > 1));
+  if (parcialSemDescricao) { formErro('Informe a descrição do item OPME preenchido.'); return; }
   const iv = itens.filter(i => i.descricao.trim());
-  if (!iv.length) { alert('Informe ao menos um item OPME.'); return; }
-  if (iv.some(i => (Number(i.qtd)||0) <= 0)) { alert('Todos os itens precisam ter quantidade maior que zero.'); return; }
+  if (!iv.length) { formErro('Informe ao menos um item OPME.'); return; }
+  if (iv.some(i => (Number(i.qtd)||0) <= 0)) { formErro('Todos os itens precisam ter quantidade maior que zero.'); return; }
   const total = iv.reduce((s,i) => s + (Number(i.precoUnit)||0)*(Number(i.qtd)||0), 0);
   const antiga = editingId ? fichas.find(f => f._id === editingId) : null;
   const novoStatus = parseInt(document.getElementById('f-status').value);
