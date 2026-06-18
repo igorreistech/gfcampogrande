@@ -1147,7 +1147,11 @@ function buildCardHTML(proc) {
         const agendarRetiradaBtn = (proc.status !== 'concluido' && proc.status !== 'cancelado' && proc.status !== 'a_retirar' && proc.status !== 'coleta_urgente')
             ? `<button class="btn-act agendar-retirada" onclick="agendarDataRetirada('${realIndex}')" title="Confirmar data de retirada">✅ Confirmar Retirada</button>` : '';
         const coletaConfRetiradaBtn = (_ehColeta(proc) && proc.status !== 'concluido' && proc.status !== 'cancelado')
-            ? `<button class="btn-act agendar-retirada" onclick="confirmarRetiradaVolumes('${realIndex}')" title="Confirmar se o material foi retirado">✅ Confirmar Retirada</button>` : '';
+            ? `<div class="coleta-retirada-inline" onclick="event.stopPropagation()">
+                <span class="coleta-label">Volume retirado?</span>
+                <button class="btn-act btn-retirou-sim" onclick="retiradaVolumesInline('${realIndex}','sim')" title="Marcar coleta como concluída">✅ Sim, retirou</button>
+                <button class="btn-act btn-retirou-nao" onclick="retiradaVolumesInline('${realIndex}','nao')" title="Manter coleta aguardando retirada">📦 Não retirou</button>
+              </div>` : '';
         const coletaInfoBtn = (_ehColeta(proc) && proc.status !== 'concluido' && proc.status !== 'cancelado')
             ? `<button class="btn-act" style="background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.5);color:#818cf8;font-weight:700;" onclick="abrirInfoVolumesUrgentes('${realIndex}')" title="Adicionar NF, CTE e data de retirada">✈️ Informações</button>` : '';
 
@@ -1251,11 +1255,11 @@ function buildCardHTML(proc) {
                 ${obsHTML}
             </div>
             ${buildObsInlineHTML(proc, realIndex)}
+            ${coletaConfRetiradaBtn}
             <div class="card-actions">
                 <button class="btn-act edit" onclick="editProc('${realIndex}')">✏ Editar</button>
                 ${agendarRetiradaBtn}
                 ${retirarConfBtn}
-                ${coletaConfRetiradaBtn}
                 ${retirarBtn}
                 ${coletaInfoBtn}
                 <button class="btn-act" style="background:rgba(42,159,191,0.1);border-color:var(--accent);color:var(--accent);" onclick="duplicarProc('${realIndex}')" title="Duplicar procedimento">⊕ Duplicar</button>
@@ -1840,6 +1844,28 @@ async function confirmarRetiradaVolumes(docId) {
             alert('Erro ao salvar: ' + e.message);
         }
     };
+}
+
+// ─── RETIRADA DE VOLUMES INLINE (botões SIM/NÃO direto no card) ───
+async function retiradaVolumesInline(docId, resposta) {
+    const proc = procedimentos.find(p => (p._docId || String(p.id)) === String(docId));
+    if (!proc) return;
+
+    if (resposta === 'sim') {
+        proc.status = 'concluido';
+        proc.dataRetirar = proc.dataRetirar || todayStr();
+    } else {
+        proc.status = 'a_retirar';
+    }
+
+    try {
+        await fbSaveProc(proc);
+        showSyncToast(resposta === 'sim' ? '✅ Volume retirado — Coleta concluída!' : '📦 Aguardando retirada');
+        renderCards();
+        updateStats();
+    } catch(e) {
+        alert('Erro ao salvar: ' + e.message);
+    }
 }
 
 function promptConfirmarRetirada(proc) {

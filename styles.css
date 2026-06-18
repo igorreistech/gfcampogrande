@@ -2631,6 +2631,33 @@
             .export-modal-box { width: calc(100% - 32px) !important; padding: 18px !important; max-height: 85vh; overflow-y: auto; }
         }
 
+        /* ─── BOTÕES INLINE RETIRADA DE VOLUMES ─── */
+        .coleta-retirada-inline {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            width: 100%;
+            padding: 10px 14px 6px;
+            background: rgba(99,102,241,0.06);
+            border-top: 1px solid rgba(99,102,241,0.18);
+            border-bottom: 1px solid rgba(99,102,241,0.18);
+        }
+        .coleta-retirada-inline .coleta-label {
+            width: 100%;
+            font-family: var(--mono);
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.10em;
+            color: #818cf8;
+            text-transform: uppercase;
+            text-align: center;
+            margin-bottom: 2px;
+        }
+        .btn-retirou-sim:hover  { background: rgba(99,102,241,0.30) !important; transform: translateY(-1px); box-shadow: 0 3px 10px rgba(99,102,241,0.25); }
+        .btn-retirou-nao:hover  { background: rgba(249,115,22,0.28) !important; transform: translateY(-1px); box-shadow: 0 3px 10px rgba(249,115,22,0.25); }
+        .btn-retirou-sim:active { transform: scale(0.97); }
+        .btn-retirou-nao:active { transform: scale(0.97); }
+
         /* ─── TELAS MUITO PEQUENAS (≤ 400px) ─── */
         @media (max-width: 400px) {
             .stats-bar { grid-template-columns: repeat(4, 1fr); gap: 3px; }
