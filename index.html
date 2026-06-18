@@ -7682,6 +7682,19 @@ async function conclude(docId) {
 
 // ── MODAL FICHA OPME PÓS-CONCLUSÃO ──
 window.abrirOpmePosConclusao = function(proc) {
+    const params = new URLSearchParams();
+    if (proc) {
+        if (proc.paciente) params.set('paciente', proc.paciente);
+        if (proc.medico) params.set('medico', proc.medico);
+        if (proc.hospital) params.set('hospital', proc.hospital);
+        if (proc.convenio || proc.plano) params.set('convenio', proc.convenio || proc.plano || '');
+        if (proc.procedimento) params.set('procedimento', proc.procedimento);
+        if (proc.data) params.set('data', proc.data);
+        if (proc._docId || proc.id) params.set('procId', proc._docId || proc.id);
+        if (proc.vendedor || proc.representante) params.set('representante', proc.vendedor || proc.representante || '');
+    }
+    window.open('fichas-opme.html?' + params.toString(), '_blank');
+    return;
     const antigo = document.getElementById('modal-opme-conclusao');
     if (antigo) antigo.remove();
 
@@ -17683,17 +17696,67 @@ window.buildCardHTML = function(proc) {
     const opme_gerados = new Set();
 
     // ── Coleção OPME no Firestore ──
-    const OPME_COLL = 'fichas_opme_cgr';
+    const OPME_COLL = 'fichas_opme';
+
+    function _opmeToFichaDoc(ficha) {
+        const dataISO = ficha.dataISO || (ficha.data ? ficha.data.split('/').reverse().join('-') : '');
+        return {
+            filial: 'CGR',
+            paciente: ficha.paciente || '',
+            medico: ficha.medico || '',
+            hospital: ficha.hospital || '',
+            cliente: ficha.convenio || ficha.hospital || '',
+            convenio: ficha.convenio || '',
+            representante: ficha.representante || '',
+            procedimento: ficha.procedimento || 'OPME',
+            numeroPedido: ficha.numeroPedido || '',
+            dataCirurgia: dataISO,
+            status: ficha.status ?? 0,
+            statusAtualizadoEm: ficha.statusAtualizadoEm || new Date().toISOString(),
+            statusHistorico: ficha.statusHistorico || [{de:null,para:ficha.status ?? 0,origem:'legado',por:'',em:new Date().toISOString()}],
+            observacoes: ficha.observacoes || '',
+            _procDocId: ficha._procDocId || '',
+            itens: (ficha.itens || []).map(it => ({
+                descricao: it.descricao || it.desc || '',
+                referencia: it.referencia || it.ref || '',
+                lote: it.lote || '',
+                qtd: it.qtd || it.qty || 1,
+                precoUnit: it.precoUnit || 0
+            })),
+            total: ficha.total || 0
+        };
+    }
+
+    function _opmeFromFichaDoc(data) {
+        const dataISO = data.dataISO || data.dataCirurgia || '';
+        return {
+            ...data,
+            paciente: data.paciente || '—',
+            medico: data.medico || '—',
+            hospital: data.hospital || '—',
+            convenio: data.convenio || '—',
+            representante: data.representante || '',
+            dataISO,
+            data: data.data || (dataISO ? dataISO.split('-').reverse().join('/') : ''),
+            itens: (data.itens || []).map(it => ({
+                desc: it.desc || it.descricao || '',
+                ref: it.ref || it.referencia || '',
+                lote: it.lote || '',
+                qty: it.qty || it.qtd || 1
+            }))
+        };
+    }
 
     // ── Salvar ficha no Firestore ──
     async function _opme_salvar(ficha) {
         try {
             const db = window._fbDb;
             const { collection, addDoc, setDoc, doc } = window._fbModules;
+            const docData = _opmeToFichaDoc(ficha);
             if (ficha._docId) {
-                await setDoc(doc(db, OPME_COLL, ficha._docId), ficha);
+                await setDoc(doc(db, OPME_COLL, ficha._docId), docData, { merge: true });
             } else {
-                const ref = await addDoc(collection(db, OPME_COLL), ficha);
+                const ref = await addDoc(collection(db, OPME_COLL), docData);
                 ficha._docId = ref.id;
             }
         } catch(e) { console.error('OPME salvar erro:', e); }
@@ -17718,7 +17781,7 @@ window.buildCardHTML = function(proc) {
             const snap = await getDocs(collection(db, OPME_COLL));
             if (snap.empty) return;
             snap.forEach(d => {
-                const data = { _docId: d.id, ...d.data() };
+                const data = _opmeFromFichaDoc({ _docId: d.id, ...d.data() });
                 opme_fichas.push(data);
                 if (data._procDocId) opme_gerados.add(data._procDocId);
             });
@@ -17954,6 +18017,8 @@ window.buildCardHTML = function(proc) {
             if (proc.convenio || proc.plano) p.set('convenio', proc.convenio || proc.plano || '');
             if (proc.procedimento) p.set('procedimento', proc.procedimento);
             if (proc.data)       p.set('data', proc.data);
+            if (proc._docId || proc.id) p.set('procId', proc._docId || proc.id);
+            if (proc.vendedor || proc.representante) p.set('representante', proc.vendedor || proc.representante || '');
         }
         window.open('fichas-opme.html?' + p.toString(), '_blank'); return;
         if (!proc) { window.showSyncToast && window.showSyncToast('⚠️ Dados do procedimento não encontrados.'); return; }
@@ -18350,7 +18415,7 @@ window.buildCardHTML = function(proc) {
         // Reindexar IDs
         opme_fichas.forEach((f, i) => { f.id = i + 1; });
         opme_gerados.clear();
-        opme_fichas.forEach(f => opme_gerados.add(f._docId));
+        opme_fichas.forEach(f => { if (f._procDocId) opme_gerados.add(f._procDocId); });
         _opmeRenderFichas();
     };
 

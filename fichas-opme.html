@@ -207,6 +207,27 @@ tbody tr:hover .row-acts{opacity:1}
 .total-row{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:8px 0 0;border-top:1px solid var(--border);margin-top:5px}
 .total-lbl{font-family:var(--mono);font-size:0.65rem;color:var(--text3)}
 .total-val{font-family:var(--display);font-size:1.1rem;font-weight:700;color:var(--accent)}
+.review-card{display:none;margin:0 0 14px;padding:12px;border:1px solid rgba(42,159,191,0.25);border-radius:var(--radius);background:rgba(42,159,191,0.06)}
+.review-card.show{display:block}
+.review-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.review-title{font-family:var(--display);font-size:0.8rem;font-weight:700;color:var(--text)}
+.review-sub{font-size:0.68rem;color:var(--text3);margin-bottom:8px}
+.review-grid{display:grid;grid-template-columns:0.75fr 1fr 1fr;gap:1px;background:var(--border);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.review-grid>div{background:var(--surface);padding:6px 8px;font-size:0.68rem;color:var(--text2)}
+.review-grid .rh{font-family:var(--mono);font-size:0.56rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);background:var(--surface2);font-weight:700}
+.review-actions{display:flex;gap:6px;justify-content:flex-end;margin-top:10px}
+.hist-card{display:none;margin:0 0 14px;padding:10px 12px;border:1px dashed var(--border2);border-radius:var(--radius);background:rgba(26,122,74,0.035)}
+.hist-card.show{display:block}
+.hist-title{font-family:var(--mono);font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:7px}
+.hist-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid rgba(26,122,74,0.10);font-size:0.68rem;color:var(--text2)}
+.hist-row:first-of-type{border-top:none}
+.hist-time{margin-left:auto;font-family:var(--mono);font-size:0.58rem;color:var(--text3);white-space:nowrap}
+.opme-alert-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.opme-alert{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:11px 13px;box-shadow:var(--shadow)}
+.opme-alert.warn{border-color:rgba(249,115,22,0.35);background:rgba(249,115,22,0.05)}
+.opme-alert strong{display:block;font-family:var(--display);font-size:1.2rem;color:var(--text);line-height:1}
+.opme-alert span{display:block;font-family:var(--mono);font-size:0.57rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:4px}
+.opme-alert small{display:block;font-size:0.65rem;color:var(--text3);margin-top:3px}
 .toasts{position:fixed;bottom:18px;right:18px;z-index:400;display:flex;flex-direction:column;gap:6px}
 .toast{display:flex;align-items:center;gap:8px;padding:9px 14px;color:white;border-radius:var(--radius);font-size:0.75rem;font-weight:500;box-shadow:var(--shadow-md);animation:tIn 0.2s ease;min-width:210px}
 .t-ok{background:var(--accent)}.t-err{background:#ef4444}.t-info{background:var(--accent2)}
@@ -233,8 +254,8 @@ tbody tr:hover .row-acts{opacity:1}
 .empty-col{text-align:center;padding:30px 10px;font-family:var(--mono);font-size:0.7rem;color:var(--text3)}
 .empty-page{text-align:center;padding:60px 20px;font-family:var(--mono);font-size:0.82rem;color:var(--text3)}
 @media(max-width:1100px){.kanban-board{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:860px){.stats-bar{grid-template-columns:repeat(3,1fr)}.dash-grid{grid-template-columns:1fr}}
-@media(max-width:680px){.sidebar{transform:translateX(-100%)}.main{margin-left:0}}
+@media(max-width:860px){.stats-bar{grid-template-columns:repeat(3,1fr)}.dash-grid{grid-template-columns:1fr}.opme-alert-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:680px){.sidebar{transform:translateX(-100%)}.main{margin-left:0}.opme-alert-grid{grid-template-columns:1fr}.review-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -347,10 +368,22 @@ tbody tr:hover .row-acts{opacity:1}
           <input type="file" id="pv-input" accept=".pdf" onchange="selecionarPV(this)">
           <div class="uzone-icon">🧾</div>
           <div class="uzone-label">Pedido de Venda (C160)</div>
-          <div class="uzone-title">Importar PV · auto-preenche</div>
-          <div class="uzone-sub">PDF · extrai todos os campos</div>
+          <div class="uzone-title">Importar PV · revisar dados</div>
+          <div class="uzone-sub">PDF · extrai campos para conferência</div>
           <div class="file-preview" id="fp-pv"><span class="fp-name" id="fp-pv-n"></span><span class="fp-size" id="fp-pv-s"></span><button class="fp-remove" onclick="removerArq(event,'pv')">✕</button></div>
           <div class="import-badge" id="import-badge">✅ Dados importados do C160</div>
+        </div>
+      </div>
+      <div class="review-card" id="c160-review">
+        <div class="review-head">
+          <div class="review-title">🔎 Revisar dados importados do C160</div>
+          <button class="mclose" onclick="descartarC160()" title="Descartar importação">✕</button>
+        </div>
+        <div class="review-sub">Confira os campos extraídos antes de aplicar no formulário.</div>
+        <div class="review-grid" id="c160-review-grid"></div>
+        <div class="review-actions">
+          <button class="tbtn tbtn-g" onclick="descartarC160()">Ignorar</button>
+          <button class="tbtn tbtn-p" onclick="aplicarC160()">Aplicar dados</button>
         </div>
       </div>
       <div class="frow">
@@ -367,7 +400,7 @@ tbody tr:hover .row-acts{opacity:1}
       </div>
       <div class="frow">
         <div class="fg"><label class="flbl">Nº Pedido de Venda</label><input class="finput" id="f-pedido" placeholder="Ex: 4795"></div>
-        <div class="fg"></div>
+        <div class="fg"><label class="flbl">Representante / Técnico</label><input class="finput" id="f-rep" placeholder="Responsável pelo lançamento"></div>
       </div>
       <div class="frow">
         <div class="fg"><label class="flbl">Data da Cirurgia</label><input class="finput" type="date" id="f-data"></div>
@@ -381,6 +414,10 @@ tbody tr:hover .row-acts{opacity:1}
             <option value="5">🟢 Faturado</option>
           </select>
         </div>
+      </div>
+      <div class="hist-card" id="hist-status-card">
+        <div class="hist-title">Histórico de status</div>
+        <div id="hist-status-list"></div>
       </div>
       <div class="itens-section">
         <div class="itens-hdr">
@@ -416,7 +453,7 @@ tbody tr:hover .row-acts{opacity:1}
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, collection, addDoc, setDoc, doc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp, getDocs } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getFirestore, collection, addDoc, setDoc, doc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp, getDocs, arrayUnion } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
 
 const firebaseConfig = {
@@ -450,6 +487,7 @@ const STATUS = [
 let fichas=[], curView='lista', curFilter=-1, editingId=null, itens=[];
 let _medicos=[], _hospitais=[];
 let _arquivoOpme=null, _arquivoPv=null;
+let _c160Pendente=null;
 
 // AUTH
 onAuthStateChanged(auth, u => {
@@ -540,7 +578,15 @@ window.excluirFicha = async id => {
 };
 
 window.mudStatus = async (id, s) => {
-  await setDoc(doc(db, COLL, id), {status:s, atualizadoEm:serverTimestamp()}, {merge:true});
+  const f = fichas.find(x => x._id === id);
+  const de = f?.status ?? 0;
+  if (de === s) return;
+  await setDoc(doc(db, COLL, id), {
+    status:s,
+    statusAtualizadoEm:new Date().toISOString(),
+    statusHistorico:arrayUnion(novoHistoricoStatus(de, s, 'fluxo')),
+    atualizadoEm:serverTimestamp()
+  }, {merge:true});
 };
 
 // VIEWS
@@ -591,6 +637,22 @@ function atualizarBadges() {
     const el = document.getElementById('nb'+i);
     if (el) el.textContent = fichas.filter(f=>(f.status??0)===i).length;
   });
+}
+
+function novoHistoricoStatus(de, para, origem='formulario') {
+  return {
+    de,
+    para,
+    origem,
+    por: auth.currentUser?.email || '',
+    em: new Date().toISOString()
+  };
+}
+
+function formatarDataHora(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('pt-BR');
 }
 
 // LISTA
@@ -735,6 +797,18 @@ function renderDashboard() {
   const valorTotal = fichas.reduce((a,f) => a+(Number(f.total)||0), 0);
   const mx = Math.max(...totais, 1);
   const agora = Date.now();
+  const diasStatus = f => {
+    const base = f.statusAtualizadoEm ? new Date(f.statusAtualizadoEm).getTime()
+      : f.atualizadoEm?.seconds ? f.atualizadoEm.seconds * 1000
+      : f.criadoEm?.seconds ? f.criadoEm.seconds * 1000
+      : agora;
+    return Math.max(0, Math.floor((agora - base) / 86400000));
+  };
+  const pendentes = fichas.filter(f => (f.status ?? 0) < 5);
+  const aguardFat = fichas.filter(f => (f.status ?? 0) === 4);
+  const semPv = fichas.filter(f => !(f.numeroPedido || '').trim());
+  const valorPendente = pendentes.reduce((a,f) => a+(Number(f.total)||0), 0);
+  const maisParada = pendentes.reduce((acc,f) => Math.max(acc, diasStatus(f)), 0);
 
   function tempoRelativo(seg) {
     if (!seg) return 'agora';
@@ -763,6 +837,12 @@ function renderDashboard() {
         <div class="stat-val">${totais[i]}</div>
         <div class="stat-sub">${total?Math.round(totais[i]/total*100):0}% do total</div>
       </div>`).join('')}
+    </div>
+    <div class="opme-alert-grid">
+      <div class="opme-alert warn"><span>Maior tempo parado</span><strong>${maisParada}d</strong><small>entre fichas não faturadas</small></div>
+      <div class="opme-alert"><span>Valor pendente</span><strong>${fV(valorPendente)}</strong><small>${pendentes.length} ficha${pendentes.length!==1?'s':''} em aberto</small></div>
+      <div class="opme-alert warn"><span>Aguard. faturamento</span><strong>${aguardFat.length}</strong><small>${fV(aguardFat.reduce((a,f)=>a+(Number(f.total)||0),0))}</small></div>
+      <div class="opme-alert${semPv.length?' warn':''}"><span>Sem nº PV</span><strong>${semPv.length}</strong><small>precisam conferência</small></div>
     </div>
     <div class="dash-grid">
       <div class="dcard">
@@ -835,6 +915,8 @@ window.abrirModal = id => {
     document.getElementById('zone-'+t).classList.remove('has-file');
   });
   document.getElementById('import-badge').classList.remove('show');
+  document.getElementById('c160-review').classList.remove('show');
+  _c160Pendente = null;
   document.getElementById('pv-input').value = '';
 
   if (id) {
@@ -848,10 +930,12 @@ window.abrirModal = id => {
     document.getElementById('f-cliente').value = f.cliente||'';
     document.getElementById('f-conv').value   = f.convenio||'';
     document.getElementById('f-pedido').value = f.numeroPedido||'';
+    document.getElementById('f-rep').value    = f.representante||'';
     document.getElementById('f-data').value   = f.dataCirurgia||'';
     document.getElementById('f-status').value = f.status??0;
     document.getElementById('f-obs').value    = f.observacoes||'';
     itens = (f.itens||[]).map(i => ({...i}));
+    renderHistoricoStatus(f);
     if (f.opmeAnexoUrl || f.opmeAnexoNome) {
       document.getElementById('fp-opme-n').textContent = f.opmeAnexoNome || 'Ficha OPME';
       document.getElementById('fp-opme-s').textContent = f.opmeAnexoUrl ? 'Salvo no banco' : '';
@@ -874,10 +958,12 @@ window.abrirModal = id => {
     document.getElementById('f-hosp').value   = up.get('hospital')    || '';
     document.getElementById('f-conv').value   = up.get('convenio')    || '';
     document.getElementById('f-pedido').value = '';
+    document.getElementById('f-rep').value    = up.get('representante') || up.get('vendedor') || '';
     document.getElementById('f-data').value   = up.get('data')        || '';
     document.getElementById('f-obs').value    = '';
     document.getElementById('f-status').value = 0;
     itens = [{descricao:'',referencia:'',lote:'',qtd:1,precoUnit:0}];
+    renderHistoricoStatus(null);
   }
   renderItens();
   document.getElementById('modal').classList.add('open');
@@ -888,24 +974,62 @@ window.fecharModal = () => {
   editingId = null;
 };
 
+function renderHistoricoStatus(f) {
+  const card = document.getElementById('hist-status-card');
+  const list = document.getElementById('hist-status-list');
+  const hist = Array.isArray(f?.statusHistorico) ? [...f.statusHistorico] : [];
+  if (!hist.length) {
+    card.classList.remove('show');
+    list.innerHTML = '';
+    return;
+  }
+  card.classList.add('show');
+  list.innerHTML = hist
+    .sort((a,b) => String(b.em||'').localeCompare(String(a.em||'')))
+    .map(h => {
+      const de = STATUS[h.de]?.label || 'Inicial';
+      const para = STATUS[h.para]?.label || '—';
+      const por = h.por ? ` · ${esc(h.por)}` : '';
+      return `<div class="hist-row"><span>${esc(de)} → <strong>${esc(para)}</strong>${por}</span><span class="hist-time">${formatarDataHora(h.em)}</span></div>`;
+    }).join('');
+}
+
 window.salvarFicha = async () => {
   const pac  = document.getElementById('f-pac').value.trim();
   const med  = document.getElementById('f-med').value.trim();
   const proc = document.getElementById('f-proc').value.trim();
   if (!pac)  { alert('Informe o paciente.'); return; }
   if (!med)  { alert('Informe o médico.'); return; }
+  if (!proc) { alert('Informe o procedimento.'); return; }
+  const numeroPedido = document.getElementById('f-pedido').value.trim();
+  if (numeroPedido && fichas.some(f => f._id !== editingId && String(f.numeroPedido || '').trim() === numeroPedido)) {
+    alert('Já existe uma ficha com este Nº Pedido de Venda.');
+    return;
+  }
   coletarItens();
   const iv = itens.filter(i => i.descricao.trim());
+  if (!iv.length) { alert('Informe ao menos um item OPME.'); return; }
+  if (iv.some(i => (Number(i.qtd)||0) <= 0)) { alert('Todos os itens precisam ter quantidade maior que zero.'); return; }
   const total = iv.reduce((s,i) => s + (Number(i.precoUnit)||0)*(Number(i.qtd)||0), 0);
+  const antiga = editingId ? fichas.find(f => f._id === editingId) : null;
+  const novoStatus = parseInt(document.getElementById('f-status').value);
+  const historico = Array.isArray(antiga?.statusHistorico) ? [...antiga.statusHistorico] : [];
+  const statusMudou = !antiga || (antiga.status ?? 0) !== novoStatus;
+  if (statusMudou) historico.push(novoHistoricoStatus(antiga ? (antiga.status ?? 0) : null, novoStatus, antiga ? 'formulario' : 'criacao'));
+  const up = new URLSearchParams(window.location.search);
   const dados = {
     paciente:pac, medico:med, procedimento:proc,
     hospital:     document.getElementById('f-hosp').value.trim(),
     cliente:      document.getElementById('f-cliente').value.trim() || document.getElementById('f-hosp').value.trim(),
     convenio:     document.getElementById('f-conv').value.trim(),
-    numeroPedido: document.getElementById('f-pedido').value.trim(),
+    numeroPedido,
+    representante:document.getElementById('f-rep').value.trim(),
     dataCirurgia: document.getElementById('f-data').value,
-    status:       parseInt(document.getElementById('f-status').value),
+    status:       novoStatus,
+    statusAtualizadoEm: statusMudou ? new Date().toISOString() : (antiga?.statusAtualizadoEm || new Date().toISOString()),
+    statusHistorico: historico,
     observacoes:  document.getElementById('f-obs').value.trim(),
+    _procDocId:   antiga?._procDocId || up.get('procId') || '',
     itens:iv, total
   };
   const btn = document.getElementById('btn-salvar');
@@ -963,6 +1087,7 @@ const fmt = b => b<1024*1024 ? (b/1024).toFixed(0)+' KB' : (b/1024/1024).toFixed
 
 window.selecionarArq = (input, tipo) => {
   const f = input.files[0]; if (!f) return;
+  if (!validarArquivo(tipo, f)) { input.value = ''; return; }
   if (tipo === 'opme') _arquivoOpme = f;
   if (tipo === 'pv') _arquivoPv = f;
   document.getElementById('fp-'+tipo+'-n').textContent = f.name;
@@ -970,6 +1095,16 @@ window.selecionarArq = (input, tipo) => {
   document.getElementById('fp-'+tipo).classList.add('show');
   document.getElementById('zone-'+tipo).classList.add('has-file');
 };
+
+function validarArquivo(tipo, file) {
+  const max = tipo === 'pv' ? 20 : 20;
+  const okTipo = tipo === 'pv'
+    ? file.type === 'application/pdf' || /\.pdf$/i.test(file.name)
+    : /^(application\/pdf|image\/jpeg|image\/png)$/.test(file.type) || /\.(pdf|jpe?g|png)$/i.test(file.name);
+  if (!okTipo) { toast('Formato inválido. Use PDF, JPG ou PNG conforme o anexo.','err'); return false; }
+  if (file.size > max*1024*1024) { toast(`Arquivo acima de ${max}MB.`, 'err'); return false; }
+  return true;
+}
 
 window.removerArq = (e, tipo) => {
   e.preventDefault(); e.stopPropagation();
@@ -986,6 +1121,7 @@ window.removerArq = (e, tipo) => {
 // C160 PDF
 window.selecionarPV = async input => {
   const file = input.files[0]; if (!file) return;
+  if (!validarArquivo('pv', file)) { input.value = ''; return; }
   _arquivoPv = file;
   document.getElementById('fp-pv-n').textContent = file.name;
   document.getElementById('fp-pv-s').textContent = fmt(file.size);
@@ -995,11 +1131,60 @@ window.selecionarPV = async input => {
   toast('Lendo PDF…','info');
   try {
     const dados = await extrairC160(file, file.name);
-    preencherDeC160(dados);
-    document.getElementById('import-badge').classList.add('show');
+    _c160Pendente = dados;
+    mostrarRevisaoC160(dados);
     const temPdf = !!(dados.medico || dados.hospital || dados.convenio);
-    toast(temPdf ? '✅ Dados importados do C160!' : '⚠️ Dados básicos extraídos do nome do arquivo.', temPdf ? 'ok' : 'info');
+    toast(temPdf ? 'Revise os dados extraídos do C160.' : 'Dados básicos extraídos do nome do arquivo.', temPdf ? 'ok' : 'info');
   } catch(e) { console.error(e); toast('Não foi possível extrair os dados.','err'); }
+};
+
+function snapshotFormulario() {
+  return {
+    paciente: document.getElementById('f-pac').value.trim(),
+    medico: document.getElementById('f-med').value.trim(),
+    hospital: document.getElementById('f-hosp').value.trim(),
+    convenio: document.getElementById('f-conv').value.trim(),
+    cliente: document.getElementById('f-cliente').value.trim(),
+    numeroPedido: document.getElementById('f-pedido').value.trim(),
+    dataCirurgia: document.getElementById('f-data').value,
+    itens: [...itens]
+  };
+}
+
+function mostrarRevisaoC160(dados) {
+  const atual = snapshotFormulario();
+  const campos = [
+    ['Paciente', 'paciente'],
+    ['Médico', 'medico'],
+    ['Hospital', 'hospital'],
+    ['Convênio', 'convenio'],
+    ['Cliente fat.', 'cliente'],
+    ['Nº PV', 'numeroPedido'],
+    ['Data cirurgia', 'dataCirurgia']
+  ];
+  const grid = document.getElementById('c160-review-grid');
+  grid.innerHTML = `<div class="rh">Campo</div><div class="rh">Atual</div><div class="rh">C160</div>` +
+    campos.map(([label,key]) => {
+      const extraido = key === 'cliente' ? (dados.convenio || '') : (dados[key] || '');
+      return `<div>${label}</div><div>${esc(atual[key] || '—')}</div><div>${esc(extraido || '—')}</div>`;
+    }).join('') +
+    `<div>Itens</div><div>${atual.itens.filter(i=>i.descricao).length || '—'}</div><div>${dados.itens?.length || '—'}</div>`;
+  document.getElementById('c160-review').classList.add('show');
+}
+
+window.aplicarC160 = () => {
+  if (!_c160Pendente) return;
+  preencherDeC160(_c160Pendente);
+  document.getElementById('c160-review').classList.remove('show');
+  document.getElementById('import-badge').classList.add('show');
+  _c160Pendente = null;
+  toast('Dados do C160 aplicados ao formulário.', 'ok');
+};
+
+window.descartarC160 = () => {
+  _c160Pendente = null;
+  document.getElementById('c160-review').classList.remove('show');
+  document.getElementById('import-badge').classList.remove('show');
 };
 
 async function extrairC160(file, filename) {
