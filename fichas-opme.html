@@ -1142,6 +1142,7 @@ function snapshotFormulario() {
   return {
     paciente: document.getElementById('f-pac').value.trim(),
     medico: document.getElementById('f-med').value.trim(),
+    procedimento: document.getElementById('f-proc').value.trim(),
     hospital: document.getElementById('f-hosp').value.trim(),
     convenio: document.getElementById('f-conv').value.trim(),
     cliente: document.getElementById('f-cliente').value.trim(),
@@ -1156,6 +1157,7 @@ function mostrarRevisaoC160(dados) {
   const campos = [
     ['Paciente', 'paciente'],
     ['Médico', 'medico'],
+    ['Procedimento', 'procedimento'],
     ['Hospital', 'hospital'],
     ['Convênio', 'convenio'],
     ['Cliente fat.', 'cliente'],
