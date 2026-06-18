@@ -1646,6 +1646,8 @@ window.abrirOpmePosConclusao = function(proc) {
         if (proc.convenio || proc.plano) p.set('convenio', proc.convenio || proc.plano || '');
         if (proc.procedimento) p.set('procedimento', proc.procedimento);
         if (proc.data)         p.set('data', proc.data);
+        if (proc._docId || proc.id) p.set('procId', proc._docId || proc.id);
+        if (proc.vendedor || proc.representante) p.set('representante', proc.vendedor || proc.representante || '');
     }
     window.open('fichas-opme.html?' + p.toString(), '_blank');
 };
