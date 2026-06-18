@@ -1,8 +1,8 @@
 {
   "lang": "pt-BR",
-  "name": "Monitor Cirúrgico · Campo Grande",
-  "short_name": "Monitor CGR",
-  "description": "Acompanhamento cirúrgico em tempo real · Campo Grande, MS",
+  "name": "Monitor Cirúrgico GF Medical",
+  "short_name": "Monitor GF",
+  "description": "Acompanhamento cirúrgico em tempo real · Cuiabá e Campo Grande",
   "start_url": ".",
   "scope": "./",
   "display": "standalone",

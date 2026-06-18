@@ -1,6 +1,6 @@
-# Monitor Cirúrgico · GF Medical — Campo Grande, MS
+# Monitor Cirúrgico · GF Medical — Cuiabá e Campo Grande
 
-Monitor em tempo real de procedimentos cirúrgicos da unidade de Campo Grande, conectado ao Firebase (`gfcampogrande-3d886`).
+Monitor em tempo real de procedimentos cirúrgicos das filiais Cuiabá e Campo Grande, conectado ao Firebase (`gfcampogrande-3d886`).
 
 ## Estrutura
 
@@ -17,6 +17,7 @@ Monitor em tempo real de procedimentos cirúrgicos da unidade de Campo Grande, c
 
 - Autenticação via e-mail/senha e Google (Firebase Auth)
 - CRUD de procedimentos em tempo real (Firestore)
+- Filtro operacional por filial (Todas, Cuiabá e Campo Grande)
 - Notificações push de mudança de status
 - Visualização em cards, tabela e timeline
 - Exportação para Excel (XLSX)
@@ -29,6 +30,7 @@ Monitor em tempo real de procedimentos cirúrgicos da unidade de Campo Grande, c
 
 - **Projeto:** `gfcampogrande-3d886`
 - **Coleção:** `procedimentos_cg`
+- **Filial:** registros novos salvam `filial` (`cba`/`cgr`) e `cidade`; registros antigos sem filial são tratados como Campo Grande
 
 ## Deploy
 
