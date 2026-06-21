@@ -1147,7 +1147,11 @@ function buildCardHTML(proc) {
         const agendarRetiradaBtn = (proc.status !== 'concluido' && proc.status !== 'cancelado' && proc.status !== 'a_retirar' && proc.status !== 'coleta_urgente')
             ? `<button class="btn-act agendar-retirada" onclick="agendarDataRetirada('${realIndex}')" title="Confirmar data de retirada">✅ Confirmar Retirada</button>` : '';
         const coletaConfRetiradaBtn = (_ehColeta(proc) && proc.status !== 'concluido' && proc.status !== 'cancelado')
-            ? `<button class="btn-act agendar-retirada" onclick="confirmarRetiradaVolumes('${realIndex}')" title="Confirmar se o material foi retirado">✅ Confirmar Retirada</button>` : '';
+            ? `<div class="coleta-retirada-inline" onclick="event.stopPropagation()">
+                <span class="coleta-label">Volume retirado?</span>
+                <button class="btn-act btn-retirou-sim" onclick="retiradaVolumesInline('${realIndex}','sim')" title="Marcar coleta como concluída">✅ Sim, retirou</button>
+                <button class="btn-act btn-retirou-nao" onclick="retiradaVolumesInline('${realIndex}','nao')" title="Manter coleta aguardando retirada">📦 Não retirou</button>
+              </div>` : '';
         const coletaInfoBtn = (_ehColeta(proc) && proc.status !== 'concluido' && proc.status !== 'cancelado')
             ? `<button class="btn-act" style="background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.5);color:#818cf8;font-weight:700;" onclick="abrirInfoVolumesUrgentes('${realIndex}')" title="Adicionar NF, CTE e data de retirada">✈️ Informações</button>` : '';
 
@@ -1251,11 +1255,11 @@ function buildCardHTML(proc) {
                 ${obsHTML}
             </div>
             ${buildObsInlineHTML(proc, realIndex)}
+            ${coletaConfRetiradaBtn}
             <div class="card-actions">
                 <button class="btn-act edit" onclick="editProc('${realIndex}')">✏ Editar</button>
                 ${agendarRetiradaBtn}
                 ${retirarConfBtn}
-                ${coletaConfRetiradaBtn}
                 ${retirarBtn}
                 ${coletaInfoBtn}
                 <button class="btn-act" style="background:rgba(42,159,191,0.1);border-color:var(--accent);color:var(--accent);" onclick="duplicarProc('${realIndex}')" title="Duplicar procedimento">⊕ Duplicar</button>
@@ -1840,6 +1844,29 @@ async function confirmarRetiradaVolumes(docId) {
             alert('Erro ao salvar: ' + e.message);
         }
     };
+}
+
+// ─── RETIRADA DE VOLUMES INLINE (botões SIM/NÃO direto no card) ───
+async function retiradaVolumesInline(docId, resposta) {
+    const proc = procedimentos.find(p => (p._docId || String(p.id)) === String(docId));
+    if (!proc) return;
+
+    if (resposta === 'sim') {
+        proc.status = 'concluido';
+        proc.dataRetirar = proc.dataRetirar || todayStr();
+    } else {
+        proc.status = 'a_retirar';
+    }
+
+    try {
+        await fbSaveProc(proc);
+        showSyncToast(resposta === 'sim' ? '✅ Volume retirado — Coleta concluída!' : '📦 Aguardando retirada');
+        renderCards();
+        updateStats();
+        if (typeof renderColetaView === 'function') renderColetaView();
+    } catch(e) {
+        alert('Erro ao salvar: ' + e.message);
+    }
 }
 
 function promptConfirmarRetirada(proc) {
@@ -2715,6 +2742,12 @@ function renderColetaView() {
             const statusMap = {coleta_urgente:'✈️ Aguardando',concluido:'✔️ Concluído',cancelado:'❌ Cancelado',a_retirar:'📦 A Retirar'};
             const sLabel = statusMap[proc.status] || proc.status;
             const borderTop = vencida ? '#ff3333' : (ehHoje ? '#f97316' : '#6366f1');
+            const retiradaInlineHTML = proc.status !== 'concluido' && proc.status !== 'cancelado'
+                ? `<div class="coleta-retirada-inline" onclick="event.stopPropagation()" style="margin-top:10px;border-radius:10px;">
+                    <span class="coleta-label">Volume retirado?</span>
+                    <button class="btn-act btn-retirou-sim" onclick="retiradaVolumesInline('${realIndex}','sim')" title="Marcar coleta como concluída">✅ Sim, retirou</button>
+                    <button class="btn-act btn-retirou-nao" onclick="retiradaVolumesInline('${realIndex}','nao')" title="Manter coleta aguardando retirada">📦 Não retirou</button>
+                  </div>` : '';
             html += `<div style="background:var(--surface);border:1px solid var(--border);border-top:3px solid ${borderTop};border-radius:14px;padding:16px 18px;${vencida||ehHoje?'animation:cardPiscarColeta 0.8s ease-in-out infinite;':''}">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
                     <span style="font-family:var(--mono);font-size:0.78rem;font-weight:700;color:#818cf8;text-transform:uppercase;">✈️ Coleta Prioritária</span>
@@ -2736,11 +2769,11 @@ function renderColetaView() {
                     }
                 </div>` : ''}
                 ${proc._updatedAt ? `<div style="margin-top:6px;font-family:var(--mono);font-size:0.62rem;color:#9ca3af;letter-spacing:0.05em;">🕐 Atualizado: ${window._fmtUpdatedAt ? window._fmtUpdatedAt(proc._updatedAt) : ''}</div>` : ''}
+                ${retiradaInlineHTML}
                 <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
                     <button onclick="editProc('${realIndex}')" style="flex:1;padding:7px;border-radius:8px;background:transparent;border:1px solid var(--border);color:var(--text-dim);font-family:var(--mono);font-size:0.72rem;font-weight:700;cursor:pointer;">✏ Editar</button>
                     <button onclick="duplicarColeta('${realIndex}')" style="padding:7px 10px;border-radius:8px;background:rgba(42,159,191,0.1);border:1px solid rgba(42,159,191,0.35);color:#2a9fbf;font-family:var(--mono);font-size:0.72rem;font-weight:700;cursor:pointer;" title="Duplicar coleta">⊕</button>
-                    ${proc.status !== 'concluido' && proc.status !== 'cancelado' ? `<button onclick="abrirInfoVolumesUrgentes('${realIndex}')" style="flex:1;padding:7px;border-radius:8px;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.4);color:#818cf8;font-family:var(--mono);font-size:0.72rem;font-weight:700;cursor:pointer;">✈️ Infos</button>
-                    <button onclick="confirmarRetiradaVolumes('${realIndex}')" style="flex:1;padding:7px;border-radius:8px;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.4);color:#22c55e;font-family:var(--mono);font-size:0.72rem;font-weight:700;cursor:pointer;">✅ Concluir</button>` : ''}
+                    ${proc.status !== 'concluido' && proc.status !== 'cancelado' ? `<button onclick="abrirInfoVolumesUrgentes('${realIndex}')" style="flex:1;padding:7px;border-radius:8px;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.4);color:#818cf8;font-family:var(--mono);font-size:0.72rem;font-weight:700;cursor:pointer;">✈️ Infos</button>` : ''}
                     <button onclick="compartilharWhatsApp('${realIndex}')" style="padding:7px 10px;border-radius:8px;background:rgba(37,211,102,0.1);border:1px solid rgba(37,211,102,0.4);color:#25d366;font-family:var(--mono);font-size:0.72rem;font-weight:700;cursor:pointer;">📲</button>
                     <button onclick="deleteProc('${realIndex}')" style="padding:7px 10px;border-radius:8px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.35);color:#ef4444;font-family:var(--mono);font-size:0.72rem;font-weight:700;cursor:pointer;">✕</button>
                 </div>
