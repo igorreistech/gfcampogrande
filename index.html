@@ -4743,6 +4743,7 @@
         <button class="view-tab active" id="tab-table" onclick="switchView('table')">🏥 Central Cirúrgica</button>
         <button class="view-tab" id="tab-dashboard" onclick="switchView('dashboard')">📊 Dashboard</button>
         <button class="view-tab" id="tab-coleta" onclick="switchView('coleta')" style="color:#818cf8;border-color:rgba(99,102,241,0.5);">✈️ Coleta Prioritária</button>
+        <button class="view-tab" id="tab-semana" onclick="switchView('semana')" style="color:#06b6d4;border-color:rgba(6,182,212,0.5);">📅 Semana</button>
         <button class="view-tab" id="tab-opme" onclick="window.open('fichas-opme.html','_blank')" style="color:#f59e0b;border-color:rgba(245,158,11,0.5);">📋 Fichas OPME</button>
         <button id="btn-toggle-ocultos" onclick="toggleOcultos()" style="margin-left:auto;padding:7px 14px;background:rgba(107,114,128,0.12);border:1.5px solid rgba(107,114,128,0.35);color:#6b7280;border-radius:8px;cursor:pointer;font-family:var(--mono);font-size:0.75rem;font-weight:700;letter-spacing:0.05em;transition:all 0.2s;" title="Mostrar/ocultar Concluídos e Cancelados">👁 Ocultos</button>
     </div>
@@ -20092,5 +20093,91 @@ else init();
         +
     </button>
 </div>
+
+<!-- CALENDÁRIO SEMANAL -->
+<div id="semana-view" style="display:none;padding:24px 0 60px;"></div>
+
+<style>
+.sem-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:10px; margin-top:16px; }
+@media(max-width:700px){ .sem-grid { grid-template-columns:repeat(2,1fr); } }
+.sem-col { background:var(--surface); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
+.sem-col-head { padding:10px 12px; font-family:var(--mono); font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; border-bottom:1px solid var(--border); }
+.sem-col-head.hoje { background:rgba(5,150,105,0.12); color:#059669; border-bottom-color:rgba(5,150,105,0.3); }
+.sem-col-head.passado { color:var(--text-dim); }
+.sem-item { padding:8px 10px; border-bottom:1px solid var(--border2,rgba(0,0,0,0.05)); font-size:0.78rem; }
+.sem-item:last-child { border-bottom:none; }
+.sem-item-pac { font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sem-item-hosp { font-family:var(--mono); font-size:0.68rem; color:var(--text-dim); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sem-pill { display:inline-block; padding:2px 7px; border-radius:99px; font-family:var(--mono); font-size:0.62rem; font-weight:700; margin-top:3px; }
+.sem-empty { padding:16px 10px; text-align:center; font-family:var(--mono); font-size:0.68rem; color:var(--text-dim); opacity:0.5; }
+.sem-nav { display:flex; align-items:center; gap:12px; margin-bottom:4px; }
+.sem-nav button { padding:6px 14px; border-radius:8px; border:1px solid var(--border); background:transparent; color:var(--text-dim); font-family:var(--mono); font-size:0.75rem; font-weight:700; cursor:pointer; }
+.sem-nav button:hover { background:rgba(0,0,0,0.05); }
+.sem-nav .sem-label { font-family:var(--mono); font-size:0.78rem; font-weight:700; color:var(--text); }
+</style>
+
+<script>
+(function(){
+const statusColors = { a_agendar:'#06b6d4', agendado:'#4db87a', preparacao:'#d4920a', em_transito:'#6366f1', andamento:'#d94f4f', a_retirar:'#f97316', concluido:'#64748b', cancelado:'#f87171', reagendado:'#a78bfa', urgencia:'#ef4444' };
+const statusLabels = { a_agendar:'Autorizado', agendado:'Agendado', preparacao:'Em Separação', em_transito:'Em Trânsito', andamento:'Em Procedimento', a_retirar:'Aguard. Retirada', concluido:'Concluído', cancelado:'Cancelado', reagendado:'Reagendado', urgencia:'Urgência' };
+let _semOffset = 0;
+
+function getSegunda(offset) {
+    const d = new Date(); d.setHours(0,0,0,0);
+    const day = d.getDay(); const diff = (day === 0 ? -6 : 1 - day);
+    d.setDate(d.getDate() + diff + offset * 7);
+    return d;
+}
+function fmtDate(d) { return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function fmtLabel(d) { return d.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'}); }
+
+window.renderCalendarioSemanal = function() {
+    const el = document.getElementById('semana-view');
+    if (!el) return;
+    const hoje = fmtDate(new Date());
+    const seg = getSegunda(_semOffset);
+    const dias = Array.from({length:7}, (_,i) => { const d = new Date(seg); d.setDate(d.getDate()+i); return d; });
+    const procs = (window.procedimentos||[]);
+    const diasLabel = dias.map(d => { const s = fmtDate(d); const isHoje = s===hoje; const isPast = s<hoje; return `<div class="sem-col">
+        <div class="sem-col-head ${isHoje?'hoje':isPast?'passado':''}">${fmtLabel(d)}${isHoje?' · HOJE':''}</div>
+        ${procs.filter(p=>p.data===s).length === 0
+            ? '<div class="sem-empty">—</div>'
+            : procs.filter(p=>p.data===s).map(p=>`<div class="sem-item" title="${p.paciente||''} · ${p.hospital||''}">
+                <div class="sem-item-pac">${p.paciente||'-'}</div>
+                <div class="sem-item-hosp">${p.hospital||'-'}</div>
+                <span class="sem-pill" style="background:${statusColors[p.status]||'#888'}22;color:${statusColors[p.status]||'#888'};border:1px solid ${statusColors[p.status]||'#888'}44;">${statusLabels[p.status]||p.status}</span>
+              </div>`).join('')}
+    </div>`; }).join('');
+    const semInicio = dias[0].toLocaleDateString('pt-BR',{day:'2-digit',month:'short'});
+    const semFim    = dias[6].toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'});
+    el.innerHTML = `<div class="sem-nav">
+        <button onclick="window._semNavegar(-1)">← Anterior</button>
+        <span class="sem-label">${semInicio} — ${semFim}</span>
+        <button onclick="window._semNavegar(1)">Próxima →</button>
+        ${_semOffset!==0?`<button onclick="window._semNavegar(0,true)" style="color:#059669;border-color:rgba(5,150,105,0.4);">Hoje</button>`:''}
+    </div>
+    <div class="sem-grid">${diasLabel}</div>`;
+};
+window._semNavegar = function(dir, reset) { _semOffset = reset ? 0 : _semOffset + dir; window.renderCalendarioSemanal(); };
+
+const _origSwitch = window.switchView;
+window.switchView = function(v) {
+    const isSemana = v === 'semana';
+    if (_origSwitch) _origSwitch.apply(this, arguments);
+    const semEl = document.getElementById('semana-view');
+    const tabSemana = document.getElementById('tab-semana');
+    if (semEl) semEl.style.display = isSemana ? '' : 'none';
+    if (tabSemana) tabSemana.classList.toggle('active', isSemana);
+    if (isSemana) window.renderCalendarioSemanal();
+};
+
+const _origRenderCards = window.renderCards;
+window.renderCards = function() {
+    if (typeof _origRenderCards === 'function') _origRenderCards.apply(this, arguments);
+    if (document.getElementById('semana-view') && document.getElementById('semana-view').style.display !== 'none')
+        window.renderCalendarioSemanal();
+};
+})();
+</script>
 </body>
 </html>
