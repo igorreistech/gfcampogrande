@@ -9099,8 +9099,25 @@ function atualizarSubgrupos(valorAtual, valorAtual2) {
     }
 }
 
+let _savingProc = false;
 async function saveProcedure(e) {
     e.preventDefault();
+    // Trava contra clique duplo/duplo-submit — sem isso, dois cliques rápidos
+    // (ou dois cliques de duas pessoas ao mesmo tempo) disparam saveProcedure
+    // em paralelo e a checagem de duplicata do segundo roda antes do primeiro
+    // salvamento terminar e atualizar a lista local, deixando passar duplicata.
+    if (_savingProc) return;
+    _savingProc = true;
+    const _btnSaveMain = document.getElementById('btn-save-main');
+    if (_btnSaveMain) { _btnSaveMain.disabled = true; _btnSaveMain.dataset._origText = _btnSaveMain.textContent; _btnSaveMain.textContent = 'Salvando...'; }
+    try {
+        await _saveProcedureImpl(e);
+    } finally {
+        _savingProc = false;
+        if (_btnSaveMain) { _btnSaveMain.disabled = false; if (_btnSaveMain.dataset._origText) _btnSaveMain.textContent = _btnSaveMain.dataset._origText; }
+    }
+}
+async function _saveProcedureImpl(e) {
 
     let hospital = document.getElementById('f-hospital').value.trim();
     if (hospital === 'Outro...') {
@@ -9281,6 +9298,28 @@ async function saveProcedure(e) {
         isColeta: _isColeta || (existingProc && _ehColeta(existingProc)) || false
     };
 
+    // Defesa em profundidade: se não é lançamento de coleta, garante que
+    // nenhum campo exclusivo de coleta vá salvo — mesmo que tenha sobrado
+    // algo no formulário (ex.: import de PDF preenche campos ocultos de
+    // coleta em modo normal por engano). _ehColeta() trata a PRESENÇA
+    // desses campos como sinal de "é coleta" independente do status, então
+    // deixar lixo aqui faz a cirurgia normal ser exibida como Retirada de
+    // Material em outras telas.
+    if (!proc.isColeta) {
+        proc.nfCompra = '';
+        proc.cte = '';
+        proc.coletaChaveAcesso = '';
+        proc.coletaFornecedor = '';
+        proc.coletaTransportadora = '';
+        proc.coletaCirurgiaId = '';
+        proc.coletaDataCirurgia = null;
+        proc.dataRetirar = null;
+        proc.horaRetirar = '';
+        proc.coletaHoraCirurgia = '';
+        proc.coletaObs = '';
+        proc.coletaAnexo = '';
+    }
+
     if (existingProc && existingProc._docId) {
         proc._docId = existingProc._docId;
     }
@@ -9306,9 +9345,8 @@ async function saveProcedure(e) {
             ? `✈️ ${p.coletaFornecedor||'—'} · ${p.coletaDataCirurgia?new Date(p.coletaDataCirurgia+'T00:00:00').toLocaleDateString('pt-BR'):''}`
             : `${p.hospital} · ${p.medico||'—'} · ${p.data?new Date(p.data+'T00:00:00').toLocaleDateString('pt-BR'):''}`
         ).join('\n');
-        if (!confirm('⚠️ Possível duplicata encontrada:\n\n' + desc + '\n\nDeseja salvar mesmo assim?')) {
-            return;
-        }
+        alert('🚫 Lançamento bloqueado — já existe um registro igual:\n\n' + desc + '\n\nEdite o lançamento existente em vez de criar um novo, ou altere hospital/médico/data pra confirmar que é um caso diferente.');
+        return;
     }
 
     try {
