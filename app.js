@@ -1109,14 +1109,24 @@ function setCityFilter(city) {
 
 // Vendedores que não devem mais aparecer como opção de filtro (ex.: saíram
 // da empresa) — os registros antigos continuam com o nome deles normalmente,
-// só somem da lista de seleção.
-const VENDEDORES_OCULTOS_FILTRO = ['Jeferson Cruz', 'Jeferson Cruz Rodrigues'];
+// só somem da lista de seleção. Comparação normalizada (sem acento/caixa/
+// espaço) e por prefixo pra pegar qualquer variação do nome já digitada nos
+// registros (ex.: "Jeferson Cruz", "Jeferson Cruz Rodrigues", "Jeferson
+// Rodrigues Cruz").
+const PREFIXOS_VENDEDOR_OCULTO = ['jeferson'];
+function _normNome(s) {
+    return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
+}
+function _vendedorOculto(v) {
+    const n = _normNome(v);
+    return PREFIXOS_VENDEDOR_OCULTO.some(p => n.startsWith(p));
+}
 
 function atualizarFiltroVendedor() {
     const sel = document.getElementById('vendedor-select');
     if (!sel) return;
     const vendedores = [...new Set(procedimentos.map(p => p.vendedor).filter(Boolean))]
-        .filter(v => !VENDEDORES_OCULTOS_FILTRO.includes(v))
+        .filter(v => !_vendedorOculto(v))
         .sort();
     const current = sel.value;
     sel.innerHTML = '<option value="all">Todos</option>' +
