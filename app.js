@@ -879,8 +879,14 @@ async function exportarWhatsApp() {
 
     var fmt = function(d) { return d ? new Date(d+'T00:00:00').toLocaleDateString('pt-BR') : '—'; };
 
+    // Se houver um vendedor filtrado na tela, a cobrança já sai só das
+    // pendências dele — evita mandar a lista inteira quando o operador só
+    // queria cobrar um vendedor específico.
+    var vendedorFiltro = (typeof currentVendedorFilter !== 'undefined' && currentVendedorFilter !== 'all') ? currentVendedorFilter : null;
+
     var cirurgias = procedimentos.filter(function(p) {
         if (_ehColeta(p) || p.isColeta) return false;
+        if (vendedorFiltro && (p.vendedor || '') !== vendedorFiltro) return false;
         return p.status === 'a_retirar';
     });
     cirurgias.sort(function(a,b) { return (a.retirada||'').localeCompare(b.retirada||''); });
@@ -892,7 +898,7 @@ async function exportarWhatsApp() {
 
     var linhas = [];
     linhas.push('Olá! 😊');
-    linhas.push('Segue as pendências de *Monitor Cirúrgico* que ainda não foram devolvidos ao estoque:');
+    linhas.push(vendedorFiltro ? 'Segue as pendências de *Monitor Cirúrgico* (vendedor: *' + vendedorFiltro + '*) que ainda não foram devolvidos ao estoque:' : 'Segue as pendências de *Monitor Cirúrgico* que ainda não foram devolvidos ao estoque:');
     cirurgias.forEach(function(p) {
         linhas.push('');
         linhas.push('---');
@@ -1101,10 +1107,17 @@ function setCityFilter(city) {
 }
 
 
+// Vendedores que não devem mais aparecer como opção de filtro (ex.: saíram
+// da empresa) — os registros antigos continuam com o nome deles normalmente,
+// só somem da lista de seleção.
+const VENDEDORES_OCULTOS_FILTRO = ['Jeferson Cruz', 'Jeferson Cruz Rodrigues'];
+
 function atualizarFiltroVendedor() {
     const sel = document.getElementById('vendedor-select');
     if (!sel) return;
-    const vendedores = [...new Set(procedimentos.map(p => p.vendedor).filter(Boolean))].sort();
+    const vendedores = [...new Set(procedimentos.map(p => p.vendedor).filter(Boolean))]
+        .filter(v => !VENDEDORES_OCULTOS_FILTRO.includes(v))
+        .sort();
     const current = sel.value;
     sel.innerHTML = '<option value="all">Todos</option>' +
         vendedores.map(v => `<option value="${v}"${v === current ? ' selected' : ''}>${v}</option>`).join('');
