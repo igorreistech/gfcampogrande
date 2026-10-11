@@ -132,6 +132,9 @@
 
       function mostrarResumoInicial() {
         if (window._resumoInicialMostrado) return;
+        // Enquanto a tela de login ou a de escolha (Monitor / Fichas OPME / Fretes)
+        // está aberta, o resumo espera — e só aparece quando a pessoa chega ao Monitor.
+        if (_telaDeEntradaAberta()) { window._resumoPendente = true; return; }
         window._resumoInicialMostrado = true;
         const procs = window.procedimentos || [];
         const total = procs.length;
@@ -248,6 +251,32 @@
         window.doLogin();
       };
 
+      // ─── Depois do login: escolher Monitor, Fichas OPME ou Controle de Fretes ───
+      // O login vale para as três páginas (mesma sessão salva no navegador).
+      function _telaDeEntradaAberta() {
+        const lo = document.getElementById('loginOverlay'), de = document.getElementById('destinoOverlay');
+        return (lo && !lo.classList.contains('hidden')) || (de && !de.classList.contains('hidden'));
+      }
+      // Resumo que ficou esperando: mostra assim que login e escolha saírem da frente.
+      window.addEventListener('DOMContentLoaded', () => {
+        const lo = document.getElementById('loginOverlay');
+        if (!lo) return;
+        new MutationObserver(() => {
+          if (window._resumoPendente && !_telaDeEntradaAberta()) { window._resumoPendente = false; mostrarResumoInicial(); }
+        }).observe(lo, { attributes: true, attributeFilter: ['class'] });
+      });
+      window._abrirEscolhaDestino = function() {
+        document.getElementById('destinoOverlay').classList.remove('hidden');
+      };
+      window._irPara = function(destino) {
+        if (destino === 'monitor') {
+          document.getElementById('destinoOverlay').classList.add('hidden');
+          if (window._resumoPendente) { window._resumoPendente = false; mostrarResumoInicial(); }
+          return;
+        }
+        location.href = destino === 'opme' ? 'fichas-opme.html' : 'fretes.html';
+      };
+
       window.doLogin = async function() {
         const email = document.getElementById('loginUser').value.trim();
         const pass  = document.getElementById('loginPass').value;
@@ -259,6 +288,7 @@
         try {
           const { error } = await auth.signInWithPassword({ email, password: pass });
           if (error) throw error;
+          if (email.toLowerCase() !== DEMO_USER.email) window._abrirEscolhaDestino();
         } catch(e) {
           let msg = 'E-mail ou senha incorretos.';
           if (e.message?.includes('Invalid login credentials')) msg = 'E-mail ou senha incorretos.';
@@ -4525,6 +4555,20 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
 <body>
 
 <!-- LOGIN OVERLAY -->
+<!-- ESCOLHA DE DESTINO (depois do login) -->
+<div class="login-overlay hidden" id="destinoOverlay" style="z-index:10000">
+    <div class="login-box">
+        <img class="login-logo-img" src="logo.jpg" alt="GF Medical">
+        <div class="login-logo">⬡ GF Medical</div>
+        <div class="login-sub">Para onde você quer ir?</div>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:18px;">
+            <button type="button" class="login-btn" onclick="window._irPara('monitor')">🏥 Monitor Cirúrgico</button>
+            <button type="button" class="login-btn" onclick="window._irPara('opme')" style="background:linear-gradient(135deg,#d4920a,#f59e0b);">📋 Fichas OPME</button>
+            <button type="button" class="login-btn" id="destinoFretesBtn" onclick="window._irPara('fretes')" style="background:linear-gradient(135deg,#1f7f9c,#2a9fbf);">🚚 Controle de Fretes</button>
+        </div>
+    </div>
+</div>
+
 <div class="login-overlay" id="loginOverlay">
     <div class="login-box">
         <img class="login-logo-img" src="logo.jpg" alt="GF Medical">
@@ -4915,6 +4959,7 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
         <button class="view-tab" id="tab-dashboard" onclick="switchView('dashboard')">📊 Dashboard</button>
         <button class="view-tab" id="tab-coleta" onclick="switchView('coleta')" style="color:#818cf8;border-color:rgba(99,102,241,0.5);">✈️ Retirada de Material</button>
         <button class="view-tab" id="tab-opme" onclick="window.open('fichas-opme.html','_blank')" style="color:#f59e0b;border-color:rgba(245,158,11,0.5);">📋 Fichas OPME</button>
+        <button class="view-tab" id="tab-fretes" onclick="window.open('fretes.html','_blank')" style="color:#2a9fbf;border-color:rgba(42,159,191,0.5);">🚚 Controle de Fretes</button>
         <button class="view-tab" id="tab-atividade" onclick="switchView('atividade')" style="color:#4db87a;border-color:rgba(77,184,122,0.5);">🕐 Atividade</button>
         <button id="btn-toggle-ocultos" onclick="toggleOcultos()" style="margin-left:auto;padding:7px 14px;background:rgba(107,114,128,0.12);border:1.5px solid rgba(107,114,128,0.35);color:#6b7280;border-radius:8px;cursor:pointer;font-family:var(--mono);font-size:0.75rem;font-weight:700;letter-spacing:0.05em;transition:all 0.2s;" title="Mostrar/ocultar Concluídos e Cancelados">👁 Ocultos</button>
     </div>
