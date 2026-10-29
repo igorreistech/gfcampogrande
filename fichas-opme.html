@@ -461,7 +461,14 @@ const FILIAL = 'CGR';
 // senão a Atividade cai no fallback e mostra o e-mail da conta em vez do
 // nome de quem realmente fez o lançamento.
 const NOMES_OPERADOR_CGR = ['Eva Diana de Araujo','Igor dos Reis Silva','Larissa Amanda Bernardo do Valle','Gabriely Amorim Dias','Luis Felipe Moura Braga','Paulo Vitor Leite da Silva','Thayz Benites Leonel','Tiago da Silva Siqueira','Marcella Fernandes Ricci','Marcos Gonçalves da Silva','Regiane da Silva Ramos','Gustavo Ovídio Mussi Faverão'];
-function _nomesOperadorAtivos() { return NOMES_OPERADOR_CGR; }
+// Operadores de cada conta compartilhada (valem em qualquer unidade)
+const NOMES_CONTA_COMERCIALMT = ['Eva Diana de Araujo','Gabriely Amorim Dias','Guido de Andrade Gandini','Igor dos Reis Silva','Jeferson Rodrigues Cruz','Larissa Amanda Bernardo do Valle','Luis Felipe Moura Braga','Marcella Fernandes Ricci','Marcos Gonçalves da Silva','Paulo Vitor Leite da Silva','Regiane da Silva Ramos','Thayz Benites Leonel','Tiago da Silva Siqueira'];
+const NOMES_CONTA_COMERCIAL = ['Beatriz Helena Calil Barbosa','Cristina Luzia','Izabela Crozetta','Kauana da Silva Feitoza','Marcio Benedito Queiroz','Murilo Julio Sant Ana Pereira','Renata Franco de Lima','Roberto Alex Cândido','Starley Santos Silva','Wilson Cordeiro'];
+function _nomesOperadorAtivos() {
+  const _emConta = String((typeof _currentUser !== 'undefined' && _currentUser && _currentUser.email) || document.getElementById('l-email')?.value || '').toLowerCase();
+  if (/^comercialmt@gfmedical/.test(_emConta)) return NOMES_CONTA_COMERCIALMT;
+  if (/^comercial@gfmedical/.test(_emConta)) return NOMES_CONTA_COMERCIAL;
+return NOMES_OPERADOR_CGR; }
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const auth = supabase.auth;
 const db   = supabase; // mantido como "db" só para minimizar diff no resto do arquivo
