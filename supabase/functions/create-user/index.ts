@@ -52,7 +52,7 @@ Deno.serve(async req => {
     return new Response(JSON.stringify({ error: 'Apenas administradores podem criar usuários.' }), { status: 403 });
   }
 
-  let body: { email?: string; role?: string; nome?: string };
+  let body: { email?: string; role?: string; nome?: string; password?: string };
   try {
     body = await req.json();
   } catch {
@@ -66,7 +66,12 @@ Deno.serve(async req => {
     return new Response(JSON.stringify({ error: 'E-mail é obrigatório.' }), { status: 400 });
   }
 
-  const tempPassword = randomPassword();
+  // Senha escolhida pelo admin na tela (opcional); sem ela, gera uma temporária.
+  const senhaEscolhida = typeof body.password === 'string' ? body.password : '';
+  if (senhaEscolhida && senhaEscolhida.length < 6) {
+    return new Response(JSON.stringify({ error: 'A senha precisa ter pelo menos 6 caracteres.' }), { status: 400 });
+  }
+  const tempPassword = senhaEscolhida || randomPassword();
   const { data: created, error: createErr } = await admin.auth.admin.createUser({
     email, password: tempPassword, email_confirm: true,
   });
@@ -83,7 +88,9 @@ Deno.serve(async req => {
     return new Response(JSON.stringify({ error: insertErr.message }), { status: 400 });
   }
 
-  return new Response(JSON.stringify({ id: created.user.id, temp_password: tempPassword }), {
+  return new Response(JSON.stringify(senhaEscolhida
+    ? { id: created.user.id, senha_definida: true }
+    : { id: created.user.id, temp_password: tempPassword }), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });
