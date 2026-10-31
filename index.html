@@ -23639,8 +23639,11 @@ else init();
         desenhar();
     };
     // ── Remessas sem cirurgia (consignação, comodato…): mesmas caixas/bags e etiquetas QR, com controle de retorno ──
-    const TIPOS_REMESSA = ['Remessa em consignação', 'Remessa para conserto', 'Remessa em comodato'];
-    const STATUS_REMESSA = ['No cliente', 'Retornou parcial', 'Retornou', 'Cancelada'];
+    const TIPOS_REMESSA = ['Remessa em consignação', 'Remessa para conserto', 'Remessa em comodato', 'Remessa em esterilização'];
+    const STATUS_REMESSA = ['No cliente', 'Em esterilização', 'Retornou parcial', 'Retornou', 'Cancelada'];
+    // Bioesteril (esterilização terceirizada): a remessa já entra como esterilização
+    const ehEsterilizacao = v => /bio\s*-?\s*esteril/i.test((v.cliente || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')) || v.tipo === 'Remessa em esterilização';
+    const avisoSqlEsteril = msg => /check constraint|23514|status_check/i.test(msg || '') ? '\n\nO banco desta filial ainda não aceita o status "Em esterilização". Rode o SQL 20261114_remessas_esterilizacao.sql no Supabase.' : '';
     const procDaRemessa = r => ({ _docId: 'rem:' + r.id, nf: r.nf || '', nfData: r.nf_data || '', hospital: r.cliente || '', cidade: r.cidade || '',
         _remessa: r.tipo || 'Remessa', _envio: r.data_envio || '', obs: r.obs || '', _filial: r.filial, paciente: '', medico: '', convenio: '' });
     window.abrirRemessas = async function () {
@@ -23654,7 +23657,7 @@ else init();
         const chip = 'padding:5px 10px;border-radius:999px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-size:.7rem;font-weight:700;cursor:pointer;white-space:nowrap';
         ov.innerHTML = `<div style="background:var(--surface,#fff);border-radius:16px;width:min(1180px,100%);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.3);overflow:hidden">
           <div style="padding:14px 18px;border-bottom:1px solid var(--border,#ccc);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-            <div style="font-weight:800;font-size:.95rem;color:var(--text);margin-right:auto">🚚 Remessas — consignação, comodato e outras saídas</div>
+            <div style="font-weight:800;font-size:.95rem;color:var(--text);margin-right:auto">🚚 Remessas — consignação, comodato, esterilização e outras saídas</div>
             <input type="search" data-busca placeholder="Buscar NF, cliente, cidade…" style="${inp};width:220px">
             <button data-a="nova" style="${bt};background:#111827;color:#fff;border-color:#111827">+ Nova remessa</button>
             <button data-a="xlsx" style="${bt};border-color:#16a34a;color:#16a34a">⬇ Excel</button>
@@ -23685,7 +23688,7 @@ else init();
             desenhar();
         }
         const volTxt = id => { const o = vols['rem:' + id]; return o ? [o.Caixa ? o.Caixa + ' cx' : '', o.Bag ? o.Bag + (o.Bag > 1 ? ' bags' : ' bag') : ''].filter(Boolean).join(' · ') : ''; };
-        const diasFora = r => r.data_envio && (r.status === 'No cliente' || r.status === 'Retornou parcial') ? Math.floor((Date.now() - new Date(r.data_envio + 'T00:00:00')) / 864e5) : null;
+        const diasFora = r => r.data_envio && (r.status === 'No cliente' || r.status === 'Em esterilização' || r.status === 'Retornou parcial') ? Math.floor((Date.now() - new Date(r.data_envio + 'T00:00:00')) / 864e5) : null;
         function desenhar() {
             if (!rems) return;
             const termo = $('[data-busca]').value.trim().toLowerCase();
@@ -23702,7 +23705,7 @@ else init();
             if (!linhas.length) { $('[data-corpo]').innerHTML = '<p style="color:var(--text-dim);font-size:.85rem;padding:20px 0;text-align:center">Nenhuma remessa aqui. Use <b>+ Nova remessa</b> para lançar.</p>'; return; }
             const th = 'text-align:left;padding:8px 10px;font-size:.64rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);border-bottom:1px solid var(--border,#ccc);position:sticky;top:0;background:var(--surface,#fff);white-space:nowrap';
             const td = 'padding:7px 10px;font-size:.78rem;color:var(--text);border-bottom:1px solid var(--border,#e5e7eb);vertical-align:middle';
-            const corSt = { 'No cliente': 'background:#dbeafe;color:#1e40af', 'Retornou parcial': 'background:#fef3c7;color:#92400e', Retornou: 'background:#dcfce7;color:#166534', Cancelada: 'background:#f3f4f6;color:#6b7280' };
+            const corSt = { 'No cliente': 'background:#dbeafe;color:#1e40af', 'Em esterilização': 'background:#ede9fe;color:#5b21b6', 'Retornou parcial': 'background:#fef3c7;color:#92400e', Retornou: 'background:#dcfce7;color:#166534', Cancelada: 'background:#f3f4f6;color:#6b7280' };
             $('[data-corpo]').innerHTML = `<table style="width:100%;border-collapse:separate;border-spacing:0"><thead><tr>${['Envio', 'Tipo', 'NF', 'Cliente', 'Cidade', 'Volumes', 'Status', 'Dias fora', 'Obs', ''].map(c => `<th style="${th}">${c}</th>`).join('')}</tr></thead><tbody>${
                 linhas.map((r, i) => { const d = diasFora(r); return `<tr>
                   <td style="${td};white-space:nowrap">${esc(dataBR(r.data_envio))}</td><td style="${td}">${esc(r.tipo)}</td><td style="${td};font-weight:800">${esc(r.nf)}</td>
@@ -23750,13 +23753,14 @@ else init();
             if (n) { _cxCache = null; atualizarBadgeCaixas(); window.showSyncToast && window.showSyncToast(`📦 ${n} caixa(s)/bag(s)/sacola(s) voltaram para o estoque`); }
             return n;
         }
+        ov.addEventListener('input', e => { if (e.target.matches('[data-f="cliente"]') && ehEsterilizacao({ cliente: e.target.value })) { const t = ov.querySelector('[data-f="tipo"]'); if (t) t.value = 'Remessa em esterilização'; } });
         ov.addEventListener('change', e => { if (e.target.matches('[data-voltipo]')) montarVolRem($('[data-form]').dataset.id ? 'rem:' + $('[data-form]').dataset.id : '', ''); });
         ov.addEventListener('change', async e => {
             const i = e.target.dataset.mudast; if (i === undefined) return;
             const r = linhas[+i], st = e.target.value;
             const upd = { status: st, data_retorno: st === 'Retornou' || st === 'Retornou parcial' ? (r.data_retorno || new Date().toISOString().slice(0, 10)) : null, atualizado_em: new Date().toISOString() };
             const { error } = await sb.from('remessas_volumes').update(upd).eq('id', r.id);
-            if (error) return alert('Erro ao salvar: ' + error.message);
+            if (error) return alert('Erro ao salvar: ' + error.message + avisoSqlEsteril(error.message));
             Object.assign(r, upd); desenhar();
             if (st === 'Retornou' || st === 'Cancelada') { const r0 = await carregarCaixas(true).catch(() => null); const fora = r0 && !r0.erro ? r0.filter(c => c.status === 'Fora' && c.proc_id_atual === 'rem:' + r.id) : [];
                 if (fora.length) perguntarRetornoCaixas(fora.map(cx => ({ cx, motivo: 'remessa ' + st.toLowerCase() }))); }
@@ -23776,10 +23780,13 @@ else init();
                 const v = {}; ov.querySelectorAll('[data-f]').forEach(x => { v[x.dataset.f] = x.value.trim() || null; });
                 if (!v.nf && !v.cliente) return alert('Informe ao menos a NF ou o cliente.');
                 const id = $('[data-form]').dataset.id;
+                const esteril = ehEsterilizacao(v);
+                if (esteril) v.tipo = 'Remessa em esterilização';
+                const atual = id ? rems.find(x => String(x.id) === String(id)) : null;
                 let res;
-                if (id) res = await sb.from('remessas_volumes').update({ ...v, atualizado_em: new Date().toISOString() }).eq('id', id).select().single();
-                else res = await sb.from('remessas_volumes').insert({ ...v, filial: filialAtual(null), status: 'No cliente', criado_por: operador() }).select().single();
-                if (res.error) return alert('Erro ao salvar: ' + res.error.message);
+                if (id) res = await sb.from('remessas_volumes').update({ ...v, ...(esteril && (!atual || atual.status === 'No cliente') ? { status: 'Em esterilização' } : {}), atualizado_em: new Date().toISOString() }).eq('id', id).select().single();
+                else res = await sb.from('remessas_volumes').insert({ ...v, filial: filialAtual(null), status: esteril ? 'Em esterilização' : 'No cliente', criado_por: operador() }).select().single();
+                if (res.error) return alert('Erro ao salvar: ' + res.error.message + avisoSqlEsteril(res.error.message));
                 const codVol = ov.querySelector('[data-volcod]')?.value;
                 if (codVol && res.data) saidaCaixasDaCirurgia(procDaRemessa(res.data), [codVol]);
                 $('[data-form]').innerHTML = '';
@@ -24939,6 +24946,63 @@ else init();
     });
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', marcar); else marcar();
     setTimeout(marcar, 1500);
+})();
+</script>
+<script>
+// ─── Celular (até 680px): Monitor mais enxuto — contadores, botões e abas em faixas que deslizam; cartão da cirurgia compacto ───
+(function () {
+    const st = document.createElement('style'); st.id = 'estilo-mob-monitor';
+    st.textContent = `@media (max-width:680px){
+      #premiumHero,#resumo-central,.mob-atalhos{display:none!important}
+      html body #procForm .form-grid{grid-template-columns:minmax(0,1fr)!important}
+      html body #procForm .form-group{grid-column:1/-1!important;min-width:0!important;max-width:100%!important}
+      html body #procForm .form-input,html body #procForm select,html body #procForm textarea{max-width:100%!important;min-width:0!important}
+      body:has(.modal-overlay.open) #sugestaoCobranca,body:has(.modal-overlay.open) .fab-group{display:none!important}
+      html body #stats-bar,html body #barra-rapida-acoes,html body .view-tabs{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto!important;gap:6px!important;scrollbar-width:none;-webkit-overflow-scrolling:touch;grid-template-columns:none!important}
+      #stats-bar::-webkit-scrollbar,#barra-rapida-acoes::-webkit-scrollbar,.view-tabs::-webkit-scrollbar{display:none}
+      html body #stats-bar > *,html body #barra-rapida-acoes > *,html body .view-tabs > *{grid-column:auto!important;flex:0 0 auto!important;width:auto!important;min-width:0!important;white-space:nowrap!important}
+      #stats-bar .stat-card{padding:6px 12px!important;min-height:0!important}
+      html body .view-tabs{padding:6px!important}
+      html body .view-tabs .view-tab{padding:9px 12px!important;min-height:0!important;font-size:.68rem!important}
+      #reagendado-alert-bar{padding:8px 12px!important}
+      #reagendado-alert-bar > div{font-size:.72rem!important;line-height:1.35!important}
+      #reagendado-alert-bar .reag-alert-btn{margin-top:6px!important;padding:5px 10px!important}
+
+      html body #table-view #procTable tbody{gap:8px!important}
+      html body #table-view #procTable tbody tr{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:6px 10px!important;padding:10px 12px 10px 14px!important;border-radius:14px!important;box-shadow:0 4px 14px rgba(15,23,42,.06)!important}
+      html body #table-view #procTable tbody tr td{grid-column:auto!important;position:static!important;left:auto!important;right:auto!important;z-index:auto!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;min-width:0!important;width:auto!important;max-width:none!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;min-height:0!important;gap:1px!important;font-size:.78rem!important;font-weight:500;line-height:1.25;word-break:break-word;color:var(--text)!important;font-family:inherit!important}
+      html body #table-view #procTable tbody tr td::before{font-size:.52rem!important;letter-spacing:.08em!important;margin:0!important;color:var(--text-dim,#6b8a96)!important}
+      html body #table-view #procTable tbody tr td.mob-vazio{display:none!important}
+      html body #table-view #procTable td[data-label*="Paciente"]{order:-3;grid-column:1/-1!important;font-size:.95rem!important;font-weight:800!important;padding-right:4px!important}
+      html body #table-view #procTable td[data-label*="Paciente"]::before{display:none!important}
+      html body #table-view #procTable td[data-label*="Status"]{order:-2}
+      html body #table-view #procTable td[data-label*="Data"]{order:-2;font-family:var(--mono)!important;font-weight:800!important;color:#147594!important;flex-direction:row!important;flex-wrap:wrap;align-items:center!important;gap:4px!important}
+      html body #table-view #procTable td[data-label*="Data"]::before{flex-basis:100%}
+      html body #table-view #procTable td[data-label*="Data"] > div{margin:0!important}
+      html body #table-view #procTable td[data-label="Prioridade"]{order:-2}
+      html body #table-view #procTable td[data-label="Hospital"]{grid-column:span 2!important}
+      html body #table-view #procTable td[data-label="NF"]{font-family:var(--mono)!important;font-weight:700!important;color:#2a9fbf!important}
+      html body #table-view #procTable td[data-label="Médico"]{grid-column:span 2!important}
+      html body #table-view #procTable td[data-label="Ações"]{grid-column:1/-1!important;position:static!important;box-shadow:none!important;width:100%!important;max-width:none!important;margin-top:2px!important;padding-top:8px!important;border-top:1px solid var(--border,rgba(125,155,170,.18))!important}
+      html body #table-view #procTable td[data-label="Ações"]::before{display:none!important}
+      html body #table-view #procTable td[data-label="Ações"] .table-actions{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;gap:6px!important;width:100%!important;grid-template-columns:none!important}
+      html body #table-view #procTable td[data-label="Ações"] .table-btn{flex:1 1 auto!important;width:auto!important;min-width:44px!important;min-height:36px!important;padding:6px 10px!important;margin:0!important;font-size:.7rem!important}
+      html body #table-view #procTable .table-status-pill,html body #table-view #procTable .v2-priority-pill{white-space:normal!important;font-size:.62rem!important;padding:3px 8px!important;line-height:1.2}
+    }`;
+    document.head.appendChild(st);
+    // células sem informação ("—") somem no cartão do celular
+    function marcarVazias() {
+        document.querySelectorAll('#procTable tbody td').forEach(td => td.classList.toggle('mob-vazio', /^[—–-]?$/.test(td.textContent.trim()) && !td.querySelector('button,select,input')));
+    }
+    function marcarAtalhos() {
+        document.querySelectorAll('body div').forEach(d => { if (!d.querySelector('div') && /^⌨️\s*Atalhos:/.test((d.textContent || '').trim())) d.classList.add('mob-atalhos'); });
+    }
+    function iniciar() {
+        marcarAtalhos(); setTimeout(marcarAtalhos, 2500); setTimeout(marcarAtalhos, 7000);
+        const tb = document.getElementById('procTable');
+        if (tb) { marcarVazias(); let ag = false; new MutationObserver(() => { if (ag) return; ag = true; requestAnimationFrame(() => { ag = false; marcarVazias(); }); }).observe(tb, { childList: true, subtree: true }); }
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar();
 })();
 </script>
 </body>
