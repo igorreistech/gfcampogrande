@@ -710,7 +710,6 @@ details.par-card[open]>summary small::after{content:'✕ fechar';font-size:.7rem
       <a class="nav-item" href="fretes.html"><span class="nav-icon">🚚</span> Controle de Fretes</a>
       <a class="nav-item" href="index.html"><span class="nav-icon">⬅</span> Monitor Cirúrgico</a>
       <a class="nav-item" href="index.html?hub=1" title="Abre a escolha de área do GF Hub sem pedir a senha de novo"><span class="nav-icon">🏠</span> GF Hub (trocar de área)</a>
-      <a class="nav-item" href="transferencias.html"><span class="nav-icon">🔁</span> Transferências entre filiais</a>
     </div>
     <div class="sidebar-footer">
       <div class="user-chip">
@@ -1060,7 +1059,7 @@ const BRANCH = window._fretesBranch, BR = BRANCHES[BRANCH];
 const supabase = window._filialFixa ? createClient(BR.url, BR.key) : createClient(BR.url, BR.key, { auth: { storageKey: 'sb-' + BRANCH + '-auth' } });
 const auth = supabase.auth;
 const FILIAL = BRANCH.toUpperCase();
-const VERSAO = '2026-10-28.4';
+const VERSAO = '2026-10-31.1';
 const T = { est: 'compras_estoque', cons: 'compras_consignado', imp: 'compras_importacoes', cmo: 'compras_consumo', cfg: 'compras_config', pen: 'compras_pendente', ped: 'compras_pedidos', res: 'compras_reserva', cmoCli: 'compras_consumo_cliente', forn: 'compras_fornecedores', mod: 'compras_modelos', outra: 'compras_estoque_outra', hist: 'compras_consumo_hist' };
 
 const $ = id => document.getElementById(id);
@@ -3237,5 +3236,51 @@ goView('painel');
 })();
 </script>
 <script src="aviso-transferencias.js" defer></script>
+<script>
+// Celular: o rodapé "Projeto em andamento" deixa de ficar fixo (cobria o conteúdo e os botões redondos)
+(function () {
+    const st = document.createElement('style');
+    st.textContent = '@media (max-width:680px){.rodape-gf{position:static!important;margin-top:18px;padding:10px 14px!important;font-size:.62rem!important}}';
+    document.head.appendChild(st);
+    const marcar = () => document.querySelectorAll('body > div, body > footer').forEach(el => {
+        if (!el.classList.contains('rodape-gf') && /Projeto em andamento/.test(el.textContent || '') && getComputedStyle(el).position === 'fixed') el.classList.add('rodape-gf');
+    });
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', marcar); else marcar();
+    setTimeout(marcar, 1500);
+})();
+</script>
+<script>
+// Celular (até 680px): topo compacto — título + unidade, botões numa faixa que desliza, busca em largura total
+(function () {
+    const st = document.createElement('style');
+    st.textContent = `@media (max-width:680px){
+      .topbar{padding:8px 10px!important;gap:6px!important;row-gap:6px!important;flex-wrap:wrap!important;min-width:0;max-width:100vw;box-sizing:border-box;height:auto!important;min-height:0!important}
+      .topbar .page-title{flex:1 1 auto;min-width:0;font-size:.95rem!important;white-space:normal}
+      .topbar .mob-acoes{order:3;flex:1 1 100%;display:flex;gap:6px;overflow-x:auto;flex-wrap:nowrap;min-width:0;scrollbar-width:none;padding-bottom:2px}
+      .topbar .mob-acoes::-webkit-scrollbar{display:none}
+      .topbar .mob-acoes > *{flex-shrink:0;white-space:nowrap}
+      .topbar .sbox{order:4;flex:1 1 100%!important;min-width:0!important;width:auto!important;max-width:none!important}
+      .topbar .sbox input{min-width:0;width:100%}
+      .vtabs{overflow-x:auto!important;flex-wrap:nowrap!important;scrollbar-width:none}
+      .vtabs::-webkit-scrollbar{display:none}
+      .vtab{flex-shrink:0;white-space:nowrap}
+      .twrap{overflow-x:auto!important;-webkit-overflow-scrolling:touch;max-width:100%}
+      .page-content{min-width:0;max-width:100vw;box-sizing:border-box;padding-left:10px!important;padding-right:10px!important}
+      .main{min-width:0!important;max-width:100vw}
+      .vtabs{max-width:100vw;box-sizing:border-box}
+      .fbar{flex-wrap:wrap}
+    }`;
+    document.head.appendChild(st);
+    function arrumar() {
+        if (!window.matchMedia('(max-width:680px)').matches) return;
+        const tb = document.querySelector('.topbar'); if (!tb || tb.dataset.mob) return;
+        tb.dataset.mob = '1';
+        const ac = document.createElement('div'); ac.className = 'mob-acoes';
+        [...tb.children].forEach(el => { if (el.matches('.tbtn') && el.id !== 'btn-voltar') ac.appendChild(el); });
+        if (ac.children.length) tb.insertBefore(ac, tb.querySelector('.sbox'));
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', arrumar); else arrumar();
+})();
+</script>
 </body>
 </html>

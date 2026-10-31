@@ -388,7 +388,6 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
       <a class="nav-item" href="#" onclick="atalhoStatus('Pendente');return false"><span class="nav-icon">⏳</span> Entregas pendentes<span class="nbadge" id="nb-pend">0</span></a>
       <div class="sdiv"></div>
       <a class="nav-item" href="compras.html"><span class="nav-icon">🛒</span> Programação de compras</a>
-      <a class="nav-item" href="transferencias.html"><span class="nav-icon">🔁</span> Transferências entre filiais</a>
       <a class="nav-item" href="index.html"><span class="nav-icon">⬅</span> Monitor Cirúrgico</a>
       <a class="nav-item" href="index.html?hub=1" title="Abre a escolha de área do GF Hub sem pedir a senha de novo"><span class="nav-icon">🏠</span> GF Hub (trocar de área)</a>
     </div>
@@ -822,7 +821,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-28.4';
+const VERSAO = '2026-10-31.1';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261030';
@@ -5857,5 +5856,51 @@ try { _viewInicial = localStorage.getItem('_fretesView') || 'dashboard'; } catch
 })();
 </script>
 <script src="aviso-transferencias.js" defer></script>
+<script>
+// Celular: o rodapé "Projeto em andamento" deixa de ficar fixo (cobria o conteúdo e os botões redondos)
+(function () {
+    const st = document.createElement('style');
+    st.textContent = '@media (max-width:680px){.rodape-gf{position:static!important;margin-top:18px;padding:10px 14px!important;font-size:.62rem!important}}';
+    document.head.appendChild(st);
+    const marcar = () => document.querySelectorAll('body > div, body > footer').forEach(el => {
+        if (!el.classList.contains('rodape-gf') && /Projeto em andamento/.test(el.textContent || '') && getComputedStyle(el).position === 'fixed') el.classList.add('rodape-gf');
+    });
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', marcar); else marcar();
+    setTimeout(marcar, 1500);
+})();
+</script>
+<script>
+// Celular (até 680px): topo compacto — título + unidade, botões numa faixa que desliza, busca em largura total
+(function () {
+    const st = document.createElement('style');
+    st.textContent = `@media (max-width:680px){
+      .topbar{padding:8px 10px!important;gap:6px!important;row-gap:6px!important;flex-wrap:wrap!important;min-width:0;max-width:100vw;box-sizing:border-box;height:auto!important;min-height:0!important}
+      .topbar .page-title{flex:1 1 auto;min-width:0;font-size:.95rem!important;white-space:normal}
+      .topbar .mob-acoes{order:3;flex:1 1 100%;display:flex;gap:6px;overflow-x:auto;flex-wrap:nowrap;min-width:0;scrollbar-width:none;padding-bottom:2px}
+      .topbar .mob-acoes::-webkit-scrollbar{display:none}
+      .topbar .mob-acoes > *{flex-shrink:0;white-space:nowrap}
+      .topbar .sbox{order:4;flex:1 1 100%!important;min-width:0!important;width:auto!important;max-width:none!important}
+      .topbar .sbox input{min-width:0;width:100%}
+      .vtabs{overflow-x:auto!important;flex-wrap:nowrap!important;scrollbar-width:none}
+      .vtabs::-webkit-scrollbar{display:none}
+      .vtab{flex-shrink:0;white-space:nowrap}
+      .twrap{overflow-x:auto!important;-webkit-overflow-scrolling:touch;max-width:100%}
+      .page-content{min-width:0;max-width:100vw;box-sizing:border-box;padding-left:10px!important;padding-right:10px!important}
+      .main{min-width:0!important;max-width:100vw}
+      .vtabs{max-width:100vw;box-sizing:border-box}
+      .fbar{flex-wrap:wrap}
+    }`;
+    document.head.appendChild(st);
+    function arrumar() {
+        if (!window.matchMedia('(max-width:680px)').matches) return;
+        const tb = document.querySelector('.topbar'); if (!tb || tb.dataset.mob) return;
+        tb.dataset.mob = '1';
+        const ac = document.createElement('div'); ac.className = 'mob-acoes';
+        [...tb.children].forEach(el => { if (el.matches('.tbtn') && el.id !== 'btn-voltar') ac.appendChild(el); });
+        if (ac.children.length) tb.insertBefore(ac, tb.querySelector('.sbox'));
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', arrumar); else arrumar();
+})();
+</script>
 </body>
 </html>

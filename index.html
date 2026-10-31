@@ -4830,7 +4830,6 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
             <button type="button" class="login-btn" onclick="window._irPara('opme')" style="background:linear-gradient(135deg,#d4920a,#f59e0b);">📋 Fichas OPME</button>
             <button type="button" class="login-btn" id="destinoFretesBtn" onclick="window._irPara('fretes')" style="background:linear-gradient(135deg,#1f7f9c,#2a9fbf);">🚚 Controle de Fretes</button>
             <button type="button" class="login-btn" id="destinoComprasBtn" onclick="window._irPara('compras')" style="background:linear-gradient(135deg,#6d28d9,#8b5cf6);">🛒 Programação de Compras</button>
-            <button type="button" class="login-btn" id="destinoTransfBtn" onclick="window._irPara('transf')" style="background:linear-gradient(135deg,#b45309,#d97706);">🔁 Transferências entre filiais</button>
         </div>
     </div>
 </div>
@@ -24857,6 +24856,89 @@ else init();
         }
         [...sel.options].forEach(o => { const ok = o.value === 'agendado' || o.value === sel.dataset.agOriginal; o.hidden = !ok; o.disabled = !ok; });
     }, 300);
+})();
+</script>
+<script>
+// ─── Celular (até 700px): Relatório de etiquetas QR, Controle de embalagens e Remessas em tela cheia ───
+(function () {
+    const IDS = ['rel-etq-qr', 'cx-lista', 'rem-lista'];
+    const celular = () => window.matchMedia('(max-width: 700px)').matches;
+    if (!document.getElementById('estilo-mob-telas')) {
+        const st = document.createElement('style'); st.id = 'estilo-mob-telas';
+        st.textContent = `@media (max-width:700px){
+          .mob-tela{padding:0!important;align-items:stretch!important}
+          .mob-tela > div{width:100%!important;max-height:none!important;height:100%!important;border-radius:0!important;overflow-y:auto!important;display:block!important;-webkit-overflow-scrolling:touch}
+          .mob-tela > div > div{overflow:visible!important;max-height:none!important}
+          .mob-tela > div > div:first-child{position:sticky;top:0;z-index:5;background:var(--surface,#fff);padding:10px 12px!important;flex-direction:column!important;align-items:stretch!important;gap:8px!important;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+          .mob-tela > div > div:first-child > div:first-child{font-size:.9rem!important;padding-right:46px;margin:0!important}
+          .mob-tela .mob-fechar{position:absolute;top:7px;right:10px;padding:6px 12px!important}
+          .mob-tela .mob-campos{display:flex;gap:6px;flex-wrap:wrap}
+          .mob-tela .mob-campos > *{flex:1 1 140px;min-width:0}
+          .mob-tela .mob-campos input{width:100%!important;box-sizing:border-box}
+          .mob-tela .mob-campos label{display:flex;align-items:center;gap:4px}
+          .mob-tela .mob-acoes{display:flex;gap:6px;overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px;scrollbar-width:none;max-width:100%;min-width:0}
+          .mob-tela > div > div:first-child,.mob-tela .mob-campos{width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box}
+          .mob-tela > div > div:first-child > div:first-child{white-space:normal!important}
+          .mob-tela .mob-acoes::-webkit-scrollbar{display:none}
+          .mob-tela .mob-acoes > *{flex-shrink:0}
+          .mob-tela [data-filtros],.mob-tela [data-kpis]{padding-left:12px!important;padding-right:12px!important}
+          .mob-tela [data-corpo]{padding:10px 12px 18px!important}
+          .mob-tela table,.mob-tela tbody,.mob-tela tr,.mob-tela td{display:block!important;width:100%!important;min-width:0!important;box-sizing:border-box}
+          .mob-tela thead{display:none!important}
+          .mob-tela tr{border:1px solid var(--border,#d6e6dc)!important;border-radius:12px;margin:0 0 8px;padding:6px 10px;background:var(--surface,#fff)}
+          .mob-tela td{display:flex!important;justify-content:space-between;align-items:flex-start;gap:12px;border:0!important;padding:4px 0!important;text-align:right!important;white-space:normal!important;word-break:break-word}
+          .mob-tela td::before{content:attr(data-label);font-family:var(--mono);font-size:.6rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-dim,#6b7280);text-align:left;flex-shrink:0;max-width:42%;padding-top:2px}
+          .mob-tela td:not([data-label])::before,.mob-tela td[data-label=""]::before{display:none}
+          .mob-tela td:not([data-label]),.mob-tela td[data-label=""]{justify-content:flex-end}
+          .mob-tela td[colspan]{display:block!important;text-align:left!important}
+        }`;
+        document.head.appendChild(st);
+    }
+    // cada célula recebe o nome da coluna (vira o rótulo do cartão no celular)
+    function rotular(ov) {
+        ov.querySelectorAll('table').forEach(t => {
+            const th = [...t.querySelectorAll('thead th')].map(h => h.textContent.trim());
+            if (!th.length) return;
+            t.querySelectorAll('tbody tr').forEach(tr => {
+                let i = 0;
+                [...tr.children].forEach(td => { const span = +td.getAttribute('colspan') || 1; if (span === 1 && !td.hasAttribute('data-label')) td.setAttribute('data-label', th[i] || ''); i += span; });
+            });
+        });
+    }
+    // topo: título + ✕ numa linha, busca/datas noutra, botões numa faixa que desliza
+    function reorganizarTopo(ov) {
+        const box = ov.firstElementChild, head = box && box.firstElementChild; if (!head || head.dataset.mob) return;
+        head.dataset.mob = '1';
+        const titulo = head.firstElementChild, fechar = head.querySelector('[data-a="x"]');
+        const campos = document.createElement('div'); campos.className = 'mob-campos';
+        const acoes = document.createElement('div'); acoes.className = 'mob-acoes';
+        [...head.children].forEach(el => { if (el === titulo || el === fechar) return; (el.matches('input,label') ? campos : acoes).appendChild(el); });
+        if (campos.children.length) head.appendChild(campos);
+        if (acoes.children.length) head.appendChild(acoes);
+        if (fechar) { fechar.classList.add('mob-fechar'); head.appendChild(fechar); }
+    }
+    function preparar(ov) {
+        if (ov.dataset.mobPronto) return; ov.dataset.mobPronto = '1';
+        if (celular()) { ov.classList.add('mob-tela'); reorganizarTopo(ov); }
+        rotular(ov);
+        let agendado = false;
+        new MutationObserver(() => { if (agendado) return; agendado = true; requestAnimationFrame(() => { agendado = false; rotular(ov); }); }).observe(ov, { childList: true, subtree: true });
+    }
+    new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1 && IDS.includes(n.id)) preparar(n); })))
+        .observe(document.body, { childList: true });
+})();
+</script>
+<script>
+// Celular: o rodapé "Projeto em andamento" deixa de ficar fixo (cobria o conteúdo e os botões redondos)
+(function () {
+    const st = document.createElement('style');
+    st.textContent = '@media (max-width:680px){.rodape-gf{position:static!important;margin-top:18px;padding:10px 14px!important;font-size:.62rem!important}}';
+    document.head.appendChild(st);
+    const marcar = () => document.querySelectorAll('body > div, body > footer').forEach(el => {
+        if (!el.classList.contains('rodape-gf') && /Projeto em andamento/.test(el.textContent || '') && getComputedStyle(el).position === 'fixed') el.classList.add('rodape-gf');
+    });
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', marcar); else marcar();
+    setTimeout(marcar, 1500);
 })();
 </script>
 </body>
