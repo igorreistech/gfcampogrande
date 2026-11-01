@@ -22968,7 +22968,7 @@ else init();
         if (!s) { s = Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, '0')).join(''); try { sessionStorage.setItem('gf_bip_sid', s); } catch (e) {} }
         return s;
     };
-    const _celOnde = () => document.getElementById('cx-lista') ? 'Controle de embalagens' : document.getElementById('f-volume-cad')?.offsetParent ? 'ficha da cirurgia (volumes que vão)' : 'abra a ficha da cirurgia ou o Controle de embalagens';
+    const _celOnde = () => document.getElementById('cx-lista') ? (document.querySelector('#cx-lista [data-invbip]') ? 'Conferência de estoque (bipe tudo o que está na prateleira)' : 'Controle de embalagens') : document.getElementById('f-volume-cad')?.offsetParent ? 'ficha da cirurgia (volumes que vão)' : 'abra a ficha da cirurgia ou o Controle de embalagens';
     function _celLigar() {
         if (_celCanal || !window._supabase) return;
         _celCanal = window._supabase.channel('bip-' + _celSid(), { config: { broadcast: { self: false } } });
@@ -22984,7 +22984,7 @@ else init();
     async function _celReceber({ id, cod }) {
         const resp = (ok, texto) => _celCanal.send({ type: 'broadcast', event: 'resp', payload: { id, ok, texto, onde: _celOnde() } });
         if (!cod) return;
-        const cx = document.getElementById('cx-lista'), inpCx = cx && cx.querySelector('[data-bip]'), ficha = document.getElementById('f-volume-cad');
+        const cx = document.getElementById('cx-lista'), inpCx = cx && (cx.querySelector('[data-invbip]') || cx.querySelector('[data-bip]')), ficha = document.getElementById('f-volume-cad');
         let msgEl = null;
         if (inpCx) { inpCx.value = cod; inpCx.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); msgEl = cx.querySelector('[data-bipmsg]'); }
         else if (ficha && ficha.offsetParent && ficha._bipar) { await ficha._bipar(cod); msgEl = ficha.querySelector('#f-vol-bipmsg'); }
@@ -23927,6 +23927,12 @@ else init();
 
     // ── Caixas e bags cadastradas: código + QR em cada uma, rastreio de saída e retorno ──
     const CX_ATRASO = 15;   // dias fora para destacar
+    // prazo (dias) em cada situação fora do estoque: passou disso, a embalagem entra no alerta ⏰.
+    // Ajustável em 💲 Valores e prazos (gravado em caixas_bags_valor como "prazo:<situação>", vale para todos os computadores do hub)
+    const CX_PRAZO_PAD = { 'Fora': CX_ATRASO, 'Pendente': CX_ATRASO, 'Esterilização': 3, 'No hospital': 15, 'Com vendedor': 7 };
+    const _cxPrazo = { ...CX_PRAZO_PAD };
+    const cxAtrasada = (c, prz) => { const p = (prz || _cxPrazo)[c.status]; return !!p && diasDesde(c.saida_em) > p; };
+    const HUB_NOME = { CGR: 'Campo Grande', CBA: 'Cuiabá' };
     const CX_PREF = { Caixa: 'CX', Bag: 'BG', Sacola: 'SC', 'Porta cateter': 'PC' };
     const CX_ICO = { Caixa: '📦', Bag: '🎒', Sacola: '🛍️', 'Porta cateter': '💉' };
     // no banco continua 'Fora'; na tela aparece como "Em procedimento"
@@ -24045,7 +24051,10 @@ else init();
         const sb = window._supabase; if (!sb) return {};
         const { data, error } = await sb.from('caixas_bags_valor').select('*');
         if (error) return (_cxValor = { _erro: true });
-        _cxValor = {}; (data || []).filter(v => !v.filial || !filialAtual(null) || v.filial === filialAtual(null)).forEach(v => { _cxValor[v.tipo] = +v.valor || 0; }); return _cxValor;
+        _cxValor = {}; Object.assign(_cxPrazo, CX_PRAZO_PAD);
+        (data || []).filter(v => !v.filial || !filialAtual(null) || v.filial === filialAtual(null)).forEach(v => {
+            if (String(v.tipo).startsWith('prazo:')) { if (+v.valor > 0) _cxPrazo[v.tipo.slice(6)] = +v.valor; } else _cxValor[v.tipo] = +v.valor || 0; });
+        return _cxValor;
     }
     const brlCx = v => (+v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     const valorCx = c => (_cxValor && _cxValor[c.tipo]) || 0;
@@ -24204,6 +24213,29 @@ else init();
     // confere ao abrir e a cada 30 s (pega a mudança de status feita aqui ou em outro computador)
     setTimeout(retornoAutomaticoCaixas, 8000);
     setInterval(retornoAutomaticoCaixas, 30000);
+    // ── Resumo da semana (por hub) e comparativo entre hubs ──
+    const isoDia = d => new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
+    const inicioSemana = off => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - (d.getDay() + 6) % 7 - 7 * (off || 0)); return d; };
+    const procsDoHub = fil => (window.procedimentos || []).filter(p => window._gfMode !== 'consolidado' || String(p._filialOrigem || '').toUpperCase() === fil);
+    function cxIndicadores(cxs, movs, procs, ini, fim, prz) {
+        const naSem = m => { const t = new Date(m.data); return t >= ini && t < fim; }, sm = movs.filter(naSem);
+        const st = s => cxs.filter(c => c.status === s).length, conta = t => sm.filter(m => m.tipo_mov === t).length;
+        // tempo na esterilização: casa cada volta com o envio anterior da mesma caixa
+        const env = {}, ester = [];
+        movs.slice().sort((a, b) => new Date(a.data) - new Date(b.data)).forEach(m => {
+            if (m.tipo_mov === 'Esterilização') env[m.codigo] = m;
+            else if ((m.tipo_mov === 'Esterilizada' || m.tipo_mov === 'Retorno') && env[m.codigo]) { if (naSem(m)) ester.push((new Date(m.data) - new Date(env[m.codigo].data)) / 864e5); delete env[m.codigo]; }
+        });
+        const d0 = isoDia(ini), d1 = isoDia(fim);
+        return { estoque: st('Disponível') + st('Em limpeza'), fora: st('Fora'), pend: st('Pendente'), hosp: st('No hospital'), vend: st('Com vendedor'), ester: st('Esterilização'), consig: st('Consignado'), naoLoc: st('Não localizada'),
+            atrasadas: cxs.filter(c => cxAtrasada(c, prz)).sort((a, b) => (diasDesde(b.saida_em) || 0) - (diasDesde(a.saida_em) || 0)),
+            saidas: conta('Saída'), retornos: conta('Retorno'), envEster: conta('Esterilização'), voltaEster: ester.length, mediaEster: ester.length ? ester.reduce((a, v) => a + v, 0) / ester.length : null,
+            baixas: conta('Baixa') + conta('Pendente'), cirurgias: procs.filter(p => p.data && p.data >= d0 && p.data < d1 && p.status !== 'cancelado').length };
+    }
+    const fmtMedia = v => v == null ? '—' : v.toFixed(1).replace('.', ',') + ' d';
+    const LINHAS_IND = [['📦 Em estoque (agora)', 'estoque'], ['🩺 Em procedimento (agora)', 'fora'], ['🏨 No hospital sem NF (agora)', 'hosp'], ['👤 Com vendedor (agora)', 'vend'], ['🧪 Em esterilização (agora)', 'ester'], ['🏥 Em consignação (agora)', 'consig'], ['⏳ Não devolvidas (agora)', 'pend'], ['🔎 Não localizadas (agora)', 'naoLoc'], ['⏰ Passaram do prazo (agora)', 'atr'],
+        ['⬆ Saídas na semana', 'saidas'], ['⬇ Retornos na semana', 'retornos'], ['🧪 Enviadas p/ esterilização', 'envEster'], ['✅ Voltaram esterilizadas', 'voltaEster'], ['⏱ Tempo médio na esterilização', 'media'], ['❌ Não voltaram / baixas na semana', 'baixas'], ['🏥 Cirurgias na semana', 'cirurgias']];
+    const valInd = (r, k) => k === 'atr' ? r.atrasadas.length : k === 'media' ? fmtMedia(r.mediaEster) : r[k];
     window.abrirCaixasBags = async function (modoIni) {
         document.getElementById('cx-lista')?.remove();
         const sb = window._supabase;
@@ -24220,8 +24252,9 @@ else init();
             <button data-a="novo" style="${bt};background:#111827;color:#fff;border-color:#111827">+ Cadastrar</button>
             <button data-a="exclote" style="${bt};color:#dc2626;border-color:#dc2626" title="Excluir várias caixas, bags ou sacolas de uma vez">🗑 Excluir em lote</button>
             <button data-a="inv" style="${bt};border-color:#7c3aed;color:#7c3aed" title="Bipe tudo o que está na prateleira: o sistema mostra o que falta e o que está errado">📋 Conferir estoque</button>
+            <button data-a="resumo" style="${bt};border-color:#2563eb;color:#2563eb" title="Resumo da semana: caixas fora, paradas além do prazo, esterilização e cirurgias${window._gfMode === 'consolidado' ? ' — e o comparativo entre os hubs' : ''}">📈 Resumo da semana</button>
             <button data-a="rel" style="${bt}" title="Relatório do mês: saídas, tempo fora por hospital, perdas">📊 Relatório</button>
-            <button data-a="valores" style="${bt}" title="Valor de reposição de cada tipo (entra na cobrança das que não voltaram)">💲 Valores</button>
+            <button data-a="valores" style="${bt}" title="Valor de reposição de cada tipo e o prazo (dias) em cada situação para o alerta ⏰">💲 Valores e prazos</button>
             <button data-a="etq" style="${bt}" title="Etiquetas com QR para colar nas caixas/bags (as da lista filtrada)">🏷 Etiquetas</button>
             <button data-a="xlsx" style="${bt};border-color:#16a34a;color:#16a34a">⬇ Excel</button>
             <button data-a="x" style="${bt}">✕</button>
@@ -24252,7 +24285,7 @@ else init();
         let inv = null;              // conferência de estoque em andamento
         const sessao = [];           // o que foi bipado agora (retorno / limpeza)
         const ST_COR = { 'Disponível': '#16a34a', 'Fora': '#2563eb', 'Pendente': '#dc2626', 'Em limpeza': '#0891b2', 'Manutenção': '#b45309', 'Baixada': '#6b7280', 'Consignado': '#7c3aed', 'Esterilização': '#db2777', 'Não localizada': '#991b1b', 'No hospital': '#0d9488', 'Com vendedor': '#ea580c' };
-        const atrasada = c => (c.status === 'Fora' || c.status === 'Pendente') && diasDesde(c.saida_em) > CX_ATRASO;
+        const atrasada = c => cxAtrasada(c);   // passou do prazo da situação (💲 Valores e prazos)
         // ordem: o que precisa de atenção primeiro
         const prio = c => c.status === 'Pendente' ? 0 : atrasada(c) ? 1 : c.status === 'Fora' ? 2 : c.status === 'Consignado' ? 2.5 : c.status === 'No hospital' ? 2.6 : c.status === 'Com vendedor' ? 2.7 : c.status === 'Em limpeza' ? 3 : c.status === 'Esterilização' ? 3.5 : c.status === 'Manutenção' ? 4 : c.status === 'Disponível' ? 5 : 6;
         const porCodigo = (a, b) => String(a.codigo).localeCompare(String(b.codigo), 'pt-BR', { numeric: true });
@@ -24315,10 +24348,14 @@ else init();
         }
         function desenharOnde() {
             const fora = cxs.filter(c => c.status === 'Fora' || c.status === 'Pendente' || c.status === 'Consignado' || c.status === 'No hospital' || c.status === 'Com vendedor');
-            if (!fora.length) { $('[data-onde]').innerHTML = ''; return; }
+            const atr = cxs.filter(atrasada).sort((a, b) => (diasDesde(b.saida_em) || 0) - (diasDesde(a.saida_em) || 0));
+            const alerta = atr.length ? `<div style="margin-bottom:6px;padding:7px 10px;border-radius:10px;border:1px solid #fecaca;background:rgba(220,38,38,.07);font-size:.72rem;color:#991b1b;display:flex;gap:6px;flex-wrap:wrap;align-items:center"><b>⏰ ${atr.length} passaram do prazo:</b> `
+                + atr.slice(0, 12).map(c => `<span title="${esc(localDe(c))}"><b style="font-family:var(--mono)">${esc(c.codigo)}</b> (${esc(stNome(c.status))}${c.status === 'Com vendedor' && c.levado_por ? ' · ' + esc(c.levado_por) : ''} · ${diasDesde(c.saida_em)} de ${_cxPrazo[c.status]} dias)</span>`).join(' · ')
+                + `${atr.length > 12 ? ' …' : ''} <button data-st="atraso" style="${chip};padding:2px 8px;border-color:#dc2626;color:#dc2626">ver todas</button></div>` : '';
+            if (!fora.length) { $('[data-onde]').innerHTML = alerta; return; }
             const g = {}; fora.forEach(c => { const k = c.local_atual || 'Sem local'; (g[k] = g[k] || []).push(c); });
             const grupos = Object.entries(g).sort((a, b) => b[1].length - a[1].length);
-            $('[data-onde]').innerHTML = `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span style="font-size:.7rem;font-weight:800;color:var(--text)">🏥 Onde estão (${fora.length}):</span>`
+            $('[data-onde]').innerHTML = alerta + `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><span style="font-size:.7rem;font-weight:800;color:var(--text)">🏥 Onde estão (${fora.length}):</span>`
                 + grupos.map(([loc, l]) => { const max = Math.max(...l.map(c => diasDesde(c.saida_em) || 0)), pend = l.filter(c => c.status === 'Pendente').length, at = l.some(atrasada);
                     const tipos = ['Caixa', 'Bag', 'Sacola', 'Porta cateter'].map(t => [t, l.filter(c => c.tipo === t).length]).filter(([, n]) => n).map(([t, n]) => `${n} ${CX_ICO[t]}`).join(' ');
                     return `<button data-ondeq="${esc(loc)}" title="Ver só as que estão em ${esc(loc)}: ${esc(l.map(c => c.codigo).join(', '))}" style="${chip};${pend || at ? 'border-color:#dc2626;color:#dc2626' : ''}">${esc(loc.length > 38 ? loc.slice(0, 36) + '…' : loc)} · <b>${tipos}</b> · ${max} dia${max === 1 ? '' : 's'}${pend ? ` · ⏳ ${pend}` : ''}</button>`; }).join('') + '</div>';
@@ -24328,7 +24365,7 @@ else init();
             const doTipo = cxs.filter(c => !fTipo || c.tipo === fTipo);
             const cont = s => s === 'atraso' ? doTipo.filter(atrasada).length : s ? doTipo.filter(c => c.status === s).length : doTipo.length;
             const pend = doTipo.filter(c => c.status === 'Pendente'), vPend = pend.reduce((a, c) => a + valorCx(c), 0);
-            const sts = [['', 'Todas'], ['Pendente', '⏳ Não devolvidas'], ['atraso', `⏰ Em procedimento há +${CX_ATRASO} dias`], ['Fora', '🩺 Em procedimento'], ['Consignado', '🏥 Em Consignação'], ['No hospital', '🏨 No hospital (sem NF)'], ['Com vendedor', '👤 Com vendedor'], ['Não localizada', '🔎 Não localizadas'], ['Em limpeza', '🧼 Em limpeza'], ['Esterilização', '🧪 Em esterilização'], ['Manutenção', '🔧 Manutenção'], ['Disponível', '✅ Em estoque'], ['Baixada', '🗑 Baixadas']]
+            const sts = [['', 'Todas'], ['Pendente', '⏳ Não devolvidas'], ['atraso', '⏰ Passaram do prazo'], ['Fora', '🩺 Em procedimento'], ['Consignado', '🏥 Em Consignação'], ['No hospital', '🏨 No hospital (sem NF)'], ['Com vendedor', '👤 Com vendedor'], ['Não localizada', '🔎 Não localizadas'], ['Em limpeza', '🧼 Em limpeza'], ['Esterilização', '🧪 Em esterilização'], ['Manutenção', '🔧 Manutenção'], ['Disponível', '✅ Em estoque'], ['Baixada', '🗑 Baixadas']]
                 .filter(([s]) => (s !== 'Em limpeza' || limpezaAtiva() || cont(s)) && (s !== 'Consignado' || cont(s) || cxs.some(c => c.status === 'Fora')));
             $('[data-filtros]').innerHTML = sts.map(([s, n]) => `<button data-st="${s}" style="${chip};${fSt === s ? chipOn : s === 'Pendente' && pend.length ? 'border-color:#dc2626;color:#dc2626' : ''}">${n} <b>${cont(s)}</b>${s === 'Pendente' && vPend ? ` · ${brlCx(vPend)}` : ''}</button>`).join('')
                 + `<div style="flex-basis:100%;display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:2px"><span style="font-size:.7rem;font-weight:800;color:var(--text)">Tipo:</span>`
@@ -24359,7 +24396,7 @@ else init();
                 ${linhas.map((c, iL) => { const d = diasDesde(c.saida_em), at = atrasada(c), fora = c.status === 'Fora' || c.status === 'Pendente' || c.status === 'Consignado' || c.status === 'No hospital' || c.status === 'Com vendedor' || c.status === 'Não localizada', ns = nSaidas ? nSaidas[c.codigo] || 0 : null;
                   return `<tr style="${at || c.status === 'Pendente' ? 'background:rgba(220,38,38,.06)' : sel.has(c.id) ? 'background:rgba(37,99,235,.08)' : ''}"><td style="${td}"><input type="checkbox" data-selcx="${c.id}" data-idx="${iL}" ${sel.has(c.id) ? 'checked' : ''}></td><td style="${td};white-space:nowrap"><b style="font-family:var(--mono)">${esc(c.codigo)}</b> <span style="color:var(--text-dim);font-size:.7rem">${CX_ICO[c.tipo] || '📦'} ${esc(c.tipo)}</span></td>
                     ${comDesc ? `<td style="${td}">${esc(c.descricao || '')}</td>` : ''}
-                    <td style="${td};white-space:nowrap"><span style="padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:800;color:#fff;background:${ST_COR[c.status] || '#6b7280'}">${esc(stNome(c.status))}</span>${at ? ' <span style="color:#dc2626;font-size:.7rem;font-weight:800">⏰ atrasada</span>' : ''}</td>
+                    <td style="${td};white-space:nowrap"><span style="padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:800;color:#fff;background:${ST_COR[c.status] || '#6b7280'}">${esc(stNome(c.status))}</span>${at ? ` <span style="color:#dc2626;font-size:.7rem;font-weight:800" title="Prazo para ${esc(stNome(c.status))}: ${_cxPrazo[c.status]} dias">⏰ passou do prazo</span>` : ''}</td>
                     <td style="${td}">${esc(localDe(c))}${fora && (c.levado_por || c.lacre) ? `<div style="font-size:.68rem;color:var(--text-dim)">${c.levado_por ? '👤 levou: ' + esc(c.levado_por) : ''}${c.levado_por && c.lacre ? ' · ' : ''}${c.lacre ? '🔒 lacre ' + esc(c.lacre) : ''}</div>` : ''}</td>
                     <td style="${td};white-space:nowrap">${c.status === 'Esterilização' && c.saida_em ? `🧪 ${new Date(c.saida_em).toLocaleDateString('pt-BR')} <span style="color:var(--text-dim);font-size:.7rem">(${diasDesde(c.saida_em)} dia${diasDesde(c.saida_em) === 1 ? '' : 's'})</span>` : fora && c.saida_em ? `${new Date(c.saida_em).toLocaleDateString('pt-BR')} <span style="color:${at ? '#dc2626' : 'var(--text-dim)'};font-size:.7rem">(${d} dia${d === 1 ? '' : 's'})</span>` : c.retorno_em ? `<span style="color:var(--text-dim);font-size:.72rem">voltou ${new Date(c.retorno_em).toLocaleDateString('pt-BR')}</span>` : ns === 0 ? '<span style="color:var(--text-dim);font-size:.72rem">nunca saiu</span>' : '—'}</td>
                     <td style="${td};text-align:center;color:var(--text-dim)">${ns === null ? '…' : ns}</td>
@@ -24372,7 +24409,8 @@ else init();
                       ${fora || c.status === 'Manutenção' ? `<button data-retorno="${c.id}" style="${bb};color:#16a34a;border-color:#16a34a" title="Registrar que voltou">⬇ Retorno</button>` : ''}
                       ${c.status === 'Fora' || c.status === 'Pendente' ? `<button data-consig="${c.id}" style="${bb};color:#7c3aed;border-color:#7c3aed" title="Ficou no cliente em consignado (sai da cobrança de devolução)">🏥</button>` : ''}
                       ${c.status === 'Fora' ? `<button data-cons="${c.id}" style="${bb}" title="Ver a cirurgia e os itens desta caixa">🔍</button>` : ''}
-                      <button data-hist="${c.id}" style="${bb}" title="Histórico: para onde foi e quando voltou">🕘</button>
+                      ${c.levado_por && (c.status === 'Com vendedor' || c.status === 'Fora' || c.status === 'Pendente') ? `<button data-cobrar="${c.id}" style="${bb};color:#16a34a;border-color:#16a34a" title="Cobrar a devolução de ${esc(c.levado_por)} pelo WhatsApp (vai a lista de tudo o que está com essa pessoa)">💬</button>` : ''}
+                      <button data-hist="${c.id}" style="${bb}" title="Histórico: para onde foi, quando voltou e quanto tempo ficou em cada lugar">🕘</button>
                       <button data-etq1="${c.id}" style="${bb}" title="Imprimir a etiqueta QR desta embalagem">🏷</button>
                       <button data-edit="${c.id}" style="${bb}" title="Editar descrição / manutenção / baixa">✎</button></td></tr>`; }).join('') || `<tr><td colspan="9" style="${td};text-align:center;color:var(--text-dim);padding:18px">Nada com esses filtros.</td></tr>`}
               </tbody></table>`;
@@ -24537,12 +24575,47 @@ else init();
             $('[data-f="proc"]').onchange = e => { const p = procPorId(e.target.value); if (!p) return; $('[data-f="destino"]').value = p.hospital || ''; $('[data-f="cidade"]').value = p.cidade || ''; $('[data-f="nf"]').value = p.nf || ''; if (p.vendedor && !$('[data-f="levado"]').value) $('[data-f="levado"]').value = p.vendedor; };
             if (!ant.destino) $('[data-f="destino"]').focus();
         }
+        // 💬 cobra pelo WhatsApp tudo o que está com a pessoa (vendedor / motorista)
+        function cobrarDevolucao(c) {
+            const quem = String(c && c.levado_por || '').trim(); if (!quem) return;
+            const dele = cxs.filter(x => String(x.levado_por || '').trim().toUpperCase() === quem.toUpperCase() && (x.status === 'Com vendedor' || x.status === 'Fora' || x.status === 'Pendente')).sort(porCodigo);
+            const lin = x => { const d = diasDesde(x.saida_em); return `• ${x.tipo} *${x.codigo}*${x.saida_em ? ` — desde ${new Date(x.saida_em).toLocaleDateString('pt-BR')} (${d} dia${d === 1 ? '' : 's'})` : ''}${x.status !== 'Com vendedor' && x.local_atual ? ' · ' + localDe(x) : ''}`; };
+            const txt = [`Olá, ${quem.split(/\s+/)[0]}!`, dele.length > 1 ? `Estas ${dele.length} embalagens da GF Medical constam com você:` : 'Esta embalagem da GF Medical consta com você:', ...dele.map(lin), '',
+                'Consegue devolver ao estoque? Se já devolveu, me avise para eu dar baixa no sistema. Obrigado!'].join('\n');
+            window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(txt), '_blank');
+        }
+        // linha do tempo: em que lugar a embalagem ficou e por quanto tempo (de uma movimentação até a seguinte)
+        const ETAPA = { 'Cadastro': ['✅', 'Em estoque'], 'Retorno': ['✅', 'Em estoque'], 'Limpeza': ['✅', 'Em estoque'], 'Esterilizada': ['✅', 'Em estoque'], 'Saída': ['🩺', 'Em procedimento'],
+            'Esterilização': ['🧪', 'Em esterilização'], 'Consignado': ['🏥', 'Em consignação'], 'No hospital': ['🏨', 'No hospital (sem NF)'], 'Com vendedor': ['👤', 'Com vendedor'], 'Manutenção': ['🔧', 'Manutenção'], 'Baixa': ['🗑', 'Baixada'] };
+        const fmtDias = d => d < 1 ? Math.max(1, Math.round(d * 24)) + ' h' : (d < 10 ? d.toFixed(1).replace('.', ',') : Math.round(d)) + ' d';
+        function tempoPorLugar(movs) {
+            const seg = [];
+            movs.slice().sort((a, b) => new Date(a.data) - new Date(b.data)).forEach(m => {
+                const e = ETAPA[m.tipo_mov]; if (!e) return;
+                const onde = m.tipo_mov === 'Com vendedor' ? m.levado_por || '' : /^(Saída|Esterilização|Consignado|No hospital)$/.test(m.tipo_mov) ? [m.destino, m.cidade].filter(Boolean).join(' — ') : '';
+                const ant = seg[seg.length - 1];
+                if (ant && ant.nome === e[1] && ant.onde === onde) return;   // continua no mesmo lugar (ex.: voltou e depois foi limpa)
+                if (ant) ant.fim = m.data;
+                seg.push({ ic: e[0], nome: e[1], onde, ini: m.data, fim: null, baixa: m.tipo_mov === 'Baixa' });
+            });
+            if (!seg.length) return '';
+            seg.forEach(s => { s.dias = s.baixa ? 0 : ((s.fim ? new Date(s.fim) : new Date()) - new Date(s.ini)) / 864e5; });
+            const tot = {}; seg.filter(s => !s.baixa).forEach(s => { const t = tot[s.nome] = tot[s.nome] || { ic: s.ic, dias: 0, vezes: 0 }; t.dias += s.dias; t.vezes++; });
+            const soma = Object.values(tot).reduce((a, t) => a + t.dias, 0) || 1;
+            return `<div style="font-size:.72rem;font-weight:800;color:var(--text);margin-bottom:4px">⏱ Tempo em cada lugar</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${Object.entries(tot).sort((a, b) => b[1].dias - a[1].dias).map(([n, t]) => `<span style="padding:4px 9px;border:1px solid var(--border,#e5e7eb);border-radius:999px;font-size:.72rem;color:var(--text)">${t.ic} ${esc(n)} · <b>${fmtDias(t.dias)}</b> <span style="color:var(--text-dim)">(${Math.round(t.dias / soma * 100)}%${t.vezes > 1 ? ' · ' + t.vezes + 'x' : ''})</span></span>`).join('')}</div>
+              <div style="max-height:200px;overflow:auto;border-left:2px solid var(--border,#e5e7eb);margin-left:6px;padding-left:10px">${seg.slice().reverse().map(s => `<div style="display:flex;gap:8px;align-items:baseline;padding:3px 0;font-size:.74rem;color:var(--text)">
+                <span>${s.ic}</span><b style="white-space:nowrap">${esc(s.nome)}</b><span style="flex:1;color:var(--text-dim)">${esc(s.onde)}</span>
+                <span style="font-family:var(--mono);color:var(--text-dim);white-space:nowrap">${new Date(s.ini).toLocaleDateString('pt-BR')}${s.baixa ? '' : ' → ' + (s.fim ? new Date(s.fim).toLocaleDateString('pt-BR') : 'hoje')}</span>
+                <b style="min-width:48px;text-align:right;white-space:nowrap">${s.baixa ? '' : fmtDias(s.dias)}</b></div>`).join('')}</div>`;
+        }
         async function historico(c) {
             const { data, error } = await sb.from('caixas_bags_mov').select('*').eq('caixa_id', c.id).order('data', { ascending: false }).limit(300);
             if (error) return alert('Erro: ' + error.message);
-            const cor = { 'Saída': '#2563eb', 'Retorno': '#16a34a', 'Limpeza': '#0891b2', 'Pendente': '#dc2626', 'Consignado': '#7c3aed', 'Esterilização': '#db2777', 'Esterilizada': '#16a34a', 'Mais uma NF': '#2563eb', 'Saiu uma NF': '#64748b', 'Manutenção': '#b45309', 'Baixa': '#6b7280', 'Cadastro': '#111827' };
+            const cor = { 'Saída': '#2563eb', 'Retorno': '#16a34a', 'Limpeza': '#0891b2', 'Pendente': '#dc2626', 'Consignado': '#7c3aed', 'Esterilização': '#db2777', 'Esterilizada': '#16a34a', 'Mais uma NF': '#2563eb', 'Saiu uma NF': '#64748b', 'Manutenção': '#b45309', 'Baixa': '#6b7280', 'Cadastro': '#111827', 'No hospital': '#0d9488', 'Com vendedor': '#ea580c', 'Não localizada': '#991b1b' };
             form(`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><b style="font-size:.85rem;color:var(--text)">🕘 Histórico de ${esc(c.codigo)}</b><span style="font-size:.72rem;color:var(--text-dim)">${(data || []).filter(m => m.tipo_mov === 'Saída').length} saída(s)</span><button data-a="cancela" style="${bt};margin-left:auto">Fechar</button></div>
-              <div style="max-height:260px;overflow:auto">${(data || []).map(m => `<div style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--border,#e5e7eb);font-size:.76rem;color:var(--text)">
+              ${tempoPorLugar(data || [])}<div style="font-size:.72rem;font-weight:800;color:var(--text);margin:10px 0 2px">📜 Todas as movimentações</div>
+              <div style="max-height:220px;overflow:auto">${(data || []).map(m => `<div style="display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--border,#e5e7eb);font-size:.76rem;color:var(--text)">
                 <span style="min-width:120px;font-family:var(--mono);color:var(--text-dim)">${new Date(m.data).toLocaleString('pt-BR').slice(0, 17)}</span>
                 <b style="min-width:90px;color:${cor[m.tipo_mov] || 'inherit'}">${m.tipo_mov === 'Saída' ? '⬆' : m.tipo_mov === 'Retorno' ? '⬇' : m.tipo_mov === 'Limpeza' ? '🧼' : '•'} ${esc(m.tipo_mov)}</b>
                 <span style="flex:1">${esc([m.destino, m.cidade].filter(Boolean).join(' — '))}${m.nf ? ` · NF ${esc(m.nf)}` : ''}${m.paciente ? ` · ${esc(m.paciente)}` : ''}${m.levado_por ? ` · 👤 ${esc(m.levado_por)}` : ''}${m.lacre ? ` · 🔒 ${esc(m.lacre)}` : ''}${m.obs ? ` <span style="color:var(--text-dim)">· ${esc(m.obs)}</span>` : ''}</span>
@@ -24631,15 +24704,23 @@ else init();
                 <div style="flex:1;min-width:200px;height:10px;border-radius:99px;background:var(--border,#e5e7eb);overflow:hidden"><div style="height:100%;width:${esperadas.length ? Math.round(achadas.length / esperadas.length * 100) : 0}%;background:#7c3aed"></div></div>
                 <b style="font-size:.8rem;color:var(--text)">${achadas.length} de ${esperadas.length}</b>
                 <button data-a="invfim" style="${bt};background:#7c3aed;color:#fff;border-color:#7c3aed">✔ Concluir conferência</button>
+                <button type="button" data-bipcel onclick="window.abrirBiparCelular()" style="${bt}" title="Conferir andando pelo estoque com o celular: cada etiqueta lida entra aqui">📱 Bipar com celular</button>
                 <button data-a="cancela" style="${bt}">Cancelar</button></div>
               <div style="margin-top:8px;font-size:.74rem;color:var(--text)">${inv.bip.length ? `<b>Bipadas (${inv.bip.length}):</b> ` + inv.bip.slice().reverse().map(k => { const c = cxs.find(x => x.codigo === k); return `<span style="font-family:var(--mono);color:${!c ? '#dc2626' : deveEstar(c) ? '#16a34a' : '#b45309'}" title="${!c ? 'não cadastrada' : esc(stNome(c.status))}">${esc(k)}</span>`; }).join(' · ') : '<span style="color:var(--text-dim)">Nada bipado ainda.</span>'}</div>
               ${foraDoLugar.length ? `<div style="margin-top:6px;font-size:.74rem;color:#b45309">⚠ ${foraDoLugar.length} bipada(s) que o sistema dizia estar fora: ${foraDoLugar.map(c => esc(c.codigo) + ' (' + esc(stNome(c.status)) + ')').join(', ')}</div>` : ''}`);
             setTimeout(() => $('[data-invbip]')?.focus(), 30);
+            if (typeof _celAtualizar === 'function') _celAtualizar();
         }
         function invBipar(texto) {
             const k = codigoBipado(texto); if (!k) return;
-            if (inv.bip.includes(k)) { bip(false); return desenharInv(); }
-            inv.bip.push(k); const c = cxs.find(x => x.codigo === k); bip(!!c && deveEstar(c)); desenharInv();
+            const c = cxs.find(x => x.codigo === k), ja = inv.bip.includes(k);
+            if (!ja) inv.bip.push(k);
+            const esperadas = cxs.filter(deveEstar), n = esperadas.filter(x => inv.bip.includes(x.codigo)).length;
+            aviso(ja ? `<span style="color:#b45309">⚠ ${esc(k)} já foi bipada nesta conferência</span>`
+                : !c ? `<span style="color:#dc2626">❌ ${esc(k)} não está cadastrada</span>`
+                : deveEstar(c) ? `<span style="color:#16a34a">✅ ${esc(k)} conferida (${n} de ${esperadas.length})</span>`
+                : `<span style="color:#b45309">⚠ ${esc(k)} constava como ${esc(stNome(c.status))}${c.local_atual ? ' (' + esc(localDe(c)) + ')' : ''}</span>`, !ja && !!c && deveEstar(c));
+            desenharInv();
         }
         async function concluirInventario() {
             const faltando = cxs.filter(c => deveEstar(c) && !inv.bip.includes(c.codigo)).sort(porCodigo);
@@ -24672,6 +24753,11 @@ else init();
               <div style="font-size:.72rem;color:var(--text-dim);margin-bottom:8px">Quanto custa repor cada embalagem. Entra no total das não devolvidas, na cobrança pelo WhatsApp e no relatório.${semTab ? ' <b style="color:#b45309">Rode o SQL 20261108_caixas_controle.sql para guardar.</b>' : ''}</div>
               <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
                 ${['Caixa', 'Bag', 'Sacola', 'Porta cateter'].map(t => campo(`${CX_ICO[t]} ${t === 'Caixa' ? 'Caixa plástica' : t} (R$)`, `<input data-val="${t}" type="number" min="0" step="0.01" value="${(_cxValor && _cxValor[t]) || ''}" style="${inp};width:120px">`)).join('')}
+              </div>
+              <div style="font-weight:800;font-size:.85rem;margin:14px 0 4px;color:var(--text)">⏰ Prazo em cada situação (dias)</div>
+              <div style="font-size:.72rem;color:var(--text-dim);margin-bottom:8px">Passou do prazo, a embalagem fica em vermelho, aparece no aviso "⏰ passaram do prazo" e conta no alerta do botão. Vale para todos os computadores de ${esc(HUB_NOME[filialAtual(null)] || 'este hub')}.</div>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+                ${[['Fora', '🩺 Em procedimento'], ['Esterilização', '🧪 Em esterilização'], ['No hospital', '🏨 No hospital (sem NF)'], ['Com vendedor', '👤 Com vendedor']].map(([s, n]) => campo(n, `<input data-prazo="${s}" type="number" min="1" max="365" value="${_cxPrazo[s] || ''}" style="${inp};width:120px">`)).join('')}
                 <button data-a="gravarValores" style="${bt};background:#111827;color:#fff;border-color:#111827">💾 Salvar</button><button data-a="cancela" style="${bt}">Cancelar</button></div>`);
         }
         // ── Relatório do mês ──
@@ -24711,6 +24797,62 @@ else init();
               </div>
               ${perdas.length ? `<div style="margin-top:12px">${box('❌ Não voltaram / baixas no mês', tab(['Código', 'Data', 'Onde', 'Valor'], perdas.map(m => [`<span style="font-family:var(--mono)">${esc(m.codigo)}</span> ${esc(m.tipo_mov)}`, new Date(m.data).toLocaleDateString('pt-BR'), esc(m.destino || ''), brlCx(valorCx(cxPorCod[m.codigo] || {}))])))}</div>` : ''}`);
             $('[data-relmes]').onchange = e => relatorio(e.target.value);
+        }
+        let _txtResumo = '', _txtComp = '';
+        const periodo = (ini, fim) => `${ini.toLocaleDateString('pt-BR').slice(0, 5)} a ${new Date(fim - 1).toLocaleDateString('pt-BR').slice(0, 5)}`;
+        const navSem = (attr, off) => `<button data-${attr}="${off + 1}" style="${bt};padding:4px 9px" title="Semana anterior">◀</button><button data-${attr}="${Math.max(0, off - 1)}" style="${bt};padding:4px 9px" ${off ? '' : 'disabled'} title="Semana seguinte">▶</button>`;
+        const kpiR = (n, v, cor) => `<div style="flex:1;min-width:130px;padding:9px 11px;border:1px solid var(--border,#e5e7eb);border-radius:10px;background:var(--surface,#fff)"><div style="font-size:.62rem;font-weight:800;color:var(--text-dim);text-transform:uppercase">${n}</div><div style="font-size:1.1rem;font-weight:900;color:${cor || 'var(--text)'}">${v}</div></div>`;
+        async function resumoSemana(off) {
+            lote = null; inv = null;
+            const ini = inicioSemana(off), fim = new Date(ini.getTime() + 7 * 864e5), fil = filialAtual(null), hub = HUB_NOME[fil] || fil;
+            form('<div style="font-size:.8rem;color:var(--text-dim)">Montando o resumo…</div>');
+            const { data, error } = await sb.from('caixas_bags_mov').select('codigo,tipo_mov,data').gte('data', new Date(ini.getTime() - 60 * 864e5).toISOString()).lt('data', fim.toISOString()).order('data').limit(50000);
+            if (error) return form(`<div style="color:#dc2626;font-size:.8rem">Erro: ${esc(error.message)}</div>`);
+            const r = cxIndicadores(cxs, data || [], procsDoHub(fil), ini, fim);
+            const podeComparar = window._gfMode === 'consolidado' && window._gfConnections && window._gfConnections.cgr && window._gfConnections.cba;
+            const linAtr = c => `${c.codigo} — ${stNome(c.status)}${c.status === 'Com vendedor' && c.levado_por ? ' (' + c.levado_por + ')' : c.status !== 'Esterilização' && c.local_atual ? ' · ' + localDe(c) : ''} há ${diasDesde(c.saida_em)} dias (prazo ${_cxPrazo[c.status]})`;
+            _txtResumo = [`*Resumo da semana · Embalagens · ${hub}*`, periodo(ini, fim), '',
+                `📦 Em estoque: ${r.estoque} · 🩺 Em procedimento: ${r.fora} · 🏨 No hospital: ${r.hosp} · 👤 Com vendedor: ${r.vend} · 🧪 Em esterilização: ${r.ester}${r.pend ? ' · ⏳ Não devolvidas: ' + r.pend : ''}`, '',
+                r.atrasadas.length ? `⏰ *${r.atrasadas.length} passaram do prazo:*` : '✅ Nenhuma embalagem passou do prazo.', ...r.atrasadas.slice(0, 25).map(c => '• ' + linAtr(c)), '',
+                `Na semana: ${r.saidas} saídas, ${r.retornos} retornos, ${r.envEster} enviadas p/ esterilização, ${r.voltaEster} voltaram (média ${fmtMedia(r.mediaEster)}).`, `🏥 Cirurgias na semana: ${r.cirurgias}`].join('\n');
+            form(`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px"><b style="font-size:.88rem;color:var(--text)">📈 Resumo da semana · ${esc(hub)}</b>
+                ${navSem('semoff', off)}<span style="font-size:.76rem;color:var(--text-dim)">${periodo(ini, fim)}${off ? '' : ' (semana atual)'}</span>
+                <button data-a="resumoWa" style="${bt};border-color:#16a34a;color:#16a34a;margin-left:auto">💬 Enviar pelo WhatsApp</button>
+                ${podeComparar ? `<button data-compoff="${off}" style="${bt};border-color:#2563eb;color:#2563eb">🏢 Comparar hubs</button>` : ''}
+                <button data-a="cancela" style="${bt}">Fechar</button></div>
+              <div style="font-size:.66rem;font-weight:800;color:var(--text-dim);text-transform:uppercase;margin-bottom:4px">Agora</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">${kpiR('📦 Em estoque', r.estoque, '#16a34a')}${kpiR('🩺 Em procedimento', r.fora, '#2563eb')}${kpiR('🏨 No hospital (sem NF)', r.hosp, '#0d9488')}${kpiR('👤 Com vendedor', r.vend, '#ea580c')}${kpiR('🧪 Em esterilização', r.ester, '#db2777')}${kpiR('⏳ Não devolvidas', r.pend, r.pend ? '#dc2626' : '')}${kpiR('⏰ Passaram do prazo', r.atrasadas.length, r.atrasadas.length ? '#dc2626' : '#16a34a')}</div>
+              <div style="font-size:.66rem;font-weight:800;color:var(--text-dim);text-transform:uppercase;margin-bottom:4px">Na semana</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">${kpiR('⬆ Saídas', r.saidas)}${kpiR('⬇ Retornos', r.retornos)}${kpiR('🧪 Enviadas p/ esterilizar', r.envEster)}${kpiR('⏱ Tempo médio na esterilização', fmtMedia(r.mediaEster), r.mediaEster > _cxPrazo['Esterilização'] ? '#dc2626' : '')}${kpiR('❌ Não voltaram / baixas', r.baixas, r.baixas ? '#dc2626' : '')}${kpiR('🏥 Cirurgias', r.cirurgias)}</div>
+              ${r.atrasadas.length ? `<div style="font-size:.74rem;font-weight:800;color:#dc2626;margin-bottom:4px">⏰ Passaram do prazo (${r.atrasadas.length})</div><div style="max-height:180px;overflow:auto">${r.atrasadas.map(c => `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:4px 0;border-bottom:1px solid var(--border,#e5e7eb);font-size:.76rem"><b style="font-family:var(--mono);min-width:64px">${esc(c.codigo)}</b><span style="flex:1">${esc(stNome(c.status))} · ${esc(c.status === 'Com vendedor' ? c.levado_por || '' : localDe(c))}</span><b style="color:#dc2626">${diasDesde(c.saida_em)} d</b><span style="color:var(--text-dim)">prazo ${_cxPrazo[c.status]}</span>${c.levado_por && (c.status === 'Com vendedor' || c.status === 'Fora' || c.status === 'Pendente') ? `<button data-cobrar="${c.id}" style="${bt};padding:3px 8px;color:#16a34a;border-color:#16a34a">💬 Cobrar</button>` : ''}</div>`).join('')}</div>` : '<div style="font-size:.8rem;color:#16a34a;font-weight:800">✅ Nenhuma embalagem passou do prazo.</div>'}`);
+        }
+        // 🏢 Campo Grande × Cuiabá lado a lado (só no Consolidado, que tem as duas conexões)
+        async function compararHubs(off) {
+            lote = null; inv = null;
+            const ini = inicioSemana(off), fim = new Date(ini.getTime() + 7 * 864e5), desde = new Date(ini.getTime() - 60 * 864e5).toISOString();
+            form('<div style="font-size:.8rem;color:var(--text-dim)">Buscando os dados de Campo Grande e Cuiabá…</div>');
+            const hubs = await Promise.all(['CGR', 'CBA'].map(async fil => {
+                try {
+                    const db = window._gfConnections[fil.toLowerCase()].db;
+                    const [c, m, v] = await Promise.all([db.from('caixas_bags').select('*').limit(5000), db.from('caixas_bags_mov').select('codigo,tipo_mov,data').gte('data', desde).lt('data', fim.toISOString()).order('data').limit(50000), db.from('caixas_bags_valor').select('*').like('tipo', 'prazo:%')]);
+                    if (c.error || m.error) return { fil, erro: (c.error || m.error).message };
+                    const prz = { ...CX_PRAZO_PAD }; (v.data || []).filter(x => !x.filial || x.filial === fil).forEach(x => { if (+x.valor > 0) prz[x.tipo.slice(6)] = +x.valor; });
+                    return { fil, r: cxIndicadores(c.data || [], m.data || [], procsDoHub(fil), ini, fim, prz) };
+                } catch (e) { return { fil, erro: e.message || String(e) }; }
+            }));
+            const pior = new Set(['fora', 'pend', 'hosp', 'vend', 'ester', 'naoLoc', 'atr', 'baixas', 'media']);   // nesses, número maior = pior
+            const num = (h, k) => !h.r ? null : k === 'atr' ? h.r.atrasadas.length : k === 'media' ? h.r.mediaEster : h.r[k];
+            const th = 'padding:6px 8px;font-size:.64rem;color:var(--text-dim);text-transform:uppercase;border-bottom:1px solid var(--border,#ccc)', tdc = 'padding:6px 8px;border-bottom:1px solid var(--border,#eee)';
+            _txtComp = ['*Comparativo dos hubs · Embalagens*', periodo(ini, fim), '', ...LINHAS_IND.map(([n, k]) => `${n}: ${hubs.map(h => HUB_NOME[h.fil] + ' ' + (h.r ? valInd(h.r, k) : '—')).join(' · ')}`)].join('\n');
+            form(`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px"><b style="font-size:.88rem;color:var(--text)">🏢 Comparativo dos hubs</b>
+                ${navSem('compoff', off)}<span style="font-size:.76rem;color:var(--text-dim)">${periodo(ini, fim)}</span>
+                <button data-a="compWa" style="${bt};border-color:#16a34a;color:#16a34a;margin-left:auto">💬 Enviar pelo WhatsApp</button>
+                <button data-semoff="${off}" style="${bt}">📈 Resumo deste hub</button><button data-a="cancela" style="${bt}">Fechar</button></div>
+              ${hubs.filter(h => h.erro).map(h => `<div style="font-size:.76rem;color:#b45309;margin-bottom:6px">⚠ ${esc(HUB_NOME[h.fil])}: ${esc(h.erro)}</div>`).join('')}
+              <table style="width:100%;max-width:640px;border-collapse:collapse;font-size:.78rem"><thead><tr><th style="${th};text-align:left">Indicador</th>${hubs.map(h => `<th style="${th};text-align:right">${esc(HUB_NOME[h.fil])}</th>`).join('')}</tr></thead><tbody>
+              ${LINHAS_IND.map(([n, k]) => { const vs = hubs.map(h => num(h, k)), ok = vs.filter(v => v != null), max = ok.length > 1 && pior.has(k) && Math.max(...ok) > Math.min(...ok) ? Math.max(...ok) : null;
+                  return `<tr><td style="${tdc};color:var(--text)">${n}</td>${hubs.map((h, i) => `<td style="${tdc};text-align:right;font-weight:800;color:${max != null && vs[i] === max ? '#dc2626' : 'var(--text)'}">${h.r ? valInd(h.r, k) : '—'}</td>`).join('')}</tr>`; }).join('')}
+              </tbody></table><div style="font-size:.68rem;color:var(--text-dim);margin-top:6px">Em vermelho: o hub com o número pior naquele item. Cada hub usa os próprios prazos (💲 Valores e prazos).</div>`);
         }
         async function bipar(texto) {
             const cod = codigoBipado(texto); $('[data-bip]').value = '';
@@ -24779,6 +24921,11 @@ else init();
                 if (d.esterok) { const c = porId(d.esterok); await movCaixa(c, 'Esterilizada', { obs: 'voltou esterilizada' }); _cxCache = null; await carregar(); window.showSyncToast && window.showSyncToast('✅ ' + c.codigo + ' voltou esterilizada — em estoque'); return; }
                 if (d.a === 'consigSel') return consignar(cxs.filter(c => sel.has(c.id) && (c.status === 'Fora' || c.status === 'Pendente')).sort(porCodigo));
                 if (d.hist) return historico(porId(d.hist));
+                if (d.cobrar) return cobrarDevolucao(porId(d.cobrar));
+                if (d.a === 'resumo') return resumoSemana(0);
+                if (d.semoff !== undefined) return resumoSemana(+d.semoff || 0);
+                if (d.compoff !== undefined) return compararHubs(+d.compoff || 0);
+                if (d.a === 'resumoWa' || d.a === 'compWa') return window.open('https://api.whatsapp.com/send?text=' + encodeURIComponent(d.a === 'resumoWa' ? _txtResumo : _txtComp), '_blank');
                 if (d.cons) return consultar(porId(d.cons));
                 if (d.etqcir) { const pc = procPorId(d.etqcir); if (pc) window.abrirQRCode(pc); return; }
                 if (d.etq1) return etiquetas([porId(d.etq1)]);
@@ -24791,9 +24938,12 @@ else init();
                 if (d.a === 'etq') return etiquetas(sel.size ? cxs.filter(c => sel.has(c.id)).sort(porCodigo) : linhas.slice().sort(porCodigo));
                 if (d.a === 'gravarValores') {
                     const rows = ['Caixa', 'Bag', 'Sacola', 'Porta cateter'].map(t => ({ filial: filialAtual(null), tipo: t, valor: Math.max(0, parseFloat($(`[data-val="${t}"]`).value) || 0), atualizado_em: new Date().toISOString() }));
+                    const pz = s => Math.max(1, Math.min(365, parseInt($(`[data-prazo="${s}"]`)?.value, 10) || CX_PRAZO_PAD[s]));
+                    ['Fora', 'Esterilização', 'No hospital', 'Com vendedor'].forEach(s => rows.push({ filial: filialAtual(null), tipo: 'prazo:' + s, valor: pz(s), atualizado_em: new Date().toISOString() }));
+                    rows.push({ filial: filialAtual(null), tipo: 'prazo:Pendente', valor: pz('Fora'), atualizado_em: new Date().toISOString() });
                     const { error } = await sb.from('caixas_bags_valor').upsert(rows, { onConflict: 'filial,tipo' });
                     if (error) return alert(/caixas_bags_valor|schema cache|does not exist/i.test(error.message) ? 'Rode o SQL 20261108_caixas_controle.sql no Supabase desta filial para guardar os valores.' : 'Erro: ' + error.message);
-                    await carregarValores(); form(''); desenhar(); window.showSyncToast && window.showSyncToast('💲 Valores de reposição salvos'); return;
+                    await carregarValores(); form(''); desenhar(); atualizarBadgeCaixas(); window.showSyncToast && window.showSyncToast('💲 Valores e prazos salvos'); return;
                 }
                 if (d.a === 'relxlsx') {
                     const R = window._cxRel; if (!R) return; if (!window.XLSX) return alert('Biblioteca do Excel não carregou. Recarregue a página.');
@@ -24899,15 +25049,15 @@ else init();
     async function atualizarBadgeCaixas() {
         const b = document.getElementById('btn-caixas'); if (!b) return;
         const l = await carregarCaixas(true).catch(() => null); if (!l || l.erro) return;
-        if (!_cxValor) carregarValores().catch(() => {});
-        const fora = l.filter(c => c.status === 'Fora'), atras = fora.filter(c => diasDesde(c.saida_em) > CX_ATRASO), pend = l.filter(c => c.status === 'Pendente');
+        if (!_cxValor) await carregarValores().catch(() => {});
+        const fora = l.filter(c => c.status === 'Fora'), atras = l.filter(c => cxAtrasada(c)), pend = l.filter(c => c.status === 'Pendente');
         const mudou = (window._cxPendentes || []).length !== pend.length; window._cxPendentes = pend;
         if (mudou && typeof atualizarBannerPendencias === 'function') try { atualizarBannerPendencias(); } catch (e) {}
         b.innerHTML = '📦 Controle de embalagens' + (fora.length ? `<span class="bdg" title="${fora.length} fora (em cirurgia/cliente)">${fora.length} fora</span>` : '')
             + (pend.length ? `<span class="bdg alerta" title="${pend.length} não devolvida(s): ${pend.map(c => c.codigo).join(', ')}">⏳ ${pend.length} pendente${pend.length > 1 ? 's' : ''}</span>` : '')
-            + (atras.length ? `<span class="bdg alerta" title="${atras.length} fora há mais de ${CX_ATRASO} dias: ${atras.map(c => c.codigo).join(', ')}">⏰ ${atras.length}</span>` : '');
+            + (atras.length ? `<span class="bdg alerta" title="${atras.length} passaram do prazo: ${atras.map(c => c.codigo + ' (' + stNome(c.status) + ')').join(', ')}">⏰ ${atras.length}</span>` : '');
         b.classList.toggle('atrasada', atras.length > 0 || pend.length > 0);
-        b.title = atras.length ? `⏰ ${atras.length} caixa(s)/bag(s)/sacola(s) fora há mais de ${CX_ATRASO} dias — clique para ver` : 'Cadastro das caixas, bags e sacolas (código + QR) e rastreio: para onde foram e quando voltaram';
+        b.title = atras.length ? `⏰ ${atras.length} embalagem(ns) passaram do prazo (procedimento, esterilização, hospital ou vendedor) — clique para ver` : 'Cadastro das caixas, bags e sacolas (código + QR) e rastreio: para onde foram e quando voltaram';
     }
     window.atualizarBadgeCaixas = atualizarBadgeCaixas;
     setTimeout(atualizarBadgeCaixas, 6000); setInterval(atualizarBadgeCaixas, 45000);
