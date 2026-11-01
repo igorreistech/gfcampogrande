@@ -22969,7 +22969,7 @@ else init();
         const sel = 'padding:6px 8px;border-radius:8px;border:1px solid var(--border,#ccc);background:var(--bg,#fff);color:var(--text);font-size:.74rem';
         const bt = 'padding:5px 10px;border-radius:8px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-size:.72rem;font-weight:700;cursor:pointer';
         box.innerHTML = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span>📦 Volumes que vão:</span><span id="f-vol-info" style="font-weight:400;color:var(--text-dim)"></span></div>
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:2px 0 4px"><input id="f-vol-bip" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done" placeholder="🔫 Bipe aqui o QR da caixa, bag ou sacola" style="${sel};flex:1 1 220px;min-width:0;font-weight:700;border:2px solid #0d9488">
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:2px 0 4px"><input id="f-vol-bip" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done" placeholder="🔫 Bipe aqui o código de barras da caixa, bag ou sacola" style="${sel};flex:1 1 220px;min-width:0;font-weight:700;border:2px solid #0d9488">
             <span id="f-vol-bipmsg" style="font-weight:700;font-size:.72rem"></span></div>
           <div style="font-weight:400;color:var(--text-dim);margin-bottom:3px">ou escolha na lista</div>
           <div id="f-vol-linhas" style="display:flex;flex-direction:column;gap:5px"></div>
@@ -22987,13 +22987,13 @@ else init();
                 return `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
                   <select data-vtipo="${i}" style="${sel}"><option value="">— tipo —</option>${['Caixa', 'Bag', 'Sacola', 'Porta cateter'].map(t => `<option value="${t}" ${v.tipo === t ? 'selected' : ''}>${CX_ICO[t]} ${t === 'Caixa' ? 'Caixa plástica' : t}</option>`).join('')}</select>
                   ${v.tipo ? `<select data-vcod="${i}" style="${sel};width:230px;max-width:100%;text-overflow:ellipsis"><option value="">${ops.length ? `— escolha a ${v.tipo.toLowerCase()} —` : `nenhuma ${v.tipo.toLowerCase()} disponível`}</option>${ops.map(c => `<option value="${esc(c.codigo)}" ${c.codigo === v.cod ? 'selected' : ''}>${esc(c.codigo)}${c.descricao ? ' · ' + esc(c.descricao) : ''}${cxTem(c, pid) ? ' (já nesta cirurgia)' : outra(c) ? (cxNfs(c).length ? ' · já leva NF ' + esc(cxNfs(c).join(', ')) : ' · em procedimento') : ''}</option>`).join('')}</select>` : ''}
-                  ${v.cod ? (v.bipado ? '<span style="color:#16a34a;font-weight:800">✅ bipada</span>' : '<span style="color:#b45309;font-weight:700" title="Escolhida na lista — bipe o QR para confirmar">⚠ não bipada</span>') : ''}
+                  ${v.cod ? (v.bipado ? '<span style="color:#16a34a;font-weight:800">✅ bipada</span>' : '<span style="color:#b45309;font-weight:700" title="Escolhida na lista — bipe o código de barras para confirmar">⚠ não bipada</span>') : ''}
                   <button type="button" data-vdel="${i}" title="Tirar este volume" style="${bt};padding:4px 8px">✕</button></div>`;
             }).join('');
             const n = vols.filter(v => v.cod).length;
             info.textContent = n ? `${n} volume(s): ` + vols.filter(v => v.cod).map(v => v.cod).join(', ') : 'nenhum';
             { const falta = vols.filter(v => v.cod && !v.bipado).map(v => v.cod), bip = box.querySelector('#f-vol-bip');
-              if (bip) { bip.placeholder = falta.length ? `🔫 (opcional) bipe o QR da ${falta[0]} para conferir` : '🔫 (opcional) bipe o QR da caixa para conferir'; bip.style.borderColor = '#0d9488'; } }
+              if (bip) { bip.placeholder = falta.length ? `🔫 Bipe o código de barras da ${falta[0]} para conferir (ou outra caixa para adicionar)` : '🔫 Bipe aqui o código de barras da caixa, bag ou sacola'; bip.style.borderColor = '#0d9488'; } }
         };
         const recarregar = async () => {
             const r = await carregarCaixas(true).catch(() => null); carregou = !!(r && !r.erro); lista = carregou ? r : [];
@@ -24169,7 +24169,7 @@ else init();
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 18px;border-bottom:1px solid var(--border,#e5e7eb);background:var(--bg,#f9fafb)">
             <span style="font-size:.72rem;font-weight:800;color:var(--text)">Bipar:</span>
             <div data-modo style="display:inline-flex;border:1px solid var(--border,#ccc);border-radius:9px;overflow:hidden"></div>
-            <input data-bip placeholder="Bipe o QR da caixa/bag ou digite o código (ex.: CX-003) e Enter" style="${inp};flex:1;min-width:240px;font-weight:700">
+            <input data-bip placeholder="Bipe o código de barras da caixa/bag ou digite o código (ex.: CX-003) e Enter" style="${inp};flex:1;min-width:240px;font-weight:700">
             <label style="display:flex;align-items:center;gap:5px;font-size:.7rem;font-weight:700;color:var(--text);cursor:pointer" title="Ligado: ao voltar, a embalagem fica 'Em limpeza' até ser marcada como limpa"><input type="checkbox" data-limptog> 🧼 Limpeza no retorno</label>
             <span data-bipmsg style="flex-basis:100%;font-size:.74rem;font-weight:700;display:none"></span>
             <div data-sessao style="flex-basis:100%;font-size:.72rem;color:var(--text-dim);display:none"></div>
@@ -24245,7 +24245,7 @@ else init();
                 .map(m => `<button data-modo-b="${m}" style="padding:6px 12px;border:0;font-size:.72rem;font-weight:800;cursor:pointer;background:${modo === m ? COR[m] : 'transparent'};color:${modo === m ? '#fff' : 'var(--text)'}">${ROT[m]}</button>`).join('');
             $('[data-limptog]').checked = limpezaAtiva();
             $('[data-bip]').placeholder = modo === 'Saída' ? 'Bipe as caixas/bags que vão sair (pode bipar várias) e Enter'
-                : modo === 'Limpeza' ? 'Bipe as embalagens que já foram limpas e Enter' : 'Bipe o QR da caixa/bag ou digite o código (ex.: CX-003) e Enter';
+                : modo === 'Limpeza' ? 'Bipe as embalagens que já foram limpas e Enter' : 'Bipe o código de barras da caixa/bag ou digite o código (ex.: CX-003) e Enter';
         }
         function desenharSessao() {
             const s = $('[data-sessao]'); if (!sessao.length) { s.style.display = 'none'; return; }
