@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<title>Bipar com celular · GF Medical</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:Inter,Arial,sans-serif;background:#0f172a;color:#e2e8f0;display:flex;flex-direction:column;min-height:100%}
+  header{padding:14px 16px 10px;display:flex;align-items:center;gap:10px}
+  header b{font-size:1rem;flex:1}
+  #status{font-size:.72rem;font-weight:700;padding:4px 10px;border-radius:999px;background:#334155;color:#cbd5e1;white-space:nowrap}
+  #status.ok{background:#14532d;color:#86efac}
+  #status.erro{background:#7f1d1d;color:#fecaca}
+  #onde{padding:0 16px 8px;font-size:.78rem;color:#94a3b8}
+  #leitor{margin:0 12px;border-radius:16px;overflow:hidden;background:#000;min-height:240px;position:relative}
+  #leitor video{width:100%!important;display:block}
+  #iniciar{margin:12px;padding:16px;border:0;border-radius:14px;background:#22c55e;color:#052e16;font-weight:800;font-size:1rem}
+  #ultimo{margin:12px;padding:14px;border-radius:14px;background:#1e293b;font-size:.95rem;font-weight:700;min-height:52px;display:flex;align-items:center;gap:8px}
+  #ultimo.ok{background:#14532d;color:#dcfce7}
+  #ultimo.erro{background:#7f1d1d;color:#fee2e2}
+  form{display:flex;gap:8px;margin:0 12px}
+  input{flex:1;min-width:0;padding:12px;border-radius:12px;border:1px solid #334155;background:#1e293b;color:#fff;font-size:1rem;font-weight:700;text-transform:uppercase}
+  button.env{padding:12px 16px;border:0;border-radius:12px;background:#3b82f6;color:#fff;font-weight:800}
+  #lista{margin:12px;display:flex;flex-direction:column;gap:6px;font-size:.8rem}
+  #lista div{padding:8px 10px;border-radius:10px;background:#1e293b;display:flex;gap:8px}
+  #lista div span{color:#94a3b8;margin-left:auto;white-space:nowrap}
+  .dica{margin:4px 16px 18px;font-size:.72rem;color:#64748b;line-height:1.4}
+</style>
+</head>
+<body>
+<header><b>📱 Bipar com celular</b><span id="status">conectando…</span></header>
+<div id="onde">Aponte a câmera para o código de barras ou o QR da etiqueta da caixa.</div>
+<div id="leitor"></div>
+<button id="iniciar" style="display:none">📷 Abrir a câmera</button>
+<div id="ultimo">Aguardando a primeira leitura…</div>
+<form id="manual"><input id="cod" placeholder="ou digite: CX-001" autocomplete="off" autocapitalize="characters"><button class="env">Enviar</button></form>
+<div id="lista"></div>
+<p class="dica">Mantenha o Monitor Cirúrgico aberto no computador com a ficha da cirurgia ou o Controle de embalagens. Cada caixa lida aqui entra lá na hora.</p>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+const PROJ = {
+  cgr: ["https://rqzqetfoxiutabsooqqn.supabase.co", "sb_publishable_P3EggMdsxQUoKnX_pLMaRQ_ZrGEYpIP"],
+  cba: ["https://cyztucqhfotqhauavepu.supabase.co", "sb_publishable_LnJYIlIDvTF6l4MMQwZ-Kg_uCBXnZRM"],
+};
+const q = new URLSearchParams(location.search), fil = q.get('f') === 'cba' ? 'cba' : 'cgr', sid = (q.get('s') || '').replace(/[^a-z0-9]/gi, '');
+const $ = id => document.getElementById(id);
+const status = (t, cls) => { $('status').textContent = t; $('status').className = cls || ''; };
+const ultimo = (t, cls) => { $('ultimo').textContent = t; $('ultimo').className = cls || ''; };
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+if (!sid) { status('link inválido', 'erro'); ultimo('Abra este link pelo botão "📱 Bipar com celular" do Monitor no computador.', 'erro'); throw new Error('sem sessão'); }
+
+// mesmo formato do Monitor: CX-001, BG-002, SC-010, PC-003 (com ou sem hífen, dentro do link do QR também)
+const codigoLido = t => { const m = /\b(CX|BG|SC|PC)[-\s]?(\d{1,5})\b/i.exec(String(t || '')); return m ? `${m[1].toUpperCase()}-${m[2].padStart(3, '0')}` : ''; };
+
+const sb = createClient(PROJ[fil][0], PROJ[fil][1], { auth: { persistSession: false, autoRefreshToken: false } });
+const canal = sb.channel('bip-' + sid, { config: { broadcast: { self: false } } });
+const pendentes = new Map();
+let conectado = false, pingTimer = null;
+canal.on('broadcast', { event: 'ok' }, ({ payload }) => {
+  conectado = true; clearInterval(pingTimer);
+  status('PC conectado', 'ok');
+  $('onde').textContent = payload && payload.onde ? '🖥 No PC: ' + payload.onde : 'Aponte a câmera para o código de barras ou o QR da etiqueta da caixa.';
+});
+canal.on('broadcast', { event: 'resp' }, ({ payload }) => {
+  const p = pendentes.get(payload.id); if (!p) return;
+  clearTimeout(p.timer); pendentes.delete(payload.id);
+  if (payload.onde) $('onde').textContent = '🖥 No PC: ' + payload.onde;
+  const txt = payload.texto || p.cod, temIcone = /^[✅⚠❌➕☝📦]/u.test(txt);
+  ultimo((temIcone ? '' : payload.ok ? '✅ ' : '⚠ ') + txt, payload.ok ? 'ok' : 'erro');
+  if (navigator.vibrate) navigator.vibrate(payload.ok ? 80 : [60, 60, 60]);
+  const resto = txt.replace(/^[✅⚠❌➕☝📦]\s*/u, '').replace(p.cod, '').trim();
+  $('lista').insertAdjacentHTML('afterbegin', `<div>${payload.ok ? '✅' : '⚠'} <b>${esc(p.cod)}</b> ${esc(resto ? '· ' + resto : '')}<span>${new Date().toLocaleTimeString('pt-BR').slice(0, 5)}</span></div>`);
+});
+canal.subscribe(st => {
+  if (st === 'SUBSCRIBED') {
+    status('procurando o PC…');
+    const ping = () => canal.send({ type: 'broadcast', event: 'ola', payload: {} });
+    ping(); clearInterval(pingTimer); pingTimer = setInterval(() => { if (!conectado) ping(); }, 2500);
+  } else if (st === 'CHANNEL_ERROR' || st === 'TIMED_OUT') status('sem conexão', 'erro');
+});
+
+function enviar(cod) {
+  const id = Math.random().toString(36).slice(2, 10);
+  ultimo('⏳ ' + cod + ' enviada…');
+  const timer = setTimeout(() => { if (pendentes.delete(id)) ultimo('⚠ O PC não respondeu. O Monitor está aberto no computador?', 'erro'); }, 5000);
+  pendentes.set(id, { cod, timer });
+  canal.send({ type: 'broadcast', event: 'bip', payload: { id, cod } });
+}
+
+// câmera: lê código de barras (Code 128 da etiqueta) e QR
+let ultimoCod = '', ultimoEm = 0;
+function lido(texto) {
+  const cod = codigoLido(texto);
+  if (!cod) { ultimo('⚠ Esse código não é de caixa/bag/sacola: ' + String(texto).slice(0, 40), 'erro'); return; }
+  const agora = Date.now();
+  if (cod === ultimoCod && agora - ultimoEm < 3000) return;   // a câmera lê a mesma etiqueta várias vezes seguidas
+  ultimoCod = cod; ultimoEm = agora;
+  enviar(cod);
+}
+async function abrirCamera() {
+  $('iniciar').style.display = 'none';
+  try {
+    const F = Html5QrcodeSupportedFormats;
+    const leitor = new Html5Qrcode('leitor', { formatsToSupport: [F.CODE_128, F.QR_CODE, F.CODE_39, F.EAN_13], useBarCodeDetectorIfSupported: true, verbose: false });
+    await leitor.start({ facingMode: 'environment' }, { fps: 12, qrbox: (w, h) => ({ width: Math.floor(Math.min(w * 0.9, 360)), height: Math.floor(Math.min(h * 0.6, 220)) }), aspectRatio: 1.333 }, lido, () => {});
+  } catch (e) {
+    $('iniciar').style.display = '';
+    ultimo('⚠ Não foi possível abrir a câmera: ' + (e && e.message ? e.message : e) + '. Toque em "Abrir a câmera" e permita o acesso.', 'erro');
+  }
+}
+$('iniciar').onclick = abrirCamera;
+$('manual').onsubmit = e => { e.preventDefault(); const cod = codigoLido($('cod').value); $('cod').value = ''; if (cod) enviar(cod); else ultimo('⚠ Digite um código como CX-001', 'erro'); };
+if (window.Html5Qrcode) abrirCamera(); else window.addEventListener('load', abrirCamera);
+</script>
+</body>
+</html>

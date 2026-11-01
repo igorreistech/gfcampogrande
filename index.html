@@ -22961,6 +22961,64 @@ else init();
     const temNF = p => p && String(p.nf || '').trim();
     const BTN_QR = 'background:rgba(17,24,39,.08);border-color:rgba(17,24,39,.35);color:var(--text);font-weight:700;';
 
+    // ── 📱 Bipar com celular: o celular abre bipar.html (QR mostrado aqui), lê a etiqueta e manda o código pelo canal em tempo real ──
+    let _celCanal = null, _celConectado = false;
+    const _celSid = () => {
+        let s = ''; try { s = sessionStorage.getItem('gf_bip_sid') || ''; } catch (e) {}
+        if (!s) { s = Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, '0')).join(''); try { sessionStorage.setItem('gf_bip_sid', s); } catch (e) {} }
+        return s;
+    };
+    const _celOnde = () => document.getElementById('cx-lista') ? 'Controle de embalagens' : document.getElementById('f-volume-cad')?.offsetParent ? 'ficha da cirurgia (volumes que vão)' : 'abra a ficha da cirurgia ou o Controle de embalagens';
+    function _celLigar() {
+        if (_celCanal || !window._supabase) return;
+        _celCanal = window._supabase.channel('bip-' + _celSid(), { config: { broadcast: { self: false } } });
+        _celCanal.on('broadcast', { event: 'ola' }, () => {
+            const novo = !_celConectado; _celConectado = true;
+            _celCanal.send({ type: 'broadcast', event: 'ok', payload: { onde: _celOnde() } });
+            _celAtualizar(); if (novo && window.showSyncToast) window.showSyncToast('📱 Celular conectado para bipar');
+        });
+        _celCanal.on('broadcast', { event: 'bip' }, ({ payload }) => _celReceber(payload || {}));
+        _celCanal.subscribe();
+    }
+    // entrega o código para a tela de bipe aberta (Controle de embalagens ou ficha da cirurgia) e devolve o resultado ao celular
+    async function _celReceber({ id, cod }) {
+        const resp = (ok, texto) => _celCanal.send({ type: 'broadcast', event: 'resp', payload: { id, ok, texto, onde: _celOnde() } });
+        if (!cod) return;
+        const cx = document.getElementById('cx-lista'), inpCx = cx && cx.querySelector('[data-bip]'), ficha = document.getElementById('f-volume-cad');
+        let msgEl = null;
+        if (inpCx) { inpCx.value = cod; inpCx.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); msgEl = cx.querySelector('[data-bipmsg]'); }
+        else if (ficha && ficha.offsetParent && ficha._bipar) { await ficha._bipar(cod); msgEl = ficha.querySelector('#f-vol-bipmsg'); }
+        else return resp(false, cod + ': abra no PC a ficha da cirurgia ou o Controle de embalagens');
+        await new Promise(r => setTimeout(r, 900));
+        const t = (msgEl && msgEl.textContent || '').trim();
+        resp(!/^[❌⚠☝]|^erro/i.test(t), t || cod + ' recebida no PC');
+    }
+    function _celAtualizar() {
+        const st = document.querySelector('#bip-cel-ov [data-celst]');
+        if (st) st.innerHTML = _celConectado ? '<span style="color:#16a34a">✅ Celular conectado — pode bipar</span>' : '<span style="color:#b45309">⏳ Aguardando o celular abrir o link…</span>';
+        document.querySelectorAll('[data-bipcel]').forEach(b => { b.textContent = _celConectado ? '📱 Celular conectado' : '📱 Bipar com celular'; b.style.color = _celConectado ? '#16a34a' : ''; b.style.borderColor = _celConectado ? '#16a34a' : ''; });
+        if (_celConectado) setTimeout(() => document.getElementById('bip-cel-ov')?.remove(), 1500);
+    }
+    window.abrirBiparCelular = async function () {
+        _celLigar();
+        document.getElementById('bip-cel-ov')?.remove();
+        const url = location.origin + location.pathname.replace(/[^/]*$/, '') + 'bipar.html?f=' + (window._activeBranch || 'cgr') + '&s=' + _celSid();
+        let svg = '';
+        try { const qrcode = await carregarLib(); const q = qrcode(0, 'M'); q.addData(url); q.make(); svg = q.createSvgTag({ cellSize: 5, margin: 2, scalable: true }); }
+        catch (e) { svg = '<p style="font-size:.8rem">Sem internet para gerar o QR. Abra o link abaixo no celular.</p>'; }
+        const ov = document.createElement('div'); ov.id = 'bip-cel-ov';
+        ov.style.cssText = 'position:fixed;inset:0;z-index:10050;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px';
+        ov.innerHTML = `<style>#bip-cel-ov svg{width:100%;height:100%}</style><div style="background:var(--surface,#fff);color:var(--text,#111);border-radius:16px;padding:20px;width:min(380px,100%);text-align:center;box-shadow:0 16px 50px rgba(0,0,0,.35)">
+          <b style="font-size:1rem">📱 Bipar com celular</b>
+          <p style="font-size:.8rem;color:var(--text-dim,#555);margin:6px 0 12px">Aponte a câmera do celular para este QR e abra o link. Depois é só apontar o celular para as etiquetas: cada caixa entra aqui no computador.</p>
+          <div style="width:220px;height:220px;margin:0 auto">${svg}</div>
+          <div data-celst style="margin-top:10px;font-size:.8rem;font-weight:700"></div>
+          <div style="font-size:.66rem;color:var(--text-dim,#666);margin-top:8px;word-break:break-all">${esc(url)}</div>
+          <button type="button" data-x style="margin-top:14px;padding:9px 18px;border-radius:10px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-weight:700;cursor:pointer">Fechar</button></div>`;
+        ov.addEventListener('click', e => { if (e.target === ov || e.target.closest('[data-x]')) ov.remove(); });
+        document.body.appendChild(ov); _celAtualizar();
+    };
+
     // ── Cadastro da cirurgia: escolher os volumes (várias Caixas / Bags / Sacolas cadastradas) → saída automática ao salvar ──
     function injetarVolumeFicha() {
         const fnf = document.getElementById('f-nf'); if (!fnf || document.getElementById('f-volume-cad')) return;
@@ -22970,6 +23028,7 @@ else init();
         const bt = 'padding:5px 10px;border-radius:8px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-size:.72rem;font-weight:700;cursor:pointer';
         box.innerHTML = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span>📦 Volumes que vão:</span><span id="f-vol-info" style="font-weight:400;color:var(--text-dim)"></span></div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:2px 0 4px"><input id="f-vol-bip" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done" placeholder="🔫 Bipe aqui o código de barras da caixa, bag ou sacola" style="${sel};flex:1 1 220px;min-width:0;font-weight:700;border:2px solid #0d9488">
+            <button type="button" data-bipcel onclick="window.abrirBiparCelular()" title="Usar o celular como leitor: lê a etiqueta com a câmera e manda para cá" style="${bt}">📱 Bipar com celular</button>
             <span id="f-vol-bipmsg" style="font-weight:700;font-size:.72rem"></span></div>
           <div style="font-weight:400;color:var(--text-dim);margin-bottom:3px">ou escolha na lista</div>
           <div id="f-vol-linhas" style="display:flex;flex-direction:column;gap:5px"></div>
@@ -23064,6 +23123,7 @@ else init();
         }, true);
         box._volumes = () => ({ carregou, cods: vols.map(v => v.cod).filter(Boolean), bipados: vols.filter(v => v.cod && v.bipado).map(v => v.cod), antes: JSON.parse(box.dataset.antes || '[]') });
         box._recarregar = recarregar;
+        box._bipar = bipar;
         // ficha aberta para outra cirurgia (ou nova): recarrega
         setInterval(() => { const id = pidAtual() + '|' + (document.getElementById('f-nf') ? '' : 'x'); if (id !== ultimoId && box.offsetParent) { ultimoId = id; recarregar(); } }, 700);
     }
@@ -24170,6 +24230,7 @@ else init();
             <span style="font-size:.72rem;font-weight:800;color:var(--text)">Bipar:</span>
             <div data-modo style="display:inline-flex;border:1px solid var(--border,#ccc);border-radius:9px;overflow:hidden"></div>
             <input data-bip placeholder="Bipe o código de barras da caixa/bag ou digite o código (ex.: CX-003) e Enter" style="${inp};flex:1;min-width:240px;font-weight:700">
+            <button type="button" data-bipcel onclick="window.abrirBiparCelular()" title="Usar o celular como leitor: lê a etiqueta com a câmera e manda para cá" style="${bt}">📱 Bipar com celular</button>
             <label style="display:flex;align-items:center;gap:5px;font-size:.7rem;font-weight:700;color:var(--text);cursor:pointer" title="Ligado: ao voltar, a embalagem fica 'Em limpeza' até ser marcada como limpa"><input type="checkbox" data-limptog> 🧼 Limpeza no retorno</label>
             <span data-bipmsg style="flex-basis:100%;font-size:.74rem;font-weight:700;display:none"></span>
             <div data-sessao style="flex-basis:100%;font-size:.72rem;color:var(--text-dim);display:none"></div>
