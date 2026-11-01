@@ -23755,7 +23755,7 @@ else init();
             $('[data-corpo]').innerHTML = `<table style="width:100%;border-collapse:separate;border-spacing:0"><thead><tr>${['Envio', 'Tipo', 'NF', 'Destino', 'Cidade', 'Volumes', 'Situação', 'Dias fora', 'Obs', ''].map(c => `<th style="${th}">${c}</th>`).join('')}</tr></thead><tbody>${
                 linhas.map((r, i) => { const d = diasFora(r); return `<tr>
                   <td style="${td};white-space:nowrap">${esc(dataBR(r.data_envio))}</td><td style="${td}">${esc(r.tipo)}</td><td style="${td};font-weight:800">${esc(r.nf) || (semNF(r.tipo) ? '<span style="font-weight:500;color:var(--text-dim)">sem NF</span>' : '')}</td>
-                  <td style="${td}">${esc(r.cliente)}</td><td style="${td}">${esc(r.cidade)}</td><td style="${td};white-space:nowrap;font-weight:700">${esc(volTxt(r.id)) || '<span style="color:#b45309">—</span>'}</td>
+                  <td style="${td}">${esc(r.tipo === TIPO_VEND ? r.cliente : nomeCadastro(r.cliente))}</td><td style="${td}">${esc(r.cidade)}</td><td style="${td};white-space:nowrap;font-weight:700">${esc(volTxt(r.id)) || '<span style="color:#b45309">—</span>'}</td>
                   <td style="${td}"><select data-mudast="${i}" style="${inp};padding:3px 6px;font-weight:700;${corSt[r.status] || ''}">${STATUS_REMESSA.filter(s => s !== 'No cliente' || r.status === s).map(s => `<option${s === r.status ? ' selected' : ''}>${s}</option>`).join('')}</select>${r.data_retorno ? `<div style="font-size:.66rem;color:var(--text-dim)">retorno ${esc(dataBR(r.data_retorno))}</div>` : ''}</td>
                   <td style="${td};font-weight:700;${d > 60 ? 'color:#b91c1c' : d > 30 ? 'color:#b45309' : ''}">${d ?? ''}</td>
                   <td style="${td};max-width:200px;font-size:.72rem;color:var(--text-dim)">${esc(r.obs)}</td>
@@ -23835,6 +23835,7 @@ else init();
             else if (d.a === 'gravar') {
                 const v = {}; ov.querySelectorAll('[data-f]').forEach(x => { v[x.dataset.f] = x.value.trim() || null; });
                 if (ehEsterilizacao(v)) v.tipo = TIPO_ESTERIL;
+                if (v.cliente && v.tipo !== TIPO_VEND) v.cliente = nomeCadastro(v.cliente);
                 if (semNF(v.tipo)) { v.nf = null; v.nf_data = null; if (!v.cliente) return alert(v.tipo === TIPO_VEND ? 'Informe o vendedor que está com a caixa.' : 'Informe o hospital / hemodinâmica onde a caixa fica.'); }
                 if (!v.nf && !v.cliente) return alert('Informe ao menos a NF ou o destino.');
                 const id = $('[data-form]').dataset.id;
@@ -23871,7 +23872,15 @@ else init();
     // no banco continua 'Fora'; na tela aparece como "Em procedimento"
     const LOCAL_ESTER = 'BIOESTERIL CENTRAL DE ESTERILIZAÇÃO LTDA';
     const localGenerico = l => !l || /^(esteriliza[çc][ãa]o|bio\s*est[ée]ril|estoque)$/i.test(String(l).trim());
-    const localDe = c => c.status === 'Esterilização' && localGenerico(c.local_atual) ? LOCAL_ESTER : (c.local_atual || 'Estoque');
+    // nome do local igual ao cadastro de clientes (lista de hospitais da ficha): "Hospital Cassems Dourados" → "HOSPITAL CASSEMS DOURADOS"
+    const _normNome = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, ' ').trim().toUpperCase();
+    let _mapaCad = null;
+    const nomeCadastro = nome => {
+        if (!nome) return nome;
+        if (!_mapaCad || !_mapaCad.size) { _mapaCad = new Map(); document.querySelectorAll('#hospital-list option').forEach(o => { const v = (o.value || '').trim(); if (v && v !== 'Outro...') _mapaCad.set(_normNome(v), v); }); }
+        return String(nome).split(' + ').map(parte => { const [n, ...resto] = parte.split(' — '); return (_mapaCad.get(_normNome(n)) || n.trim()) + (resto.length ? ' — ' + resto.join(' — ') : ''); }).join(' + ');
+    };
+    const localDe = c => c.status === 'Esterilização' && localGenerico(c.local_atual) ? LOCAL_ESTER : (nomeCadastro(c.local_atual) || 'Estoque');
     const stNome = s => s === 'Fora' ? 'Em procedimento' : s === 'Disponível' ? 'Em estoque' : s === 'Esterilização' ? 'Em esterilização' : s === 'Consignado' ? 'Em Consignação' : s === 'Não localizada' ? 'Caixa não localizada' : s === 'No hospital' ? 'No hospital / hemodinâmica (sem NF)' : s;
     let _cxCache = null;
     async function carregarCaixas(forcar) {
@@ -23955,6 +23964,7 @@ else init();
             : tipo === 'Com vendedor' ? { status: 'Com vendedor', local_atual: campos.levado_por ? 'Com ' + campos.levado_por : (cx.local_atual || 'Com vendedor'), levado_por: campos.levado_por || cx.levado_por || null, saida_em: cx.saida_em || mov.data, proc_id_atual: null, nf_atual: null }
             : tipo === 'Manutenção' ? { status: 'Manutenção', local_atual: campos.destino || 'Manutenção' }
             : tipo === 'Baixa' ? { status: 'Baixada', local_atual: campos.obs || 'Baixada' } : {};
+        if (upd.local_atual) upd.local_atual = nomeCadastro(upd.local_atual);
         if (_cxSemControle) { delete upd.levado_por; delete upd.lacre; }
         if (_cxSemMulti || (!cxExtras(cx).length && tipo !== 'Saída')) delete upd.procs_extra;   // sem o SQL novo, ou nada a limpar
         r = await sb.from('caixas_bags').update({ ...upd, atualizado_em: agora }).eq('id', cx.id);
@@ -24210,6 +24220,8 @@ else init();
             const r = await carregarCaixas(true);
             if (!r || r.erro) { $('[data-corpo]').innerHTML = '<p style="color:#b45309;font-size:.85rem">⚠️ O banco ainda não tem as tabelas de caixas e bags. Rode o SQL <b>20261102_caixas_bags.sql</b> no Supabase desta filial.</p>'; return; }
             cxs = r;
+            // locais gravados com o nome digitado: passa para o nome do cadastro de clientes
+            cxs.filter(c => c.local_atual && nomeCadastro(c.local_atual) !== c.local_atual).forEach(c => { c.local_atual = nomeCadastro(c.local_atual); sb.from('caixas_bags').update({ local_atual: c.local_atual }).eq('id', c.id).then(() => {}, () => {}); });
             const corrigir = cxs.filter(c => c.status === 'Esterilização' && localGenerico(c.local_atual) && c.local_atual !== LOCAL_ESTER);
             if (corrigir.length) { corrigir.forEach(c => { c.local_atual = LOCAL_ESTER; }); sb.from('caixas_bags').update({ local_atual: LOCAL_ESTER }).in('id', corrigir.map(c => c.id)).then(() => {}, () => {}); }
             if (!_cxValor) await carregarValores().catch(() => {});
