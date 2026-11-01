@@ -24357,15 +24357,10 @@ else init();
             lista.forEach(c => sel.delete(c.id)); _cxCache = null; await carregar();
             if (n) window.showSyncToast && window.showSyncToast(`🏥 ${n} embalagem(ns) em consignação${locais.length === 1 ? ' — ' + locais[0] : ''}`);
         }
-        // hospital/hemodinâmica ou vendedor: pergunta uma vez (null = cancelou)
-        function perguntarOnde(st, padrao) {
-            if (st === 'No hospital') return prompt('🏨 Em qual hospital / hemodinâmica a caixa fica (sem NF)?', padrao || '');
-            if (st === 'Com vendedor') return prompt('👤 Qual vendedor está com a caixa?', padrao || '');
-            return '';
-        }
         async function mudarSituacao(c, st, obs, onde) {
             if (st === c.status) return;
-            if ((st === 'No hospital' || st === 'Com vendedor') && onde === undefined) { onde = perguntarOnde(st, st === 'Com vendedor' ? c.levado_por : c.local_atual); if (onde === null) return; }
+            // hospital/vendedor: a caixa já está no local certo (veio da saída / Movimentação Externa) — só troca a situação
+            if (onde === undefined) onde = st === 'Com vendedor' ? (c.levado_por || '') : (c.local_atual || '');
             if (st === 'No hospital') return movCaixa(c, 'No hospital', { destino: String(onde || '').trim(), obs: obs || 'fica no hospital/hemodinâmica sem NF' });
             if (st === 'Com vendedor') return movCaixa(c, 'Com vendedor', { levado_por: String(onde || '').trim(), obs: obs || 'ficou com o vendedor' });
             if (st === 'Disponível' && c.status === 'Em limpeza') await movCaixa(c, 'Limpeza', { obs: obs || 'limpa' });
@@ -24384,11 +24379,9 @@ else init();
             const lista = cxs.filter(c => sel.has(c.id) && c.status !== st).sort(porCodigo);
             if (!st || !lista.length) return desenhar();
             if (!confirm(`Trocar a situação para "${stNome(st)}"?\n\n${lista.map(c => c.codigo + ' (' + stNome(c.status) + ')').join('\n')}`)) return desenhar();
-            let onde;
-            if (st === 'No hospital' || st === 'Com vendedor') { onde = perguntarOnde(st, ''); if (onde === null) return desenhar(); }
             let n = 0;
             for (const c of lista) {
-                try { await mudarSituacao(c, st, '', onde); n++; }
+                try { await mudarSituacao(c, st, ''); n++; }
                 catch (e) { alert('⚠️ ' + c.codigo + ': ' + (e.message || e)); break; }
             }
             lista.forEach(c => sel.delete(c.id)); _cxCache = null; await carregar();
