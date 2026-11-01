@@ -22969,10 +22969,10 @@ else init();
         const sel = 'padding:6px 8px;border-radius:8px;border:1px solid var(--border,#ccc);background:var(--bg,#fff);color:var(--text);font-size:.74rem';
         const bt = 'padding:5px 10px;border-radius:8px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-size:.72rem;font-weight:700;cursor:pointer';
         box.innerHTML = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span>📦 Volumes que vão:</span><span id="f-vol-info" style="font-weight:400;color:var(--text-dim)"></span></div>
-          <div style="font-weight:400;color:var(--text-dim);margin-bottom:3px">Escolha a caixa, bag ou sacola na lista</div>
-          <div id="f-vol-linhas" style="display:flex;flex-direction:column;gap:5px"></div>
-          <div style="display:none;gap:6px;align-items:center;flex-wrap:wrap;margin:6px 0 2px"><input id="f-vol-bip" autocomplete="off" placeholder="2º 🔫 escolha a caixa acima e depois bipe o QR dela" style="${sel};flex:1;min-width:230px;font-weight:700;border:2px solid #0d9488">
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:2px 0 4px"><input id="f-vol-bip" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done" placeholder="🔫 Bipe aqui o QR da caixa, bag ou sacola" style="${sel};flex:1 1 220px;min-width:0;font-weight:700;border:2px solid #0d9488">
             <span id="f-vol-bipmsg" style="font-weight:700;font-size:.72rem"></span></div>
+          <div style="font-weight:400;color:var(--text-dim);margin-bottom:3px">ou escolha na lista</div>
+          <div id="f-vol-linhas" style="display:flex;flex-direction:column;gap:5px"></div>
           <button type="button" id="f-vol-add" style="${bt};margin-top:5px">+ adicionar caixa, bag ou sacola</button>`;
         (document.getElementById('btn-etq-qr-ficha') || fnf).insertAdjacentElement('afterend', box);
         const linhasEl = box.querySelector('#f-vol-linhas'), info = box.querySelector('#f-vol-info');
@@ -23010,20 +23010,58 @@ else init();
             else if (t.dataset.vcod !== undefined) { vols[+t.dataset.vcod].cod = t.value; vols[+t.dataset.vcod].bipado = false; desenhar(); }
         });
         linhasEl.addEventListener('click', e => { const b = e.target.closest('[data-vdel]'); if (b) { vols.splice(+b.dataset.vdel, 1); desenhar(); } });
-        // bipe: confere no cadastro e adiciona como bipada
-        box.querySelector('#f-vol-bip').addEventListener('keydown', async e => {
-            if (e.key !== 'Enter') return; e.preventDefault(); e.stopPropagation();
-            const inp = e.target, msg = box.querySelector('#f-vol-bipmsg'), cod = codigoBipado(inp.value); inp.value = ''; if (!cod) return;
+        // bipe: confere no cadastro e já entra na lista como bipada
+        let _ac = null;
+        const som = ok => { try { _ac = _ac || new (window.AudioContext || window.webkitAudioContext)(); const o = _ac.createOscillator(), g = _ac.createGain();
+            o.frequency.value = ok ? 1046 : 220; o.type = ok ? 'sine' : 'square'; g.gain.value = .08; o.connect(g); g.connect(_ac.destination); o.start(); o.stop(_ac.currentTime + (ok ? .09 : .28)); } catch (e) {} };
+        const bipInp = box.querySelector('#f-vol-bip');
+        async function bipar(lido) {
+            const msg = box.querySelector('#f-vol-bipmsg'), cod = codigoBipado(lido); if (!cod) return;
+            const erro = h => { msg.innerHTML = `<span style="color:#dc2626">${h}</span>`; som(false); };
             if (!carregou) await recarregar();
             const c = lista.find(x => x.codigo === cod), pid = pidAtual();
-            if (!c) { msg.innerHTML = `<span style="color:#dc2626">❌ ${esc(cod)} não está cadastrada</span>`; return; }
-            if (c.status !== 'Disponível' && !cxTem(c, pid) && c.status !== 'Fora') { msg.innerHTML = `<span style="color:#dc2626">⚠ ${esc(cod)} não está disponível (${esc(stNome(c.status))}${c.local_atual ? ' — ' + esc(c.local_atual) : ''})</span>`; return; }
-            const escolhidas = vols.filter(v => v.cod), ja = escolhidas.find(v => v.cod === cod);
-            if (!escolhidas.length) { msg.innerHTML = `<span style="color:#dc2626">☝ Escolha primeiro a caixa na lista; depois bipe o QR dela.</span>`; return; }
-            if (!ja) { msg.innerHTML = `<span style="color:#dc2626">❌ ${esc(cod)} não é a caixa escolhida (${esc(escolhidas.filter(v => !v.bipado).map(v => v.cod).join(', ') || escolhidas.map(v => v.cod).join(', '))}). Bipe a caixa certa ou troque a escolha.</span>`; return; }
-            if (ja.bipado) { msg.innerHTML = `<span style="color:#16a34a">✅ ${esc(cod)} já estava confirmada</span>`; return; }
-            ja.bipado = true; msg.innerHTML = `<span style="color:#16a34a">✅ ${esc(cod)} confirmada pelo bipe</span>`; desenhar(); inp.focus();
+            if (!c) return erro(`❌ ${esc(cod)} não está cadastrada`);
+            if (c.status === 'Fora' && String(c.proc_id_atual || '').startsWith('rem:') && !cxTem(c, pid)) return erro(`⚠ ${esc(cod)} está numa remessa (${esc(c.local_atual || '')})`);
+            if (c.status !== 'Disponível' && !cxTem(c, pid) && c.status !== 'Fora') return erro(`⚠ ${esc(cod)} não está disponível (${esc(stNome(c.status))}${c.local_atual ? ' — ' + esc(c.local_atual) : ''})`);
+            const ja = vols.find(v => v.cod === cod);
+            if (ja && ja.bipado) msg.innerHTML = `<span style="color:#16a34a">✅ ${esc(cod)} já estava na lista</span>`;
+            else if (ja) { ja.bipado = true; msg.innerHTML = `<span style="color:#16a34a">✅ ${esc(cod)} confirmada pelo bipe</span>`; }
+            else {
+                const vazia = vols.find(v => !v.cod && (!v.tipo || v.tipo === c.tipo));
+                if (vazia) Object.assign(vazia, { tipo: c.tipo, cod, bipado: true }); else vols.push({ tipo: c.tipo, cod, bipado: true });
+                msg.innerHTML = `<span style="color:#16a34a">✅ ${esc(cod)} adicionada${c.status === 'Fora' && !cxTem(c, pid) ? ' (já em procedimento' + (cxNfs(c).length ? ', NF ' + esc(cxNfs(c).join(', ')) : '') + ' — vai junto)' : ''}</span>`;
+            }
+            desenhar(); som(true);
+        }
+        // leitor no campo de bipe: com Enter/Tab no fim ou sem nada (rajada rápida de teclas)
+        let rIni = 0, rUlt = 0, rN = 0, rTimer = null;
+        bipInp.addEventListener('keydown', e => {
+            if (e.key === 'Enter' || e.key === 'Tab') { if (!bipInp.value.trim()) return; e.preventDefault(); e.stopPropagation(); clearTimeout(rTimer); const v = bipInp.value; bipInp.value = ''; rN = 0; bipar(v); return; }
+            if (e.key.length === 1) { const t = performance.now(); if (t - rUlt > 80) { rIni = t; rN = 0; } rN++; rUlt = t; }
         });
+        bipInp.addEventListener('input', () => { clearTimeout(rTimer); rTimer = setTimeout(() => {
+            const v = bipInp.value; if (rN >= 5 && (rUlt - rIni) / (rN - 1) < 40 && /(CX|BG|SC|PC)[-\s]?\d/i.test(v)) { bipInp.value = ''; rN = 0; bipar(v); }
+        }, 300); });
+        // bipou com o cursor em outro campo da ficha (ou fora de campo): tira o código de lá e adiciona a caixa
+        let raj = { el: null, ini: 0, ult: 0, n: 0, antes: '', buf: '' };
+        document.addEventListener('keydown', e => {
+            if (!box.offsetParent) return;
+            const el = e.target, form = box.closest('form');
+            const emCampo = el instanceof HTMLInputElement && el !== bipInp && (!form || el.form === form) && !['checkbox', 'radio', 'file', 'date', 'time', 'number'].includes(el.type);
+            const solto = !emCampo && !(el instanceof HTMLInputElement) && !(el instanceof HTMLTextAreaElement) && !(el instanceof HTMLSelectElement) && !el.isContentEditable;
+            if (!emCampo && !solto) return;
+            const t = performance.now();
+            if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+                if (raj.el !== el || t - raj.ult > 80) raj = { el, ini: t, ult: t, n: 0, antes: emCampo ? el.value : '', buf: '' };
+                raj.n++; raj.ult = t; raj.buf += e.key; return;
+            }
+            if (e.key !== 'Enter' && e.key !== 'Tab') return;
+            if (raj.el !== el || raj.n < 5 || t - raj.ult > 150 || (raj.ult - raj.ini) / (raj.n - 1) > 40 || !/(CX|BG|SC|PC)[-\s]?\d{1,5}/i.test(raj.buf)) return;
+            e.preventDefault(); e.stopPropagation();
+            if (emCampo) { el.value = raj.antes; el.dispatchEvent(new Event('input', { bubbles: true })); }
+            const lido = raj.buf; raj = { el: null, ini: 0, ult: 0, n: 0, antes: '', buf: '' };
+            bipar(lido); bipInp.scrollIntoView({ block: 'nearest' });
+        }, true);
         box._volumes = () => ({ carregou, cods: vols.map(v => v.cod).filter(Boolean), bipados: vols.filter(v => v.cod && v.bipado).map(v => v.cod), antes: JSON.parse(box.dataset.antes || '[]') });
         box._recarregar = recarregar;
         // ficha aberta para outra cirurgia (ou nova): recarrega
