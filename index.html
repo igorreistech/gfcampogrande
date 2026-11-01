@@ -23640,15 +23640,16 @@ else init();
     };
     // ── Esterilização e caixas nos hospitais/hemodinâmicas (sem NF): mesmas caixas/bags e etiquetas QR, com controle de retorno ──
     // (lançamentos antigos de consignação/comodato/conserto continuam aparecendo, mas não há mais opção para novos)
-    const TIPO_ESTERIL = 'Remessa em esterilização', TIPO_HOSP = 'Caixa no hospital / hemodinâmica (sem NF)';
-    const ST_ESTERIL = 'Em esterilização', ST_HOSP = 'No hospital (sem NF)';
-    const TIPOS_REMESSA = [TIPO_ESTERIL, TIPO_HOSP];
-    const STATUS_REMESSA = [ST_ESTERIL, ST_HOSP, 'No cliente', 'Retornou parcial', 'Retornou', 'Cancelada'];
-    const STATUS_FORA = [ST_ESTERIL, ST_HOSP, 'No cliente', 'Retornou parcial'];
-    const statusDoTipo = t => t === TIPO_ESTERIL ? ST_ESTERIL : t === TIPO_HOSP ? ST_HOSP : 'No cliente';
+    const TIPO_ESTERIL = 'Remessa em esterilização', TIPO_HOSP = 'Caixa no hospital / hemodinâmica (sem NF)', TIPO_VEND = 'Caixa com vendedor (sem NF)';
+    const ST_ESTERIL = 'Em esterilização', ST_HOSP = 'No hospital (sem NF)', ST_VEND = 'Com vendedor';
+    const TIPOS_REMESSA = [TIPO_ESTERIL, TIPO_HOSP, TIPO_VEND];
+    const STATUS_REMESSA = [ST_ESTERIL, ST_HOSP, ST_VEND, 'No cliente', 'Retornou parcial', 'Retornou', 'Cancelada'];
+    const STATUS_FORA = [ST_ESTERIL, ST_HOSP, ST_VEND, 'No cliente', 'Retornou parcial'];
+    const statusDoTipo = t => t === TIPO_ESTERIL ? ST_ESTERIL : t === TIPO_HOSP ? ST_HOSP : t === TIPO_VEND ? ST_VEND : 'No cliente';
+    const semNF = t => t === TIPO_HOSP || t === TIPO_VEND;
     // Bioesteril (esterilização terceirizada): a remessa já entra como esterilização
     const ehEsterilizacao = v => /bio\s*-?\s*esteril/i.test((v.cliente || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')) || v.tipo === TIPO_ESTERIL;
-    const avisoSqlEsteril = msg => /check constraint|23514|status_check/i.test(msg || '') ? '\n\nO banco desta filial ainda não aceita as situações "Em esterilização" / "No hospital (sem NF)". Rode o SQL 20261115_remessas_hospital_sem_nf.sql no Supabase.' : '';
+    const avisoSqlEsteril = msg => /check constraint|23514|status_check/i.test(msg || '') ? '\n\nO banco desta filial ainda não aceita as situações "Em esterilização" / "No hospital (sem NF)" / "Com vendedor". Rode o SQL 20261116_remessas_com_vendedor.sql no Supabase.' : '';
     const procDaRemessa = r => ({ _docId: 'rem:' + r.id, nf: r.nf || '', nfData: r.nf_data || '', hospital: r.cliente || '', cidade: r.cidade || '',
         _remessa: r.tipo || 'Remessa', _envio: r.data_envio || '', obs: r.obs || '', _filial: r.filial, paciente: '', medico: '', convenio: '' });
     window.abrirRemessas = async function () {
@@ -23662,8 +23663,8 @@ else init();
         const chip = 'padding:5px 10px;border-radius:999px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-size:.7rem;font-weight:700;cursor:pointer;white-space:nowrap';
         ov.innerHTML = `<div style="background:var(--surface,#fff);border-radius:16px;width:min(1180px,100%);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.3);overflow:hidden">
           <div style="padding:14px 18px;border-bottom:1px solid var(--border,#ccc);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-            <div style="font-weight:800;font-size:.95rem;color:var(--text);margin-right:auto">🧼 Esterilização e caixas em hospitais (sem NF)</div>
-            <input type="search" data-busca placeholder="Buscar hospital, NF, cidade…" style="${inp};width:220px">
+            <div style="font-weight:800;font-size:.95rem;color:var(--text);margin-right:auto">🧰 Caixas fora do estoque <span style="font-weight:600;font-size:.78rem;color:var(--text-dim)">· esterilização, hospitais e vendedores (sem NF)</span></div>
+            <input type="search" data-busca placeholder="Buscar hospital, vendedor, NF…" style="${inp};width:220px">
             <button data-a="nova" style="${bt};background:#111827;color:#fff;border-color:#111827">+ Novo lançamento</button>
             <button data-a="xlsx" style="${bt};border-color:#16a34a;color:#16a34a">⬇ Excel</button>
             <button data-a="x" style="${bt}">✕</button>
@@ -23709,13 +23710,13 @@ else init();
                 + (tipos.length > 1 ? '<span style="font-size:.66rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em;margin:0 4px 0 12px">Tipo</span>'
                     + ch('data-tp', '', 'Todos', !fTipo) + tipos.map(t => ch('data-tp', t, esc(t), fTipo === t)).join('') : '');
             linhas = base.filter(r => noSt(r, fSt) && (!fTipo || r.tipo === fTipo));
-            if (!linhas.length) { $('[data-corpo]').innerHTML = '<p style="color:var(--text-dim);font-size:.85rem;padding:20px 0;text-align:center">Nada aqui. Use <b>+ Novo lançamento</b> para registrar uma remessa para esterilização ou uma caixa que fica no hospital.</p>'; return; }
+            if (!linhas.length) { $('[data-corpo]').innerHTML = '<p style="color:var(--text-dim);font-size:.85rem;padding:20px 0;text-align:center">Nada aqui. Use <b>+ Novo lançamento</b> para registrar uma remessa para esterilização, uma caixa que fica no hospital ou com um vendedor.</p>'; return; }
             const th = 'text-align:left;padding:8px 10px;font-size:.64rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-dim);border-bottom:1px solid var(--border,#ccc);position:sticky;top:0;background:var(--surface,#fff);white-space:nowrap';
             const td = 'padding:7px 10px;font-size:.78rem;color:var(--text);border-bottom:1px solid var(--border,#e5e7eb);vertical-align:middle';
-            const corSt = { 'No cliente': 'background:#dbeafe;color:#1e40af', 'Em esterilização': 'background:#ede9fe;color:#5b21b6', 'No hospital (sem NF)': 'background:#ccfbf1;color:#115e59', 'Retornou parcial': 'background:#fef3c7;color:#92400e', Retornou: 'background:#dcfce7;color:#166534', Cancelada: 'background:#f3f4f6;color:#6b7280' };
+            const corSt = { 'No cliente': 'background:#dbeafe;color:#1e40af', 'Em esterilização': 'background:#ede9fe;color:#5b21b6', 'No hospital (sem NF)': 'background:#ccfbf1;color:#115e59', 'Com vendedor': 'background:#ffedd5;color:#9a3412', 'Retornou parcial': 'background:#fef3c7;color:#92400e', Retornou: 'background:#dcfce7;color:#166534', Cancelada: 'background:#f3f4f6;color:#6b7280' };
             $('[data-corpo]').innerHTML = `<table style="width:100%;border-collapse:separate;border-spacing:0"><thead><tr>${['Envio', 'Tipo', 'NF', 'Destino', 'Cidade', 'Volumes', 'Situação', 'Dias fora', 'Obs', ''].map(c => `<th style="${th}">${c}</th>`).join('')}</tr></thead><tbody>${
                 linhas.map((r, i) => { const d = diasFora(r); return `<tr>
-                  <td style="${td};white-space:nowrap">${esc(dataBR(r.data_envio))}</td><td style="${td}">${esc(r.tipo)}</td><td style="${td};font-weight:800">${esc(r.nf) || (r.tipo === TIPO_HOSP ? '<span style="font-weight:500;color:var(--text-dim)">sem NF</span>' : '')}</td>
+                  <td style="${td};white-space:nowrap">${esc(dataBR(r.data_envio))}</td><td style="${td}">${esc(r.tipo)}</td><td style="${td};font-weight:800">${esc(r.nf) || (semNF(r.tipo) ? '<span style="font-weight:500;color:var(--text-dim)">sem NF</span>' : '')}</td>
                   <td style="${td}">${esc(r.cliente)}</td><td style="${td}">${esc(r.cidade)}</td><td style="${td};white-space:nowrap;font-weight:700">${esc(volTxt(r.id)) || '<span style="color:#b45309">—</span>'}</td>
                   <td style="${td}"><select data-mudast="${i}" style="${inp};padding:3px 6px;font-weight:700;${corSt[r.status] || ''}">${STATUS_REMESSA.filter(s => s !== 'No cliente' || r.status === s).map(s => `<option${s === r.status ? ' selected' : ''}>${s}</option>`).join('')}</select>${r.data_retorno ? `<div style="font-size:.66rem;color:var(--text-dim)">retorno ${esc(dataBR(r.data_retorno))}</div>` : ''}</td>
                   <td style="${td};font-weight:700;${d > 60 ? 'color:#b91c1c' : d > 30 ? 'color:#b45309' : ''}">${d ?? ''}</td>
@@ -23730,7 +23731,7 @@ else init();
                 ${campo('Tipo', `<select data-f="tipo" style="${inp}">${(TIPOS_REMESSA.includes(r.tipo) ? TIPOS_REMESSA : [...TIPOS_REMESSA, r.tipo]).map(t => `<option${t === r.tipo ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>`)}
                 ${campo('NF', `<input data-f="nf" value="${esc(r.nf || '')}" style="${inp};width:110px">`)}
                 ${campo('Emissão NF', `<input type="date" data-f="nf_data" value="${esc(r.nf_data || '')}" style="${inp}">`)}
-                ${campo('Destino (Bioesteril, hospital, hemodinâmica)', `<input data-f="cliente" value="${esc(r.cliente || '')}" list="hospital-list" style="${inp};min-width:200px">`, '1')}
+                ${campo('Destino (Bioesteril, hospital, hemodinâmica)', `<input data-f="cliente" value="${esc(r.cliente || '')}" list="hospital-list" style="${inp};min-width:200px"><datalist id="rem-vendedores">${[...new Set((window.procedimentos || []).map(p => p.vendedor).filter(Boolean).map(s => String(s).trim()))].sort().map(n => `<option value="${esc(n)}">`).join('')}</datalist>`, '1')}
                 ${campo('Cidade', `<input data-f="cidade" value="${esc(r.cidade || '')}" style="${inp};width:140px">`)}
                 ${campo('Envio', `<input type="date" data-f="data_envio" value="${esc(r.data_envio || '')}" style="${inp}">`)}
                 ${campo('Obs', `<input data-f="obs" value="${esc(r.obs || '')}" style="${inp};min-width:160px">`, '1')}
@@ -23740,12 +23741,15 @@ else init();
             prepararVolRem(r.id);
             $('[data-form]').dataset.id = r.id || '';
             ajustarCamposNF();
-            $(r.tipo === TIPO_HOSP ? '[data-f="cliente"]' : '[data-f="nf"]').focus();
+            $(semNF(r.tipo) ? '[data-f="cliente"]' : '[data-f="nf"]').focus();
         }
-        // caixa que fica no hospital não tem nota fiscal: esconde NF e emissão
+        // caixa que fica no hospital ou com vendedor não tem nota fiscal: esconde NF e emissão; com vendedor, o destino é o nome dele
         function ajustarCamposNF() {
-            const hosp = ov.querySelector('[data-f="tipo"]')?.value === TIPO_HOSP;
-            ['nf', 'nf_data'].forEach(f => { const l = ov.querySelector(`[data-f="${f}"]`)?.closest('label'); if (l) l.style.display = hosp ? 'none' : ''; });
+            const tipo = ov.querySelector('[data-f="tipo"]')?.value, vend = tipo === TIPO_VEND;
+            ['nf', 'nf_data'].forEach(f => { const l = ov.querySelector(`[data-f="${f}"]`)?.closest('label'); if (l) l.style.display = semNF(tipo) ? 'none' : ''; });
+            const cli = ov.querySelector('[data-f="cliente"]'), lb = cli?.closest('label');
+            if (cli) { cli.setAttribute('list', vend ? 'rem-vendedores' : 'hospital-list'); cli.placeholder = vend ? 'nome do vendedor' : ''; }
+            if (lb && lb.firstChild && lb.firstChild.nodeType === 3) lb.firstChild.nodeValue = vend ? 'Vendedor que está com a caixa' : 'Destino (Bioesteril, hospital, hemodinâmica)';
         }
         let _cadRem = [];
         async function prepararVolRem(remId) {
@@ -23793,12 +23797,12 @@ else init();
             else if (d.a === 'gravar') {
                 const v = {}; ov.querySelectorAll('[data-f]').forEach(x => { v[x.dataset.f] = x.value.trim() || null; });
                 if (ehEsterilizacao(v)) v.tipo = TIPO_ESTERIL;
-                if (v.tipo === TIPO_HOSP) { v.nf = null; v.nf_data = null; if (!v.cliente) return alert('Informe o hospital / hemodinâmica onde a caixa fica.'); }
+                if (semNF(v.tipo)) { v.nf = null; v.nf_data = null; if (!v.cliente) return alert(v.tipo === TIPO_VEND ? 'Informe o vendedor que está com a caixa.' : 'Informe o hospital / hemodinâmica onde a caixa fica.'); }
                 if (!v.nf && !v.cliente) return alert('Informe ao menos a NF ou o destino.');
                 const id = $('[data-form]').dataset.id;
                 const atual = id ? rems.find(x => String(x.id) === String(id)) : null, novoSt = statusDoTipo(v.tipo);
                 // a situação acompanha o tipo enquanto a remessa estiver fora (não mexe em Retornou/Cancelada)
-                const mudaSt = atual && [ST_ESTERIL, ST_HOSP, 'No cliente'].includes(atual.status) && atual.status !== novoSt;
+                const mudaSt = atual && [ST_ESTERIL, ST_HOSP, ST_VEND, 'No cliente'].includes(atual.status) && atual.status !== novoSt;
                 let res;
                 if (id) res = await sb.from('remessas_volumes').update({ ...v, ...(mudaSt ? { status: novoSt } : {}), atualizado_em: new Date().toISOString() }).eq('id', id).select().single();
                 else res = await sb.from('remessas_volumes').insert({ ...v, filial: filialAtual(null), status: novoSt, criado_por: operador() }).select().single();
@@ -24793,7 +24797,7 @@ else init();
         const barra = document.getElementById('barra-rapida-acoes');
         if (!barra || document.getElementById('btn-remessas')) return;
         const b = document.createElement('button');
-        b.id = 'btn-remessas'; b.textContent = '🧼 Esterilização / caixas em hospitais'; b.title = 'Remessas para esterilização e caixas que ficam nos hospitais/hemodinâmicas sem nota fiscal';
+        b.id = 'btn-remessas'; b.textContent = '🧰 Caixas fora do estoque'; b.title = 'Remessas para esterilização e caixas que ficam nos hospitais/hemodinâmicas ou com vendedor, sem nota fiscal';
         b.style.cssText = 'flex-shrink:0;padding:5px 11px;border-radius:999px;border:1px solid rgba(17,24,39,0.3);background:transparent;color:var(--text);font-family:var(--mono);font-size:0.65rem;font-weight:700;cursor:pointer;white-space:nowrap;';
         b.onclick = () => window.abrirRemessas();
         barra.appendChild(b);
