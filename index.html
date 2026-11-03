@@ -23127,8 +23127,9 @@ else init();
         // ficha aberta para outra cirurgia (ou nova): recarrega
         setInterval(() => { const id = pidAtual() + '|' + (document.getElementById('f-nf') ? '' : 'x'); if (id !== ultimoId && box.offsetParent) { ultimoId = id; recarregar(); } }, 700);
     }
-    // trava: material saindo (Em Trânsito / Em Procedimento) só grava com a caixa/bag/sacola preenchida e bipada
+    // sem trava: a cirurgia salva mesmo sem caixa/bag/sacola escolhida ou bipada (a pedido)
     window._volumeFichaValidar = function (statusNovo) {
+        return '';
         const SAI = ['em_transito', 'andamento'];
         if (!SAI.includes(statusNovo)) return '';
         let antes = null; try { antes = typeof editingDocId !== 'undefined' && editingDocId ? procPorId(editingDocId) : null; } catch (e) {}
