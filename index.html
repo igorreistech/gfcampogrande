@@ -10066,7 +10066,7 @@ async function _saveProcedureImpl(e) {
 
     if (!_isColeta && typeof window._volumeFichaValidar === 'function') {
         const _msgVol = window._volumeFichaValidar(status);
-        if (_msgVol) { alert(_msgVol); const _b = document.querySelector('#f-volume-cad select[data-vcod]') || document.getElementById('f-volume-cad'); if (_b) { _b.scrollIntoView({ block: 'center' }); _b.focus && _b.focus(); } return; }
+        if (_msgVol) { alert(_msgVol); const _b = document.getElementById('f-vol-bip') || document.querySelector('#f-volume-cad select[data-vcod]') || document.getElementById('f-volume-cad'); if (_b) { _b.scrollIntoView({ block: 'center' }); _b.focus && _b.focus(); } return; }
     }
 
     const dupsCheck = [
@@ -23127,7 +23127,7 @@ else init();
         // ficha aberta para outra cirurgia (ou nova): recarrega
         setInterval(() => { const id = pidAtual() + '|' + (document.getElementById('f-nf') ? '' : 'x'); if (id !== ultimoId && box.offsetParent) { ultimoId = id; recarregar(); } }, 700);
     }
-    // trava: material saindo (Em Trânsito / Em Procedimento) só grava com a caixa/bag/sacola preenchida (bipar é opcional)
+    // trava: material saindo (Em Trânsito / Em Procedimento) só grava com a caixa/bag/sacola preenchida e bipada
     window._volumeFichaValidar = function (statusNovo) {
         const SAI = ['em_transito', 'andamento'];
         if (!SAI.includes(statusNovo)) return '';
@@ -23135,7 +23135,9 @@ else init();
         if (antes && SAI.includes(antes.status)) return '';            // já tinha saído antes desta edição
         const box = document.getElementById('f-volume-cad'); if (!box || !box._volumes) return '';
         const v = box._volumes(); if (!v.carregou) return '';          // cadastro de caixas indisponível: não trava
-        return v.cods.length ? '' : '🔒 O material está saindo do estoque.\n\nEm "Volumes que vão", escolha a caixa, bag ou sacola que vai com o material. Sem ela a cirurgia não é salva.';
+        if (!v.cods.length) return '🔒 O material está saindo do estoque.\n\nEm "Volumes que vão", bipe a caixa, bag, sacola ou porta cateter que vai com o material. Sem ela a cirurgia não é salva.';
+        const falta = v.cods.filter(c => !(v.bipados || []).includes(c));
+        return falta.length ? `🔒 Bipe o código de barras de: ${falta.join(', ')}.\n\nSó escolher na lista não basta — a cirurgia só é salva com todas as embalagens bipadas (leitor ou 📱 celular).` : '';
     };
     window._volumeFichaSalvar = function (proc) {
         const box = document.getElementById('f-volume-cad'); if (!box || !box._volumes || !proc || !(proc._docId || proc.id)) return;
