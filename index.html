@@ -24646,12 +24646,12 @@ else init();
             const pasta = location.origin + location.pathname.replace(/[^/]*$/, ''), logo = await logoQR();
             const cards = lista.map(c => {
                 const fil = c.filial || filialAtual(null) || 'CGR', emp = EMPRESA[fil] || EMPRESA.CGR, q = qrcode(0, logo ? 'H' : 'M');
-                const dest = (c.status === 'Consignado' || c.status === 'No hospital') ? String(c.local_atual || '').trim() : '', nfsD = dest ? cxNfs(c) : [];
+                const dest = (c.status === 'Consignado' || c.status === 'No hospital') ? String(c.local_atual || '').trim() : c.status === 'Com vendedor' ? String(c.levado_por || c.local_atual || '').replace(/^Com /, '').trim() : '', nfsD = dest ? cxNfs(c) : [];
                 q.addData(c.token ? `${pasta}etiqueta.html?f=${fil.toLowerCase()}&cx=${c.codigo}&t=${c.token}` : `GF MEDICAL - ${c.tipo.toUpperCase()} ${c.codigo}`); q.make();
                 return `<section class="e${dest ? ' cd' : ''}">
                   <div class="topo"><b>${esc(emp.razao)}</b><span>CNPJ ${esc(emp.cnpj)}</span><span>${esc(emp.end)}</span></div>
                   <div class="cod"><small>${CX_ICO[c.tipo] || '📦'} ${c.tipo === 'Caixa' ? 'CAIXA PLÁSTICA' : esc(String(c.tipo).toUpperCase())}</small><b>${esc(c.codigo)}</b>${c.descricao ? `<span>${esc(c.descricao)}</span>` : ''}</div>
-                  ${dest ? `<div class="dest"><small>${c.status === 'Consignado' ? 'EM CONSIGNAÇÃO' : 'NO HOSPITAL (SEM NF)'} · DESTINATÁRIO</small><b>${esc(dest)}</b>${nfsD.length ? `<span>NF ${esc(nfsD.join(', '))}</span>` : ''}</div>` : ''}
+                  ${dest ? `<div class="dest"><small>${c.status === 'Consignado' ? 'EM CONSIGNAÇÃO · DESTINATÁRIO' : c.status === 'Com vendedor' ? 'COM O VENDEDOR' : 'NO HOSPITAL (SEM NF) · DESTINATÁRIO'}</small><b>${esc(dest)}</b>${nfsD.length ? `<span>NF ${esc(nfsD.join(', '))}</span>` : ''}</div>` : ''}
                   <div class="qr"><div style="width:${dest ? 24 : 34}mm;height:${dest ? 24 : 34}mm">${comLogo(q.createSvgTag({ cellSize: 4, margin: 0, scalable: true }), logo)}</div></div>
                   <div class="bar">${code128Svg(String(c.codigo).replace(/-/g, ''))}<span>${esc(String(c.codigo).replace(/-/g, ''))}</span></div>
                   <div class="rod"><b>PROPRIEDADE DA GF MEDICAL</b><span>Se encontrar, favor devolver.${c.token ? ' Leia o QR Code para ver o conteúdo.' : ''}</span></div>
