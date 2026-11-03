@@ -24256,6 +24256,7 @@ else init();
             <button data-a="rel" style="${bt}" title="Relatório do mês: saídas, tempo fora por hospital, perdas">📊 Relatório</button>
             <button data-a="valores" style="${bt}" title="Valor de reposição de cada tipo e o prazo (dias) em cada situação para o alerta ⏰">💲 Valores e prazos</button>
             <button data-a="etq" style="${bt}" title="Etiquetas com QR para colar nas caixas/bags (as da lista filtrada)">🏷 Etiquetas</button>
+            <label title="Em consignação, no hospital (sem NF) e com vendedor: imprime o destinatário / vendedor na etiqueta" style="display:inline-flex;align-items:center;gap:4px;font-size:.7rem;font-weight:700;color:var(--text);cursor:pointer;white-space:nowrap"><input type="checkbox" data-etqdest ${(() => { try { return localStorage.getItem('gf_cx_etqdest') === '0' ? '' : 'checked'; } catch (e) { return 'checked'; } })()}> com destinatário</label>
             <button data-a="xlsx" style="${bt};border-color:#16a34a;color:#16a34a">⬇ Excel</button>
             <button data-a="x" style="${bt}">✕</button>
           </div>
@@ -24638,7 +24639,7 @@ else init();
             [...larg].forEach((w, i) => { if (i % 2 === 0) barras += `<rect x="${x}" y="0" width="${w}" height="40"/>`; x += +w; });
             return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${x + 10} 40" preserveAspectRatio="none" shape-rendering="crispEdges">${barras}</svg>`;
         }
-        async function etiquetas(lista) {
+        async function etiquetas(lista, semDest) {
             if (!lista.length) return alert('Nada para imprimir.');
             let qrcode; try { qrcode = await carregarLib(); } catch (e) { return alert('⚠️ ' + e.message); }
             qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
@@ -24646,7 +24647,7 @@ else init();
             const pasta = location.origin + location.pathname.replace(/[^/]*$/, ''), logo = await logoQR();
             const cards = lista.map(c => {
                 const fil = c.filial || filialAtual(null) || 'CGR', emp = EMPRESA[fil] || EMPRESA.CGR, q = qrcode(0, logo ? 'H' : 'M');
-                const dest = (c.status === 'Consignado' || c.status === 'No hospital') ? String(c.local_atual || '').trim() : c.status === 'Com vendedor' ? String(c.levado_por || c.local_atual || '').replace(/^Com /, '').trim() : '', nfsD = dest ? cxNfs(c) : [];
+                const dest = semDest ? '' : (c.status === 'Consignado' || c.status === 'No hospital') ? String(c.local_atual || '').trim() : c.status === 'Com vendedor' ? String(c.levado_por || c.local_atual || '').replace(/^Com /, '').trim() : '', nfsD = dest ? cxNfs(c) : [];
                 q.addData(c.token ? `${pasta}etiqueta.html?f=${fil.toLowerCase()}&cx=${c.codigo}&t=${c.token}` : `GF MEDICAL - ${c.tipo.toUpperCase()} ${c.codigo}`); q.make();
                 return `<section class="e${dest ? ' cd' : ''}">
                   <div class="topo"><b>${esc(emp.razao)}</b><span>CNPJ ${esc(emp.cnpj)}</span><span>${esc(emp.end)}</span></div>
@@ -24884,6 +24885,7 @@ else init();
             if (e.target.matches('[data-bip]')) { e.preventDefault(); if (e.target.value.trim()) bipar(e.target.value); }
             else if (e.target.matches('[data-invbip]')) { e.preventDefault(); const v = e.target.value; e.target.value = ''; if (v.trim() && inv) invBipar(v); }
         });
+        ov.addEventListener('change', e => { if (e.target.matches('[data-etqdest]')) try { localStorage.setItem('gf_cx_etqdest', e.target.checked ? '1' : '0'); } catch (er) {} });
         ov.addEventListener('change', e => { if (e.target.matches('[data-trocast]')) trocarSituacaoSel(e.target.value); });
         ov.addEventListener('change', e => { if (e.target.matches('[data-limptog]')) { try { localStorage.setItem('gf_cx_limpeza', e.target.checked ? '1' : '0'); } catch (er) {} if (e.target.checked) _cxSemControle = false; desenhar(); } });
         ov.addEventListener('click', async e => {
@@ -24938,7 +24940,7 @@ else init();
                     for (const id of ids) { const c = porId(id); if (c && c.status !== 'Disponível' && c.status !== 'Em limpeza') await movCaixa(c, 'Retorno', { destino: c.local_atual || '', proc_id: c.proc_id_atual, nf: c.nf_atual, semLimpeza: c.status === 'Baixada', obs: 'encontrada na conferência de estoque' }); }
                     b.textContent = '✅ Retorno registrado'; return carregar(); }
                 if (d.selt !== undefined) { if (!d.selt) sel.clear(); else linhas.filter(c => c.tipo === d.selt).forEach(c => sel.add(c.id)); ultSel = -1; return desenhar(); }
-                if (d.a === 'etq') return etiquetas(sel.size ? cxs.filter(c => sel.has(c.id)).sort(porCodigo) : linhas.slice().sort(porCodigo));
+                if (d.a === 'etq') return etiquetas(sel.size ? cxs.filter(c => sel.has(c.id)).sort(porCodigo) : linhas.slice().sort(porCodigo), $('[data-etqdest]')?.checked === false);
                 if (d.a === 'gravarValores') {
                     const rows = ['Caixa', 'Bag', 'Sacola', 'Porta cateter'].map(t => ({ filial: filialAtual(null), tipo: t, valor: Math.max(0, parseFloat($(`[data-val="${t}"]`).value) || 0), atualizado_em: new Date().toISOString() }));
                     const pz = s => Math.max(1, Math.min(365, parseInt($(`[data-prazo="${s}"]`)?.value, 10) || CX_PRAZO_PAD[s]));
