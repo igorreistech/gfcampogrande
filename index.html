@@ -24276,7 +24276,7 @@ else init();
         </div>`;
         document.body.appendChild(ov);
         const $ = s => ov.querySelector(s);
-        let cxs = [], fSt = '', fTipo = '', modo = 'Retorno', linhas = [];
+        let cxs = [], fSt = new Set(), fTipo = '', modo = 'Retorno', linhas = [];
         // seleção para imprimir etiquetas em lote (caixinha em cada linha; Shift+clique marca a faixa)
         const sel = new Set(); let ultSel = -1;
         let ordCod = ''; try { ordCod = localStorage.getItem('gf_cx_ord') || ''; } catch (e) {}
@@ -24367,7 +24367,7 @@ else init();
             const pend = doTipo.filter(c => c.status === 'Pendente'), vPend = pend.reduce((a, c) => a + valorCx(c), 0);
             const sts = [['', 'Todas'], ['Pendente', '⏳ Não devolvidas'], ['atraso', '⏰ Passaram do prazo'], ['Fora', '🩺 Em procedimento'], ['Consignado', '🏥 Em Consignação'], ['No hospital', '🏨 No hospital (sem NF)'], ['Com vendedor', '👤 Com vendedor'], ['Não localizada', '🔎 Não localizadas'], ['Em limpeza', '🧼 Em limpeza'], ['Esterilização', '🧪 Em esterilização'], ['Manutenção', '🔧 Manutenção'], ['Disponível', '✅ Em estoque'], ['Baixada', '🗑 Baixadas']]
                 .filter(([s]) => (s !== 'Em limpeza' || limpezaAtiva() || cont(s)) && (s !== 'Consignado' || cont(s) || cxs.some(c => c.status === 'Fora')));
-            $('[data-filtros]').innerHTML = sts.map(([s, n]) => `<button data-st="${s}" style="${chip};${fSt === s ? chipOn : s === 'Pendente' && pend.length ? 'border-color:#dc2626;color:#dc2626' : ''}">${n} <b>${cont(s)}</b>${s === 'Pendente' && vPend ? ` · ${brlCx(vPend)}` : ''}</button>`).join('')
+            $('[data-filtros]').innerHTML = sts.map(([s, n]) => `<button data-st="${s}" title="${s ? 'Clique em várias situações para juntar na lista' : 'Mostra todas'}" style="${chip};${(s ? fSt.has(s) : !fSt.size) ? chipOn : s === 'Pendente' && pend.length ? 'border-color:#dc2626;color:#dc2626' : ''}">${n} <b>${cont(s)}</b>${s === 'Pendente' && vPend ? ` · ${brlCx(vPend)}` : ''}</button>`).join('')
                 + `<div style="flex-basis:100%;display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:2px"><span style="font-size:.7rem;font-weight:800;color:var(--text)">Tipo:</span>`
                 + [['', 'Todos', cxs.length], ...['Caixa', 'Bag', 'Sacola', 'Porta cateter'].map(t => [t, `${CX_ICO[t]} ${t === 'Caixa' ? 'Caixas' : t === 'Porta cateter' ? 'Portas cateter' : t + 's'}`, cxs.filter(c => c.tipo === t).length])]
                     .map(([t, n, k]) => `<button data-tp="${t}" style="${chip};${fTipo === t ? chipOn : ''}">${n} <b>${k}</b></button>`).join('')
@@ -24384,7 +24384,7 @@ else init();
                 + (sel.size ? `<button data-a="excluirSel" style="${chip};color:#dc2626;border-color:#dc2626" title="Apaga do cadastro as marcadas">🗑 Excluir ${sel.size} selecionada${sel.size > 1 ? 's' : ''}</button>` : '')
                 + `<button data-selt="" style="${chip}">Limpar seleção</button><span style="font-size:.68rem;color:var(--text-dim)">ou marque as caixinhas (Shift+clique marca de uma até outra)</span></div>`;
             desenharOnde();
-            linhas = doTipo.filter(c => !fSt || (fSt === 'atraso' ? atrasada(c) : c.status === fSt))
+            linhas = doTipo.filter(c => !fSt.size || [...fSt].some(s => s === 'atraso' ? atrasada(c) : c.status === s))
                 .filter(c => !q || [c.codigo, c.descricao, c.local_atual, cxNfs(c).join(' '), c.tipo, c.levado_por, c.lacre].some(v => String(v || '').toUpperCase().includes(q)))
                 .sort((a, b) => ordCod === 'az' ? porCodigo(a, b) : ordCod === 'za' ? porCodigo(b, a) : prio(a) - prio(b) || (prio(a) <= 2 ? (diasDesde(b.saida_em) || 0) - (diasDesde(a.saida_em) || 0) : 0) || porCodigo(a, b));
             const comDesc = linhas.some(c => c.descricao);
@@ -24646,11 +24646,13 @@ else init();
             const pasta = location.origin + location.pathname.replace(/[^/]*$/, ''), logo = await logoQR();
             const cards = lista.map(c => {
                 const fil = c.filial || filialAtual(null) || 'CGR', emp = EMPRESA[fil] || EMPRESA.CGR, q = qrcode(0, logo ? 'H' : 'M');
+                const dest = (c.status === 'Consignado' || c.status === 'No hospital') ? String(c.local_atual || '').trim() : '', nfsD = dest ? cxNfs(c) : [];
                 q.addData(c.token ? `${pasta}etiqueta.html?f=${fil.toLowerCase()}&cx=${c.codigo}&t=${c.token}` : `GF MEDICAL - ${c.tipo.toUpperCase()} ${c.codigo}`); q.make();
-                return `<section class="e">
+                return `<section class="e${dest ? ' cd' : ''}">
                   <div class="topo"><b>${esc(emp.razao)}</b><span>CNPJ ${esc(emp.cnpj)}</span><span>${esc(emp.end)}</span></div>
                   <div class="cod"><small>${CX_ICO[c.tipo] || '📦'} ${c.tipo === 'Caixa' ? 'CAIXA PLÁSTICA' : esc(String(c.tipo).toUpperCase())}</small><b>${esc(c.codigo)}</b>${c.descricao ? `<span>${esc(c.descricao)}</span>` : ''}</div>
-                  <div class="qr"><div style="width:34mm;height:34mm">${comLogo(q.createSvgTag({ cellSize: 4, margin: 0, scalable: true }), logo)}</div></div>
+                  ${dest ? `<div class="dest"><small>${c.status === 'Consignado' ? 'EM CONSIGNAÇÃO' : 'NO HOSPITAL (SEM NF)'} · DESTINATÁRIO</small><b>${esc(dest)}</b>${nfsD.length ? `<span>NF ${esc(nfsD.join(', '))}</span>` : ''}</div>` : ''}
+                  <div class="qr"><div style="width:${dest ? 24 : 34}mm;height:${dest ? 24 : 34}mm">${comLogo(q.createSvgTag({ cellSize: 4, margin: 0, scalable: true }), logo)}</div></div>
                   <div class="bar">${code128Svg(String(c.codigo).replace(/-/g, ''))}<span>${esc(String(c.codigo).replace(/-/g, ''))}</span></div>
                   <div class="rod"><b>PROPRIEDADE DA GF MEDICAL</b><span>Se encontrar, favor devolver.${c.token ? ' Leia o QR Code para ver o conteúdo.' : ''}</span></div>
                 </section>`; }).join('');
@@ -24661,7 +24663,8 @@ else init();
               .e{width:85mm;height:100mm;padding:3.5mm 4mm;background:#fff;margin:0 auto 6px;display:flex;flex-direction:column;align-items:center;gap:2mm;page-break-after:always;break-after:page;overflow:hidden}
               .topo{width:100%;text-align:center;border-bottom:.5mm solid #000;padding-bottom:1.5mm;line-height:1.15}.topo b{display:block;font-size:8pt}.topo span{display:block;font-size:6.2pt}
               .cod{text-align:center;line-height:1}.cod small{display:block;font-size:8pt;font-weight:bold;letter-spacing:1pt}.cod b{display:block;font-size:32pt;letter-spacing:1pt;margin-top:.5mm}.cod span{display:block;font-size:7.5pt;margin-top:1mm}
-              .qr{flex:1;min-height:0;display:flex;align-items:center;justify-content:center}.qr svg{width:34mm;height:34mm}
+              .qr{flex:1;min-height:0;display:flex;align-items:center;justify-content:center}.qr svg{width:34mm;height:34mm}.e.cd .qr svg{width:24mm;height:24mm}
+              .dest{width:100%;border:.5mm solid #000;border-radius:1.5mm;padding:1mm 1.5mm;text-align:center;line-height:1.15}.dest small{display:block;font-size:6.5pt;font-weight:bold;letter-spacing:.5pt}.dest b{display:block;font-size:10pt;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}.dest span{display:block;font-size:7pt;font-weight:bold}
               .bar{text-align:center;line-height:1}.bar svg{display:block;width:66mm;height:13mm;margin:0 auto}.bar span{display:block;font-family:'Courier New',monospace;font-size:8pt;font-weight:bold;letter-spacing:2pt;margin-top:.6mm}
               .rod{width:100%;text-align:center;border-top:.4mm solid #000;padding-top:1.3mm;line-height:1.2}.rod b{display:block;font-size:7.5pt}.rod span{display:block;font-size:6.2pt}
               @media print{body{background:#fff}.e{margin:0}}
@@ -24890,7 +24893,7 @@ else init();
             try {
                 if (d.a === 'x') return fechar();
                 if (d.modoB) { modo = d.modoB; if (modo !== 'Saída' && lote) form(''); desenharModo(); $('[data-bip]').focus(); return; }
-                if (d.st !== undefined) { fSt = d.st; return desenhar(); }
+                if (d.st !== undefined) { if (!d.st) fSt.clear(); else if (fSt.has(d.st)) fSt.delete(d.st); else fSt.add(d.st); return desenhar(); }
                 if (d.tp !== undefined) { fTipo = d.tp; return desenhar(); }
                 if (d.ondeq !== undefined) { const q = $('[data-busca]'); q.value = q.value === d.ondeq ? '' : d.ondeq; return desenhar(); }
                 if (d.a === 'limpsessao') { sessao.length = 0; desenharSessao(); aviso(''); return; }
