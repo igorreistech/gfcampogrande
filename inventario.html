@@ -122,6 +122,10 @@ tr.st-ok td:first-child{box-shadow:inset 3px 0 var(--ok-c)}tr.st-falta td:first-
 .st{font-weight:700;white-space:nowrap}.st.ok{color:var(--ok-c)}.st.falta{color:var(--warn-c)}.st.sobra,.st.exc{color:var(--crit-c)}
 .venc{color:var(--crit-c);font-weight:700}
 .leit{margin-top:14px}
+.tot-tela{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.tot-tela div{flex:1;min-width:140px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 11px;font-size:.72rem;color:var(--text3)}
+.tot-tela b{display:block;font-family:var(--mono);font-size:.9rem;color:var(--text)}
+.tot-tela .t{border:2px solid var(--accent)}.tot-tela .ok b{color:var(--ok-c)}.tot-tela .av b{color:var(--warn-c)}.tot-tela .er b{color:var(--crit-c)}
 .leit div.l{display:flex;gap:8px;align-items:center;padding:6px 4px;border-top:1px dashed var(--border);font-size:.74rem}
 .leit div.l span.h{margin-left:auto;color:var(--text3);font-family:var(--mono);font-size:.65rem;white-space:nowrap}
 .x{border:0;background:none;color:var(--crit-c);cursor:pointer;font-size:.8rem;padding:2px 5px}
@@ -274,6 +278,7 @@ body:not(.fechado) .so-fechado{display:none!important}
   <div class="kpis" id="kpis"></div>
   <div class="filtros"><input id="busca" placeholder="🔍 Buscar código, produto, lote, NF…"></div>
   <div class="tw"><table id="tb"></table></div>
+  <div class="tot-tela" id="tb-tot"></div>
 
   <div class="acoes" id="acoes">
     <button class="btn" onclick="imprimir()">🖨 Relatório para assinatura</button>
@@ -739,6 +744,14 @@ function desenharInv() {
     <td class="c-q">${qtd(r.bip)}<small>/${r.tipo === 'esp' ? qtd(r.saldo) : '—'}</small></td><td class="mono c-cod">${esc(r.cod || '—')}</td><td class="c-prod">${esc(r.produto || (r.gtin ? 'GTIN ' + r.gtin : 'Não identificado'))}</td><td class="mono c-lote">${esc(r.lote || '—')}</td>
     <td class="mono c-val ${r.venc != null && r.venc <= 90 ? 'venc' : ''}" title="${r.venc != null ? (r.venc < 0 ? 'vencido há ' + -r.venc + ' dias' : 'vence em ' + r.venc + ' dias') : ''}">${dataVal(r.validade)}${r.venc != null && r.venc < 0 ? ' ⛔' : r.venc != null && r.venc <= 90 ? ' ⌛' : ''}</td>
     <td class="mono c-nf">${esc((r.nfs || []).map(n => n.nf).join(', ') || '—')}</td><td class="n c-x">${r.tipo === 'esp' ? qtd(r.saldo) : '—'}</td><td class="n c-x"><b>${qtd(r.bip)}</b></td><td class="n c-x">${r.vunit ? brl(r.vunit) : '—'}</td></tr>`).join('') || '<tr><td colspan="9" class="muted" style="padding:16px">Nada neste filtro.</td></tr>'}</tbody>`;
+  const S = (f, ls = l) => ls.reduce((s, r) => s + f(r), 0), esp = l.filter(r => r.tipo === 'esp');
+  const ok = esp.filter(r => r.st === 'ok'), fal = esp.filter(r => r.st === 'falta'), exc = l.filter(r => r.st === 'exc' || r.st === 'sobra'), ven = esp.filter(r => r.venc != null && r.venc <= 90);
+  const cx = (cls, rot, un, val, sub) => `<div class="${cls}">${rot}<b>${qtd(un)} un.${val != null ? ' · ' + brl(val) : ''}</b>${sub || ''}</div>`;
+  $('tb-tot').innerHTML = l.length ? cx('t', `TOTAL da lista (${l.length} lote${l.length === 1 ? '' : 's'}) · saldo`, S(r => r.saldo, esp), S(r => r.saldo * r.vunit, esp), `bipado: ${qtd(S(r => r.bip))} un. · ${brl(S(r => r.bip * (r.vunit || 0)))}`)
+    + cx('ok', '✅ Conferido (encontrado do saldo)', S(r => Math.min(r.bip, r.saldo), esp), S(r => Math.min(r.bip, r.saldo) * r.vunit, esp), `${ok.length} lote${ok.length === 1 ? '' : 's'} completo${ok.length === 1 ? '' : 's'}`)
+    + cx('av', '⚠ Faltando', S(r => Math.max(0, r.saldo - r.bip), esp), S(r => Math.max(0, r.saldo - r.bip) * r.vunit, esp), `${fal.length} lote${fal.length === 1 ? '' : 's'}`)
+    + (exc.length ? cx('er', '➕ A mais / fora', S(r => r.bip - (r.tipo === 'esp' ? r.saldo : 0), exc), null) : '')
+    + (ven.length ? cx('er', `⌛ Vencidos / ≤ 90 dias (${ven.filter(r => r.venc < 0).length} vencidos)`, S(r => r.saldo, ven), S(r => r.saldo * r.vunit, ven)) : '') : '';
   const ult = [...ui.leit].reverse().slice(0, 60);
   $('n-leit').textContent = ui.leit.length ? `· ${ui.leit.length} (últimas ${ult.length})` : '';
   $('leituras').innerHTML = ult.map(x => `<div class="l"><span>${x.codigo ? '✅' : '➕'}</span><span><b class="mono">${esc(x.codigo || x.gtin || '—')}</b> · lote <span class="mono">${esc(x.lote || '—')}</span> ${x.produto ? '· ' + esc(x.produto) : ''}</span>
@@ -1117,7 +1130,7 @@ window.baixarExcel = () => {
   XLSX.writeFile(wb, `Inventário ${ui.inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
 };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.inv) carregarLeituras().then(desenharInv); });
-const VERSAO = '2026-11-04.123606';
+const VERSAO = '2026-11-04.123825';
 async function conferirVersao() {
   try {
     const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];
