@@ -1153,17 +1153,43 @@ window.abrirFaltantes = () => {
   if (navigator.share) { $('falta-share').style.display = ''; $('falta-share').onclick = () => navigator.share({ title: assunto(), text: $('falta-txt').value }).catch(() => {}); }
   $('m-falta').classList.add('open');
 };
+// planilha: Resumo · Faltando · No local (encontrado) · Vencidos · Conferência completa · Leituras — cada aba com linha de TOTAL
 window.baixarExcel = () => {
-  const a = apurar();
-  const linhas = [...a.linhas, ...a.sobras].map(r => ({ 'Situação': ST_TXT[r.st].replace(/^\S+\s/, ''), 'Código': r.cod || '', 'Produto': r.produto || '', 'GTIN': r.gtin || '', 'Lote': r.lote || '', 'Validade': dataVal(r.validade), 'NF': (r.nfs || []).map(n => n.nf).join(', '), 'Saldo relatório': r.tipo === 'esp' ? r.saldo : 0, 'Bipado': r.bip, 'Diferença': r.bip - (r.tipo === 'esp' ? r.saldo : 0), 'Valor unitário': r.vunit || 0, 'Valor da diferença': (r.bip - (r.tipo === 'esp' ? r.saldo : 0)) * (r.vunit || 0) }));
+  const inv = ui.inv, a = apurar(), gf = GF[FILIAL] || GF.CGR;
+  const ord = l => [...l].sort((x, y) => String(x.cod).localeCompare(String(y.cod)) || String(x.lote).localeCompare(String(y.lote)));
+  const base = r => ({ 'Código': r.cod || '', 'Produto': r.produto || (r.gtin ? 'GTIN ' + r.gtin : ''), 'Lote': r.lote || '', 'Validade': dataVal(r.validade), 'Situação validade': r.venc == null ? '' : r.venc < 0 ? 'VENCIDO' : r.venc <= 90 ? `vence em ${r.venc} dias` : '', 'NF': (r.nfs || []).map(n => n.nf).join(', ') });
+  const comTotal = (linhas, campos) => { if (!linhas.length) return [{ 'Código': 'Nenhum item' }]; const t = { 'Código': 'TOTAL', 'Produto': `${linhas.length} lote(s)` }; campos.forEach(c => t[c] = Math.round(linhas.reduce((s, r) => s + (Number(r[c]) || 0), 0) * 100) / 100); return [...linhas, {}, t]; };
+  const falta = ord(a.linhas.filter(r => r.saldo - r.bip > 0)).map(r => ({ ...base(r), 'Saldo relatório': r.saldo, 'Encontrado': r.bip, 'Faltando': r.saldo - r.bip, 'Valor unitário': r.vunit, 'Valor faltando': (r.saldo - r.bip) * r.vunit }));
+  const local = ord([...a.linhas.filter(r => r.bip > 0), ...a.sobras]).map(r => ({ ...base(r), 'Saldo relatório': r.tipo === 'esp' ? r.saldo : 0, 'Fisicamente no local': r.bip, 'A mais que o saldo': Math.max(0, r.bip - (r.tipo === 'esp' ? r.saldo : 0)), 'Valor unitário': r.vunit || 0, 'Valor no local': r.bip * (r.vunit || 0) }));
+  const venc = a.linhas.filter(r => r.venc != null && r.venc <= 90).sort((x, y) => x.venc - y.venc).map(r => ({ ...base(r), 'Dias': r.venc, 'Saldo relatório': r.saldo, 'Encontrado (separar p/ devolução se vencido)': r.bip, 'Valor saldo': r.saldo * r.vunit }));
+  const tudo = ord([...a.linhas, ...a.sobras]).map(r => ({ 'Situação': ST_TXT[r.st].replace(/^\S+\s/, ''), ...base(r), 'GTIN': r.gtin || '', 'Saldo relatório': r.tipo === 'esp' ? r.saldo : 0, 'Bipado': r.bip, 'Diferença': r.bip - (r.tipo === 'esp' ? r.saldo : 0), 'Valor unitário': r.vunit || 0, 'Valor da diferença': (r.bip - (r.tipo === 'esp' ? r.saldo : 0)) * (r.vunit || 0) }));
   const leit = ui.leit.filter(l => !l._tmp).map(l => ({ 'Quando': dataHoraBR(l.criado_em), 'Quem': l.usuario || '', 'Como': l.origem === 'camera' ? 'Câmera' : 'Leitor', 'Código': l.codigo || '', 'Produto': l.produto || '', 'GTIN': l.gtin || '', 'Lote': l.lote || '', 'Validade': dataVal(l.validade), 'Lido': l.bruto }));
+  const vencLocal = a.linhas.filter(r => r.bip > 0 && r.venc != null && r.venc < 0);
+  const resumo = [
+    ['Inventário de material consignado'], [], ['Cliente', inv.cliente], ['Fornecedor', inv.fornecedor || 'Todos'], ['Relatório C457 de', dataBR(inv.relatorio_data)],
+    ['Inventário iniciado em', dataHoraBR(inv.criado_em) + ' por ' + (inv.criado_por || '—')], ['Situação', inv.status === 'fechado' ? 'Encerrado em ' + dataHoraBR(inv.fechado_em) : 'Em andamento'], [],
+    ['', 'Unidades', 'Valor (R$)'],
+    ['Saldo no relatório', a.esp, Math.round(a.espVal * 100) / 100],
+    ['Fisicamente no local', a.fis, Math.round(a.fisVal * 100) / 100],
+    ['Conferido (do saldo)', a.conf, Math.round(a.linhas.reduce((s, r) => s + Math.min(r.bip, r.saldo) * r.vunit, 0) * 100) / 100],
+    ['Faltando', a.falta, Math.round(a.faltaVal * 100) / 100],
+    ['A mais que o saldo', a.exc, ''],
+    ['Vencidos encontrados (devolver à GF)', vencLocal.reduce((s, r) => s + r.bip, 0), Math.round(vencLocal.reduce((s, r) => s + r.bip * r.vunit, 0) * 100) / 100],
+    [], ['Gerado por', nomeCurto() + ' · ' + gf.razao + ' · CNPJ ' + gf.cnpj], ['Em', dataHoraBR(new Date().toISOString())],
+  ];
+  const aba = (rows, larg) => { const ws = Array.isArray(rows[0]) ? XLSX.utils.aoa_to_sheet(rows) : XLSX.utils.json_to_sheet(rows); if (larg) ws['!cols'] = larg.map(w => ({ wch: w })); return ws; };
+  const L = [12, 42, 14, 13, 16, 16, 14, 12, 12, 14, 16];
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(linhas), 'Conferência');
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(leit.length ? leit : [{ Quando: '' }]), 'Leituras');
-  XLSX.writeFile(wb, `Inventário ${ui.inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
+  XLSX.utils.book_append_sheet(wb, aba(resumo, [38, 16, 16]), 'Resumo');
+  XLSX.utils.book_append_sheet(wb, aba(comTotal(falta, ['Saldo relatório', 'Encontrado', 'Faltando', 'Valor faltando']), L), 'Faltando');
+  XLSX.utils.book_append_sheet(wb, aba(comTotal(local, ['Saldo relatório', 'Fisicamente no local', 'A mais que o saldo', 'Valor no local']), L), 'No local');
+  XLSX.utils.book_append_sheet(wb, aba(comTotal(venc, ['Saldo relatório', 'Encontrado (separar p/ devolução se vencido)', 'Valor saldo']), L), 'Vencidos e a vencer');
+  XLSX.utils.book_append_sheet(wb, aba(comTotal(tudo, ['Saldo relatório', 'Bipado', 'Diferença', 'Valor da diferença']), [14, ...L]), 'Conferência completa');
+  XLSX.utils.book_append_sheet(wb, aba(leit.length ? leit : [{ Quando: 'Nenhuma leitura' }], [17, 30, 9, 12, 40, 16, 14, 13, 50]), 'Leituras');
+  XLSX.writeFile(wb, `Inventário ${inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
 };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.inv) carregarLeituras().then(desenharInv); });
-const VERSAO = '2026-11-04.124018';
+const VERSAO = '2026-11-04.125455';
 async function conferirVersao() {
   try {
     const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];
