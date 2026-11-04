@@ -122,6 +122,8 @@ tr.st-ok td:first-child{box-shadow:inset 3px 0 var(--ok-c)}tr.st-falta td:first-
 .st{font-weight:700;white-space:nowrap}.st.ok{color:var(--ok-c)}.st.falta{color:var(--warn-c)}.st.sobra,.st.exc{color:var(--crit-c)}
 .venc{color:var(--crit-c);font-weight:700}
 .leit{margin-top:14px}
+.mais1{margin-left:6px;border:1px solid var(--accent);background:var(--surface);color:var(--accent);border-radius:8px;padding:3px 8px;font-weight:800;font-size:.75rem;cursor:pointer;vertical-align:middle}
+.mais1:hover{background:var(--accent);color:#fff}
 .tot-tela{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 .tot-tela div{flex:1;min-width:140px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 11px;font-size:.72rem;color:var(--text3)}
 .tot-tela b{display:block;font-family:var(--mono);font-size:.9rem;color:var(--text)}
@@ -753,9 +755,9 @@ function desenharInv() {
   l.sort((x, y) => ordem[x.st] - ordem[y.st] || String(x.cod).localeCompare(String(y.cod)) || String(x.lote).localeCompare(String(y.lote)));
   $('tb').innerHTML = `<thead><tr><th>Situação</th><th class="c-q"></th><th>Código</th><th>Produto</th><th>Lote</th><th>Validade</th><th>NF</th><th class="n">Saldo</th><th class="n">Bipado</th><th class="n">Valor un.</th></tr></thead><tbody>${l.map(r => `<tr class="st-${r.st}">
     <td class="st c-st ${r.st}">${ST_TXT[r.st]}${r.st === 'falta' && r.bip ? ` (${qtd(r.saldo - r.bip)})` : r.st === 'exc' ? ` (+${qtd(r.bip - r.saldo)})` : ''}</td>
-    <td class="c-q">${qtd(r.bip)}<small>/${r.tipo === 'esp' ? qtd(r.saldo) : '—'}</small></td><td class="mono c-cod">${esc(r.cod || '—')}</td><td class="c-prod">${esc(r.produto || (r.gtin ? 'GTIN ' + r.gtin : 'Não identificado'))}</td><td class="mono c-lote">${esc(r.lote || '—')}</td>
+    <td class="c-q">${qtd(r.bip)}<small>/${r.tipo === 'esp' ? qtd(r.saldo) : '—'}</small>${r.tipo === 'esp' && inv.status === 'aberto' ? `<button class="mais1" type="button" title="Etiqueta sem código de barras: contar 1 deste lote" onclick="contarManual('${esc(r.cod)}','${esc(r.lote)}')">+1</button>` : ''}</td><td class="mono c-cod">${esc(r.cod || '—')}</td><td class="c-prod">${esc(r.produto || (r.gtin ? 'GTIN ' + r.gtin : 'Não identificado'))}</td><td class="mono c-lote">${esc(r.lote || '—')}</td>
     <td class="mono c-val ${r.venc != null && r.venc <= 90 ? 'venc' : ''}" title="${r.venc != null ? (r.venc < 0 ? 'vencido há ' + -r.venc + ' dias' : 'vence em ' + r.venc + ' dias') : ''}">${dataVal(r.validade)}${r.venc != null && r.venc < 0 ? ' ⛔' : r.venc != null && r.venc <= 90 ? ' ⌛' : ''}</td>
-    <td class="mono c-nf">${esc((r.nfs || []).map(n => n.nf).join(', ') || '—')}</td><td class="n c-x">${r.tipo === 'esp' ? qtd(r.saldo) : '—'}</td><td class="n c-x"><b>${qtd(r.bip)}</b></td><td class="n c-x">${r.vunit ? brl(r.vunit) : '—'}</td></tr>`).join('') || '<tr><td colspan="9" class="muted" style="padding:16px">Nada neste filtro.</td></tr>'}</tbody>`;
+    <td class="mono c-nf">${esc((r.nfs || []).map(n => n.nf).join(', ') || '—')}</td><td class="n c-x">${r.tipo === 'esp' ? qtd(r.saldo) : '—'}</td><td class="n c-x"><b>${qtd(r.bip)}</b>${r.tipo === 'esp' && inv.status === 'aberto' ? `<button class="mais1" type="button" title="Etiqueta sem código de barras: contar 1 deste lote" onclick="contarManual('${esc(r.cod)}','${esc(r.lote)}')">+1</button>` : ''}</td><td class="n c-x">${r.vunit ? brl(r.vunit) : '—'}</td></tr>`).join('') || '<tr><td colspan="9" class="muted" style="padding:16px">Nada neste filtro.</td></tr>'}</tbody>`;
   const S = (f, ls = l) => ls.reduce((s, r) => s + f(r), 0), esp = l.filter(r => r.tipo === 'esp');
   const ok = esp.filter(r => r.st === 'ok'), fal = esp.filter(r => r.st === 'falta'), exc = l.filter(r => r.st === 'exc' || r.st === 'sobra'), ven = esp.filter(r => r.venc != null && r.venc <= 90);
   const cx = (cls, rot, un, val, sub) => `<div class="${cls}">${rot}<b>${qtd(un)} un.${val != null ? ' · ' + brl(val) : ''}</b>${sub || ''}</div>`;
@@ -767,7 +769,7 @@ function desenharInv() {
   const ult = [...ui.leit].reverse().slice(0, 60);
   $('n-leit').textContent = ui.leit.length ? `· ${ui.leit.length} (últimas ${ult.length})` : '';
   $('leituras').innerHTML = ult.map(x => `<div class="l"><span>${x.codigo ? '✅' : '➕'}</span><span><b class="mono">${esc(x.codigo || x.gtin || '—')}</b> · lote <span class="mono">${esc(x.lote || '—')}</span> ${x.produto ? '· ' + esc(x.produto) : ''}</span>
-    <span class="h">${x.origem === 'camera' ? '📷' : '🔫'} ${esc(String(x.usuario || '').replace(/\s*\(.*\)$/, ''))} · ${x._tmp ? 'enviando…' : dataHoraBR(x.criado_em).slice(11)}</span>${inv.status === 'aberto' && !x._tmp ? `<button class="x" title="Desfazer esta leitura" onclick="desfazer('${x.id}')">✕</button>` : ''}</div>`).join('') || '<div class="muted" style="padding:8px 0">Nenhuma leitura ainda.</div>';
+    <span class="h">${x.origem === 'camera' ? '📷' : x.origem === 'manual' ? '✍️' : '🔫'} ${esc(String(x.usuario || '').replace(/\s*\(.*\)$/, ''))} · ${x._tmp ? 'enviando…' : dataHoraBR(x.criado_em).slice(11)}</span>${inv.status === 'aberto' && !x._tmp ? `<button class="x" title="Desfazer esta leitura" onclick="desfazer('${x.id}')">✕</button>` : ''}</div>`).join('') || '<div class="muted" style="padding:8px 0">Nenhuma leitura ainda.</div>';
 }
 $('busca').oninput = e => { ui.busca = e.target.value; desenharInv(); };
 
@@ -836,6 +838,11 @@ async function registrar(bruto, origem) {
   desenharInv(); return true;
 }
 $('venc-fechar').onclick = () => { fecharModal('m-venc'); focarBip(); };
+window.contarManual = (cod, lote) => {
+  const r = apurar().linhas.find(x => x.cod === cod && x.lote === lote); if (!r) return;
+  if (!confirm(`Contar 1 unidade sem bipar?\n\n${r.cod} · ${r.produto}\nLote ${r.lote} · val. ${dataVal(r.validade)}\nJá contados: ${qtd(r.bip)} de ${qtd(r.saldo)}\n\nUse só quando a etiqueta não tiver código de barras — confira o lote na embalagem.`)) return;
+  registrar(r.lote, 'manual');
+};
 const focarBip = () => { if (!ehCelular && ui.inv?.status === 'aberto') setTimeout(() => $('bip')?.focus(), 50); };
 $('f-bip').onsubmit = e => { e.preventDefault(); const v = $('bip').value; $('bip').value = ''; registrar(v, 'leitor'); focarBip(); };
 // leitor bipando com o foco fora do campo (clicou em outro lugar): manda para o campo de bipe
@@ -1189,7 +1196,7 @@ window.baixarExcel = () => {
   XLSX.writeFile(wb, `Inventário ${inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
 };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.inv) carregarLeituras().then(desenharInv); });
-const VERSAO = '2026-11-04.125455';
+const VERSAO = '2026-11-04.131849';
 async function conferirVersao() {
   try {
     const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];
