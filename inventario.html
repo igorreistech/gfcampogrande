@@ -232,9 +232,14 @@ body:not(.fechado) .so-fechado{display:none!important}
     <div class="drop" id="drop" onclick="document.getElementById('f-pdf').click()">
       <div style="font-size:1.6rem">📥</div>
       <b>Novo inventário</b>
-      <div class="muted" style="margin-top:4px">Clique ou arraste aqui o PDF do relatório <b>C457 - Itens Consignados</b> do cliente (pode ser mais de um, ex.: um por fornecedor).</div>
+      <div class="muted" style="margin-top:4px">Clique ou arraste aqui o PDF do relatório <b>C457 - Itens Consignados</b>. Pode soltar <b>vários de uma vez</b>, de clientes diferentes: cria um inventário por cliente (os fornecedores do mesmo cliente se juntam).</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:10px">
+      <button class="btn" type="button" onclick="document.getElementById('f-pdf').click()">📄 Escolher PDFs (vários)</button>
+      <button class="btn so-pc" type="button" onclick="document.getElementById('f-pasta').click()">📁 Importar uma pasta inteira</button>
     </div>
     <input type="file" id="f-pdf" accept="application/pdf,.pdf" multiple style="display:none">
+    <input type="file" id="f-pasta" webkitdirectory directory multiple style="display:none">
   </div>
   <div class="filtros"><input id="busca-inv" placeholder="🔍 Buscar cliente ou fornecedor…"><button class="btn" data-fl="aberto" id="fl-aberto">⏳ Em andamento</button><button class="btn" data-fl="fechado" id="fl-fechado">✔ Encerrados</button><button class="btn" data-fl="" id="fl-todos">Todos</button></div>
   <div class="lista" id="lista"></div>
@@ -588,34 +593,73 @@ async function linhasPdf(file) {
   for (let p = 1; p <= pdf.numPages; p++) { const c = await (await pdf.getPage(p)).getTextContent(); L.push(...linhasDaPagina(c.items.filter(i => i.str && i.str.trim()).map(i => ({ s: i.str, x: i.transform[4], y: i.transform[5], w: i.width || 0 })))); }
   return L;
 }
-async function importarPdfs(files) {
-  files = [...files].filter(f => /\.pdf$/i.test(f.name) || f.type === 'application/pdf'); if (!files.length) return;
-  toast('Lendo ' + files.length + ' PDF…', 'info');
-  const lidos = [];
-  for (const f of files) { try { lidos.push({ ...lerC457(await linhasPdf(f)), arquivo: f.name }); } catch (e) { toast(`${f.name}: ${e.message}`, 'err'); } }
-  if (!lidos.length) return;
-  const clientes = [...new Set(lidos.map(r => r.cliente))];
-  // junta os relatórios (mesmo cliente, fornecedores diferentes)
+// junta os relatórios do mesmo cliente (fornecedores diferentes) num inventário só
+function montarNovo(lidos) {
+  // mesmo fornecedor repetido (o mesmo C457 solto duas vezes, ou um antigo junto com o novo): fica só o mais recente
+  const porForn = new Map(); lidos.forEach(r => { const k = norm(r.fornecedor || ''), o = porForn.get(k); if (!o || String(r.data || '') > String(o.data || '')) porForn.set(k, r); });
+  lidos = [...porForn.values()];
   const mapa = new Map();
   lidos.forEach(r => r.esperado.forEach(e => { const k = norm(e.cod) + '|' + norm(e.lote), a = mapa.get(k); if (a) { a.saldo += e.saldo; e.nfs.forEach(n => { if (!a.nfs.some(x => x.nf === n.nf)) a.nfs.push(n); }); } else mapa.set(k, { ...e, nfs: [...e.nfs] }); }));
   const esperado = [...mapa.values()].sort((a, b) => a.cod.localeCompare(b.cod) || a.lote.localeCompare(b.lote));
-  const novo = { filial: FILIAL, cliente: clientes[0], fornecedor: [...new Set(lidos.map(r => r.fornecedor).filter(Boolean))].join(' · '), relatorio_data: lidos.map(r => r.data).filter(Boolean).sort().pop() || null, arquivos: lidos.map(r => r.arquivo).join(', '), esperado };
-  const un = esperado.reduce((s, e) => s + e.saldo, 0), val = esperado.reduce((s, e) => s + e.saldo * e.vunit, 0), venc = esperado.filter(e => diasAte(e.validade) != null && diasAte(e.validade) <= 90).length;
-  $('novo-corpo').innerHTML = `${clientes.length > 1 ? `<div style="background:var(--warn-bg);color:var(--warn-c);padding:9px 11px;border-radius:8px;margin-bottom:10px;font-size:.78rem">⚠ Os PDFs são de clientes diferentes (${clientes.map(esc).join(', ')}). Importe um cliente por vez.</div>` : ''}
-    <div style="font-family:var(--display);font-weight:700;font-size:1rem">${esc(novo.cliente)}</div>
-    <div class="muted" style="margin:4px 0 12px">${esc(novo.fornecedor || '—')} · relatório de ${dataBR(novo.relatorio_data)} · ${esc(novo.arquivos)}</div>
-    <div class="kpis" style="margin-top:0"><div class="kpi"><span>Lotes</span><b>${esperado.length}</b></div><div class="kpi"><span>Unidades</span><b>${qtd(un)}</b></div><div class="kpi"><span>Valor</span><b style="font-size:.95rem">${brl(val)}</b></div>${venc ? `<div class="kpi er"><span>Validade ≤ 90 dias</span><b>${venc}</b></div>` : ''}</div>
-    <div class="muted" style="margin-top:12px">Só entram os lotes com <b>saldo</b> no cliente (os de saldo 0 já foram vendidos ou devolvidos).</div>`;
-  $('novo-ok').disabled = clientes.length > 1;
-  $('novo-ok').onclick = async () => {
-    $('novo-ok').disabled = true;
-    const { data, error } = await supabase.from('inventarios').insert({ ...novo, criado_por: quemSou() }).select('id').single();
-    $('novo-ok').disabled = false;
-    if (error) { if (semTabela(error)) pedirSql(); else toast('Não foi possível criar: ' + error.message, 'err'); return; }
-    fecharModal('m-novo'); toast('✅ Inventário iniciado — pode bipar'); abrirInv(data.id);
-  };
+  return { filial: FILIAL, cliente: lidos[0].cliente, fornecedor: [...new Set(lidos.map(r => r.fornecedor).filter(Boolean))].join(' · '), relatorio_data: lidos.map(r => r.data).filter(Boolean).sort().pop() || null, arquivos: lidos.map(r => r.arquivo).join(', '), esperado };
+}
+const resumoNovo = n => ({ lotes: n.esperado.length, un: n.esperado.reduce((s, e) => s + e.saldo, 0), val: n.esperado.reduce((s, e) => s + e.saldo * e.vunit, 0), venc: n.esperado.filter(e => diasAte(e.validade) != null && diasAte(e.validade) <= 90).length });
+async function importarPdfs(files) {
+  files = [...files].filter(f => /\.pdf$/i.test(f.name) || f.type === 'application/pdf'); if (!files.length) return toast('Nenhum PDF encontrado.', 'err');
+  const lidos = [], erros = [];
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i]; ultimoLote(`📄 Lendo ${i + 1} de ${files.length}: ${f.name}`);
+    try { lidos.push({ ...lerC457(await linhasPdf(f)), arquivo: f.name }); } catch (e) { erros.push(`${f.name}: ${e.message}`); }
+  }
+  ultimoLote('');
+  if (!lidos.length) { toast('Nenhum PDF era o relatório C457. ' + erros.join(' · '), 'err'); return; }
+  // um inventário por cliente
+  const grupos = new Map(); lidos.forEach(r => { const k = norm(r.cliente); grupos.set(k, [...(grupos.get(k) || []), r]); });
+  const novos = [...grupos.values()].map(montarNovo).sort((x, y) => x.cliente.localeCompare(y.cliente));
+  // cliente que já tem inventário em andamento: avisa (não duplica sem querer)
+  const abertos = new Set(ui.invs.filter(i => i.status === 'aberto').map(i => norm(i.cliente)));
+  const errosHtml = erros.length ? `<div style="background:var(--crit-bg);color:var(--crit-c);padding:9px 11px;border-radius:8px;margin-bottom:10px;font-size:.76rem">⚠ ${erros.length} arquivo(s) ignorado(s):<br>${erros.map(esc).join('<br>')}</div>` : '';
+  if (novos.length === 1) {
+    const novo = novos[0], s = resumoNovo(novo);
+    $('novo-corpo').innerHTML = `${errosHtml}${abertos.has(norm(novo.cliente)) ? `<div style="background:var(--warn-bg);color:var(--warn-c);padding:9px 11px;border-radius:8px;margin-bottom:10px;font-size:.78rem">⚠ Este cliente já tem um inventário em andamento.</div>` : ''}
+      <div style="font-family:var(--display);font-weight:700;font-size:1rem">${esc(novo.cliente)}</div>
+      <div class="muted" style="margin:4px 0 12px">${esc(novo.fornecedor || '—')} · relatório de ${dataBR(novo.relatorio_data)} · ${esc(novo.arquivos)}</div>
+      <div class="kpis" style="margin-top:0"><div class="kpi"><span>Lotes</span><b>${s.lotes}</b></div><div class="kpi"><span>Unidades</span><b>${qtd(s.un)}</b></div><div class="kpi"><span>Valor</span><b style="font-size:.95rem">${brl(s.val)}</b></div>${s.venc ? `<div class="kpi er"><span>Validade ≤ 90 dias</span><b>${s.venc}</b></div>` : ''}</div>
+      <div class="muted" style="margin-top:12px">Só entram os lotes com <b>saldo</b> no cliente (os de saldo 0 já foram vendidos ou devolvidos).</div>`;
+    $('novo-ok').textContent = 'Iniciar inventário'; $('novo-ok').disabled = false;
+    $('novo-ok').onclick = async () => {
+      $('novo-ok').disabled = true;
+      const { data, error } = await supabase.from('inventarios').insert({ ...novo, criado_por: quemSou() }).select('id').single();
+      $('novo-ok').disabled = false;
+      if (error) { if (semTabela(error)) pedirSql(); else toast('Não foi possível criar: ' + error.message, 'err'); return; }
+      fecharModal('m-novo'); toast('✅ Inventário iniciado — pode bipar'); abrirInv(data.id);
+    };
+  } else {
+    // lote: lista os clientes, marca/desmarca e cria todos de uma vez
+    const tot = novos.reduce((s, n) => { const r = resumoNovo(n); s.un += r.un; s.val += r.val; return s; }, { un: 0, val: 0 });
+    $('novo-corpo').innerHTML = `${errosHtml}<div style="font-family:var(--display);font-weight:700;font-size:1rem;margin-bottom:4px">📦 Importação em lote · ${novos.length} clientes</div>
+      <div class="muted" style="margin-bottom:10px">${lidos.length} PDF(s) · ${qtd(tot.un)} un. · ${brl(tot.val)} · um inventário por cliente</div>
+      <div class="tw"><table><thead><tr><th><input type="checkbox" id="lote-todos" checked></th><th>Cliente</th><th class="n">Lotes</th><th class="n">Un.</th><th class="n">Valor</th></tr></thead><tbody>${novos.map((n, i) => { const s = resumoNovo(n), ja = abertos.has(norm(n.cliente)); return `<tr>
+        <td><input type="checkbox" data-lote="${i}" ${ja ? '' : 'checked'}></td>
+        <td><b>${esc(n.cliente)}</b><div class="muted">${esc(n.fornecedor || '—')} · ${dataBR(n.relatorio_data)}${s.venc ? ` · <span class="venc">⌛ ${s.venc} vencendo</span>` : ''}${ja ? ' · <span style="color:var(--warn-c);font-weight:700">⚠ já tem inventário em andamento</span>' : ''}</div></td>
+        <td class="n">${s.lotes}</td><td class="n">${qtd(s.un)}</td><td class="n">${brl(s.val)}</td></tr>`; }).join('')}</tbody></table></div>`;
+    const marcados = () => [...$('novo-corpo').querySelectorAll('[data-lote]:checked')].map(c => novos[+c.dataset.lote]);
+    const rot = () => { const n = marcados().length; $('novo-ok').textContent = `Criar ${n} inventário${n === 1 ? '' : 's'}`; $('novo-ok').disabled = !n; };
+    $('lote-todos').onchange = e => { $('novo-corpo').querySelectorAll('[data-lote]').forEach(c => c.checked = e.target.checked); rot(); };
+    $('novo-corpo').querySelectorAll('[data-lote]').forEach(c => c.onchange = rot); rot();
+    $('novo-ok').onclick = async () => {
+      const sel = marcados(); if (!sel.length) return;
+      $('novo-ok').disabled = true; $('novo-ok').textContent = 'Criando…';
+      const quem = quemSou(), { error } = await supabase.from('inventarios').insert(sel.map(n => ({ ...n, criado_por: quem })));
+      if (error) { rot(); if (semTabela(error)) pedirSql(); else toast('Não foi possível criar: ' + error.message, 'err'); return; }
+      fecharModal('m-novo'); toast(`✅ ${sel.length} inventários criados`); ui.fl = 'aberto'; carregarLista();
+    };
+  }
   $('m-novo').classList.add('open');
 }
+// progresso da leitura dos PDFs (no quadro de importar)
+function ultimoLote(t) { let d = $('lote-prog'); if (!d) { d = document.createElement('div'); d.id = 'lote-prog'; d.className = 'muted'; d.style.cssText = 'text-align:center;margin-top:8px;font-weight:600'; $('drop').after(d); } d.textContent = t; }
+$('f-pasta').onchange = e => { importarPdfs(e.target.files); e.target.value = ''; };
 $('f-pdf').onchange = e => { importarPdfs(e.target.files); e.target.value = ''; };
 const drop = $('drop');
 ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
@@ -1052,7 +1096,7 @@ window.baixarExcel = () => {
   XLSX.writeFile(wb, `Inventário ${ui.inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
 };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.inv) carregarLeituras().then(desenharInv); });
-const VERSAO = '2026-11-04.122921';
+const VERSAO = '2026-11-04.123132';
 async function conferirVersao() {
   try {
     const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];
