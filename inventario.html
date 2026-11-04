@@ -124,6 +124,15 @@ tr.st-ok td:first-child{box-shadow:inset 3px 0 var(--ok-c)}tr.st-falta td:first-
 .leit{margin-top:14px}
 .mais1{margin-left:6px;border:1px solid var(--accent);background:var(--surface);color:var(--accent);border-radius:8px;padding:3px 8px;font-weight:800;font-size:.75rem;cursor:pointer;vertical-align:middle}
 .mais1:hover{background:var(--accent);color:#fff}
+.qtd-box{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px;padding:8px 10px;border-radius:12px;background:#ede9fe;font-size:.8rem;font-weight:600}
+.qtd-box .btn{padding:6px 12px;font-size:1rem}
+.qtd-box input[type=number]{width:70px;padding:7px;border:2px solid #8b5cf6;border-radius:10px;font-family:var(--mono);font-size:1rem;font-weight:800;text-align:center}
+.qtd-box.mais input[type=number]{background:#8b5cf6;color:#fff}
+.qtd-box label{display:flex;align-items:center;gap:4px;cursor:pointer}
+.qtd-box .muted{flex-basis:100%;font-weight:400}
+.cq{display:flex;align-items:center;gap:6px;margin-top:8px;font-weight:700}
+.cq button{border:0;border-radius:10px;padding:8px 14px;background:#e5e7eb;font-weight:800;font-size:1rem}
+.cq input{width:64px;padding:7px;border:2px solid #8b5cf6;border-radius:10px;text-align:center;font-weight:800;font-size:1rem}
 .tot-tela{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 .tot-tela div{flex:1;min-width:140px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 11px;font-size:.72rem;color:var(--text3)}
 .tot-tela b{display:block;font-family:var(--mono);font-size:.9rem;color:var(--text)}
@@ -266,6 +275,12 @@ body:not(.fechado) .so-fechado{display:none!important}
     </div>
     <div class="so-aberto">
       <form class="bip" id="f-bip" autocomplete="off"><input id="bip" placeholder="🔫 Bipe aqui a etiqueta (ou digite o lote)" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="send"><button class="btn p">OK</button></form>
+      <div class="qtd-box" id="qtd-box" style="display:none">
+        <span>📦 Qtd por bipe:</span>
+        <button type="button" class="btn" onclick="mudarQtd(-1)">−</button><input id="qtd-bip" type="number" min="1" step="1" value="1" inputmode="numeric"><button type="button" class="btn" onclick="mudarQtd(1)">+</button>
+        <label><input type="checkbox" id="qtd-manter"> manter</label>
+        <span class="muted">Caixa fechada: digite quantas unidades vêm dentro e bipe a etiqueta da caixa uma vez. Sem "manter", volta para 1 depois de cada bipe.</span>
+      </div>
       <div class="bts-bip">
         <button class="btn b" id="b-cam" type="button" onclick="alternarCamera()">📷 Câmera deste aparelho</button>
         <label class="btn" for="f-fotos" title="Escolha várias fotos de etiquetas de uma vez: cada foto conta 1 embalagem">🖼 Fotos em lote</label><input type="file" id="f-fotos" accept="image/*" multiple style="display:none">
@@ -802,6 +817,7 @@ const ST_TXT = { ok: '✅ Conferido', falta: '⚠ Faltando', exc: '➕ A mais', 
 function desenharInv() {
   const inv = ui.inv; if (!inv) return;
   document.body.classList.toggle('fechado', inv.status === 'fechado');
+  $('qtd-box').style.display = ehEstoque(inv) ? '' : 'none';
   $('i-cli').textContent = inv.cliente;
   $('i-info').innerHTML = `${esc(inv.fornecedor || 'Todos os fornecedores')} · relatório ${relNome(inv)} de ${dataBR(inv.relatorio_data)}<br>Iniciado por ${esc(inv.criado_por || '—')} em ${dataHoraBR(inv.criado_em)}`;
   $('i-status').className = 'tag ' + (inv.status === 'aberto' ? 'ab' : 'fe'); $('i-status').textContent = inv.status === 'aberto' ? 'em andamento' : 'encerrado';
@@ -837,7 +853,7 @@ function desenharInv() {
     + (ven.length ? cx('er', `⌛ Vencidos / ≤ 90 dias (${ven.filter(r => r.venc < 0).length} vencidos)`, S(r => r.saldo, ven), S(r => r.saldo * r.vunit, ven)) : '') : '';
   const ult = [...ui.leit].reverse().slice(0, 60);
   $('n-leit').textContent = ui.leit.length ? `· ${ui.leit.length} (últimas ${ult.length})` : '';
-  $('leituras').innerHTML = ult.map(x => `<div class="l"><span>${x.codigo ? '✅' : '➕'}</span><span><b class="mono">${esc(x.codigo || x.gtin || '—')}</b> · lote <span class="mono">${esc(x.lote || '—')}</span> ${x.produto ? '· ' + esc(x.produto) : ''}</span>
+  $('leituras').innerHTML = ult.map(x => `<div class="l"><span>${x.codigo ? '✅' : '➕'}</span><span>${Number(x.qtd) > 1 ? `<b style="color:#6d28d9">${qtd(x.qtd)}×</b> ` : ''}<b class="mono">${esc(x.codigo || x.gtin || '—')}</b> · lote <span class="mono">${esc(x.lote || '—')}</span> ${x.produto ? '· ' + esc(x.produto) : ''}</span>
     <span class="h">${x.origem === 'camera' ? '📷' : x.origem === 'manual' ? '✍️' : x.origem === 'foto' ? '🖼' : '🔫'} ${esc(String(x.usuario || '').replace(/\s*\(.*\)$/, ''))} · ${x._tmp ? 'enviando…' : dataHoraBR(x.criado_em).slice(11)}</span>${inv.status === 'aberto' && !x._tmp ? `<button class="x" title="Desfazer esta leitura" onclick="desfazer('${x.id}')">✕</button>` : ''}</div>`).join('') || '<div class="muted" style="padding:8px 0">Nenhuma leitura ainda.</div>';
 }
 $('busca').oninput = e => { ui.busca = e.target.value; desenharInv(); };
@@ -864,7 +880,7 @@ async function nomeDoGtin(gtin) {
   const { data } = await supabase.from('inventario_leituras').select('codigo,produto').eq('gtin', gtin).not('codigo', 'is', null).limit(1);
   const r = data && data[0] ? data[0] : null; _gtinNome.set(gtin, r); return r;
 }
-async function registrar(bruto, origem, forcarCod) {
+async function registrar(bruto, origem, forcarCod, qtdForcada) {
   bruto = String(bruto || '').replace(/[\r\n]+/g, '').trim();
   if (!bruto || !ui.inv) return;
   if (ui.inv.status !== 'aberto') { ultimo('🔒 Inventário encerrado — reabra para bipar.', 'er'); return; }
@@ -891,11 +907,13 @@ async function registrar(bruto, origem, forcarCod) {
     ultimo(`✔ Código lido, mas ❌ <b>não incluído</b>: esse lote não está no relatório deste cliente (${esc(ui.inv.fornecedor || '')})${id.lote ? ' (lote <b class="mono">' + esc(id.lote) + '</b>)' : ''}. Confira se bipou o código com o <b>lote</b> da etiqueta certa.`, 'er'); bipe(false);
     return false;
   }
-  const reg = { inventario_id: ui.inv.id, bruto: bruto.slice(0, 300), gtin: id.gtin, lote: id.lote, validade: id.validade, serie: id.serie, codigo: id.codigo, produto: id.produto, qtd: 1, origem, usuario: quemSou() };
+  const reg = { inventario_id: ui.inv.id, bruto: bruto.slice(0, 300), gtin: id.gtin, lote: id.lote, validade: id.validade, serie: id.serie, codigo: id.codigo, produto: id.produto, qtd: qtdForcada || qtdDoCodigo(bruto) || (ehEstoque(ui.inv) && origem === 'leitor' ? qtdAtual() : 1), origem, usuario: quemSou() };
+  if (reg.qtd > 1) toast(`📦 ${reg.qtd} unidades de uma vez (caixa fechada)`, 'info');
   const tmp = { ...reg, id: 'tmp' + Math.random().toString(36).slice(2), _tmp: true, criado_em: new Date().toISOString() };
   ui.leit.push(tmp);
   const a = apurar(), r = id.codigo ? a.linhas.find(x => norm(x.cod) === norm(id.codigo) && norm(x.lote) === norm(id.lote)) : null;
   const vtxt = id.validade ? ` · val. ${dataVal(id.validade)}${diasAte(id.validade) < 0 ? ' ⛔ VENCIDO' : diasAte(id.validade) <= 90 ? ' ⌛' : ''}` : '';
+  if (reg.qtd > 1 && origem === 'leitor') zerarQtd();
   if (r && r.bip <= r.saldo) { ultimo(`✅ <b class="mono">${esc(r.cod)}</b> ${esc(r.produto)} · lote <b class="mono">${esc(r.lote)}</b>${vtxt}`, 'ok', `${qtd(r.bip)}/${qtd(r.saldo)}`); bipe(true); }
   else if (r) { ultimo(`⚠ <b class="mono">${esc(r.cod)}</b> lote <b class="mono">${esc(r.lote)}</b>: já bipou <b>${qtd(r.bip)}</b> e o relatório tem só ${qtd(r.saldo)}. É outra embalagem? Se bipou a mesma etiqueta 2×, desfaça abaixo.`, 'av', `${qtd(r.bip)}/${qtd(r.saldo)}`); bipe(false); }
   else { ultimo(`➕ <b>Não está no saldo do relatório</b> · ${id.produto ? esc((id.produtoCod ? id.produtoCod + ' ' : '') + id.produto) + ' · ' : ''}${id.gtin ? 'GTIN <span class="mono">' + esc(id.gtin) + '</span> · ' : ''}lote <b class="mono">${esc(id.lote || '—')}</b>${vtxt}`, 'er'); bipe(false); }
@@ -916,10 +934,19 @@ async function registrar(bruto, origem, forcarCod) {
   desenharInv(); return true;
 }
 $('venc-fechar').onclick = () => { fecharModal('m-venc'); focarBip(); };
+// quantidade por bipe (estoque): caixa fechada com várias unidades
+const qtdAtual = () => Math.max(1, Math.floor(Number($('qtd-bip')?.value) || 1));
+const marcarQtd = () => $('qtd-box').classList.toggle('mais', qtdAtual() > 1);
+window.mudarQtd = d => { $('qtd-bip').value = Math.max(1, qtdAtual() + d); marcarQtd(); };
+$('qtd-bip').oninput = marcarQtd;
+const qtdDoCodigo = txt => { const g = gs1(txt), n = g ? Number(g['37'] || g['30'] || 0) : 0; return n > 1 && n < 100000 ? n : 0; };   // GS1 (37)/(30): quantidade na caixa
+function zerarQtd() { if (!$('qtd-manter').checked && $('qtd-bip')) { $('qtd-bip').value = 1; marcarQtd(); } }
 window.contarManual = (cod, lote) => {
   const r = apurar().linhas.find(x => x.cod === cod && x.lote === lote); if (!r) return;
-  if (!confirm(`Contar 1 unidade sem bipar?\n\n${r.cod} · ${r.produto}\nLote ${r.lote} · val. ${dataVal(r.validade)}\nJá contados: ${qtd(r.bip)} de ${qtd(r.saldo)}\n\nUse só quando a etiqueta não tiver código de barras — confira o lote na embalagem.`)) return;
-  registrar(r.lote, 'manual');
+  if (!ehEstoque(ui.inv) && !confirm(`Contar 1 unidade sem bipar?\n\n${r.cod} · ${r.produto}\nLote ${r.lote} · val. ${dataVal(r.validade)}\nJá contados: ${qtd(r.bip)} de ${qtd(r.saldo)}\n\nUse só quando a etiqueta não tiver código de barras — confira o lote na embalagem.`)) return;
+  let q = 1;
+  if (ehEstoque(ui.inv)) { const s = prompt('Quantas unidades? (caixa fechada: o total que vem dentro)', String(qtdAtual())); if (s === null) return; q = Math.max(1, Math.floor(Number(String(s).replace(',', '.')) || 1)); }
+  registrar(r.lote || r.cod, 'manual', r.cod, q);
 };
 const focarBip = () => { if (!ehCelular && ui.inv?.status === 'aberto') setTimeout(() => $('bip')?.focus(), 50); };
 $('f-bip').onsubmit = e => { e.preventDefault(); const v = $('bip').value; $('bip').value = ''; registrar(v, 'leitor'); focarBip(); };
@@ -1007,15 +1034,18 @@ function confirmarLeitura(txt, origem = 'camera') {
   _pend = txt; c.className = 'on'; bipe(true);
   const fim = () => { _pend = null; _ultCamEm = Date.now(); c.className = ''; c.innerHTML = ''; };
   if (d.ean) { if (d.gtin) _gtinPend = { gtin: d.gtin, em: Date.now() }; c.innerHTML = d.html + `<div class="cb"><button class="nao" type="button">OK</button></div>`; c.querySelector('.nao').onclick = fim; _feitoTimer = setTimeout(fim, 3000); return; }
-  const varios = (d.id.cands || []).length > 1;
+  const varios = (d.id.cands || []).length > 1, q0 = qtdDoCodigo(txt) || qtdAtual();
+  const campoQ = ehEstoque(ui.inv) ? `<div class="cq">📦 Quantidade: <button type="button" data-dq="-1">−</button><input id="conf-q" type="number" min="1" value="${q0}" inputmode="numeric"><button type="button" data-dq="1">+</button><span style="font-weight:400;font-size:.72rem;color:var(--text3)">(caixa fechada)</span></div>` : '';
   c.innerHTML = `<div style="font-size:.7rem;color:var(--text3);font-weight:700;letter-spacing:.05em">CÓDIGO LIDO — INCLUIR NO INVENTÁRIO?</div>` + d.html
-    + (varios ? `<div class="cs av">⚠ Este lote existe em ${d.id.cands.length} produtos. Toque no produto certo:</div><div class="cb" style="flex-direction:column">${d.id.cands.map(x => `<button class="sim" type="button" data-cod="${esc(x.cod)}" style="text-align:left">✅ ${esc(x.cod)} · ${esc(x.produto)}</button>`).join('')}<button class="nao" type="button">✖ Ignorar</button></div>`
+    + campoQ + (varios ? `<div class="cs av">⚠ Este lote existe em ${d.id.cands.length} produtos. Toque no produto certo:</div><div class="cb" style="flex-direction:column">${d.id.cands.map(x => `<button class="sim" type="button" data-cod="${esc(x.cod)}" style="text-align:left">✅ ${esc(x.cod)} · ${esc(x.produto)}</button>`).join('')}<button class="nao" type="button">✖ Ignorar</button></div>`
       : `<div class="cb"><button class="nao" type="button">✖ Ignorar</button><button class="sim" type="button">✅ Incluir</button></div>`);
   c.querySelector('.nao').onclick = fim;
+  c.querySelectorAll('[data-dq]').forEach(b => b.onclick = () => { const i = $('conf-q'); i.value = Math.max(1, (Math.floor(Number(i.value)) || 1) + Number(b.dataset.dq)); });
   c.querySelectorAll('.sim').forEach(bt => bt.onclick = async () => {
+    const qConf = $('conf-q') ? Math.max(1, Math.floor(Number($('conf-q').value)) || 1) : 0;
     c.querySelectorAll('.sim').forEach(x => x.disabled = true);
     if (bt.dataset.cod) { const x = d.id.cands.find(y => y.cod === bt.dataset.cod); Object.assign(d.id, { codigo: x.cod, produto: x.produto, lote: x.lote }); }
-    const ok = await registrar(txt, origem, bt.dataset.cod);
+    const ok = await registrar(txt, origem, bt.dataset.cod || d.id.codigo, qConf || undefined);
     const a = apurar(), r = d.id.codigo ? a.linhas.find(x => norm(x.cod) === norm(d.id.codigo) && norm(x.lote) === norm(d.id.lote)) : null;
     const desc = `${r ? esc(r.cod) + ' · ' + esc(r.produto) : esc(d.id.produto || 'Fora do relatório')} · lote ${esc(d.id.lote || '—')}`;
     c.className = 'on feito ' + (!ok ? 'er' : r && r.bip <= r.saldo ? '' : r ? 'av' : 'er');
@@ -1147,7 +1177,7 @@ $('f-fotos').onchange = async e => {
   const ok = res.filter(x => x.r);
   $('fotos-prog').textContent = `${files.length} foto(s) · ✅ ${ok.length} no relatório · ❌ ${res.length - ok.length} sem código ou fora do relatório`;
   $('fotos-tb').innerHTML = `<thead><tr><th></th><th>Foto</th><th>Resultado</th></tr></thead><tbody>${res.map((x, i) => `<tr>
-    <td>${x.r ? `<input type="checkbox" data-foto="${i}" checked>` : ''}</td><td class="mono" style="font-size:.66rem;word-break:break-all">${esc(x.nome)}</td>
+    <td>${x.r ? `<input type="checkbox" data-foto="${i}" checked>${ehEstoque(ui.inv) ? `<br><input type="number" min="1" value="${qtdDoCodigo(x.txt) || 1}" data-fq="${i}" title="Quantidade (caixa fechada)" style="width:54px;margin-top:4px;padding:3px;border:1px solid #8b5cf6;border-radius:6px;text-align:center">` : ''}` : ''}</td><td class="mono" style="font-size:.66rem;word-break:break-all">${esc(x.nome)}</td>
     <td>${x.r ? `✅ <b class="mono">${esc(x.r.cod)}</b> ${esc(x.r.produto)}<br>Lote <b class="mono">${esc(x.r.lote || '—')}</b> · val. ${dataVal(x.id.validade || x.r.validade)}${diasAte(x.id.validade || x.r.validade) < 0 ? ' <span class="venc">⛔ VENCIDO — separar</span>' : ''} · fica <b>${qtd(x.n)}/${qtd(x.r.saldo)}</b>${x.n > x.r.saldo ? ' <span class="venc">a mais que o saldo</span>' : ''}${(x.id.cands || []).length > 1 ? ' <span style="color:var(--warn-c)">⚠ lote também em outro produto — confira</span>' : ''}`
       : x.txt ? `❌ Código lido, mas não está no relatório <span class="mono" style="font-size:.66rem">${esc(String(x.txt).slice(0, 60))}</span>` : '⚠ Nenhum código encontrado na foto'}</td></tr>`).join('')}</tbody>`;
   const marcadas = () => [...$('fotos-tb').querySelectorAll('[data-foto]:checked')].map(c => res[+c.dataset.foto]);
@@ -1155,7 +1185,7 @@ $('f-fotos').onchange = async e => {
   $('fotos-tb').querySelectorAll('[data-foto]').forEach(c => c.onchange = rot); rot();
   $('fotos-ok').onclick = async () => {
     const sel = marcadas(); $('fotos-ok').disabled = true; let n = 0;
-    for (const x of sel) { $('fotos-ok').textContent = `Incluindo ${++n} de ${sel.length}…`; await registrar(x.txt, 'foto', x.r.cod); }
+    for (const x of sel) { $('fotos-ok').textContent = `Incluindo ${++n} de ${sel.length}…`; const fq = $('fotos-tb').querySelector(`[data-fq="${res.indexOf(x)}"]`); await registrar(x.txt, 'foto', x.r.cod, fq ? Math.max(1, Math.floor(Number(fq.value)) || 1) : 1); }
     fecharModal('m-fotos'); toast(`✅ ${sel.length} embalage${sel.length === 1 ? 'm incluída' : 'ns incluídas'} pelas fotos`);
     const venc = sel.filter(x => diasAte(x.id.validade || x.r.validade) < 0);
     if (venc.length) { $('venc-desc').innerHTML = venc.map(x => `<b class="mono">${esc(x.r.cod)}</b> · lote <b class="mono">${esc(x.r.lote)}</b>`).join('<br>'); $('venc-acao').innerHTML = ehEstoque(ui.inv) ? 'Separe estas embalagens na <u>área de vencidos</u>.' : 'Separe estas embalagens para <u>devolver ao estoque da GF Medical</u>.'; $('m-venc').classList.add('open'); }
@@ -1339,7 +1369,7 @@ window.baixarExcel = () => {
   XLSX.writeFile(wb, `Inventário ${inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
 };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.inv) carregarLeituras().then(desenharInv); });
-const VERSAO = '2026-11-04.134102';
+const VERSAO = '2026-11-04.135927';
 async function conferirVersao() {
   try {
     const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];
