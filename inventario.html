@@ -1403,7 +1403,7 @@ $('cam-foto-bt').onclick = async () => {
   $('cam-diag').textContent = '🔤 sem código de barras — lendo o texto LOT…';
   const lt = await lerTextoEtiqueta(img || (() => { const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d').drawImage(v, 0, 0); return c; })());
   if (lt) { $('cam-diag').textContent = ''; _ultCam = ''; return lidoCamera(lt); }
-  $('cam-diag').textContent = _ultOCR?.lido ? `🔤 li LOT ${_ultOCR.lido}, mas não está no relatório` : '📸 nada lido — chegue a ~15 cm, etiqueta reta e com luz';
+  $('cam-diag').textContent = _ultOCR?.lido ? `🔤 li o lote ${_ultOCR.lido}, mas não está no relatório` : '📸 nada lido — chegue a ~15 cm, etiqueta reta e com luz';
   bipe(false);
 };
 $('cam-luz').onclick = async () => { const tr = _stream?.getVideoTracks()[0]; if (!tr) return; _luz = !_luz; try { await tr.applyConstraints({ advanced: [{ torch: _luz }] }); } catch (e) {} };
@@ -1436,20 +1436,25 @@ async function ocr(fonte) {
   if (fonte instanceof ImageBitmap) { const c = document.createElement('canvas'); c.width = fonte.width; c.height = fonte.height; c.getContext('2d').drawImage(fonte, 0, 0); fonte = c; }
   const { data } = await _tess.recognize(fonte); return data.text || '';
 }
-// letras que o OCR confunde com números (O/0, I/L/1, S/5, B/8, Z/2): compara os dois lados do mesmo jeito
+// letras que o OCR confunde com números (O/0, I/L/1, S/5, B/8, Z/2): compara os dois lados do mesmo jeito; aceita 1–2 letras erradas em lote comprido
 const confOCR = s => norm(s).replace(/[^A-Z0-9]/g, '').replace(/O|Q|D/g, '0').replace(/[IL|]/g, '1').replace(/S/g, '5').replace(/B/g, '8').replace(/Z/g, '2').replace(/G/g, '6');
+const distOCR = (a, b) => { if (Math.abs(a.length - b.length) > 2) return 9; let p = Array.from({ length: b.length + 1 }, (_, j) => j); for (let i = 1; i <= a.length; i++) { const q = [i]; for (let j = 1; j <= b.length; j++) q[j] = Math.min(p[j] + 1, q[j - 1] + 1, p[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); p = q; } return p[b.length]; };
+// lote no texto da etiqueta: "LOT 2512…", "Numero do lote: B0001AJ028" ou, sem a palavra, os números/códigos compridos
 function loteNoTexto(txt, esperado) {
-  const lido = ((txt.match(/L[O0]T\s*[:#.]?\s*([A-Z0-9][A-Z0-9\-\/]{2,24})/i) || [])[1] || '').trim(), T = confOCR(txt), Ld = confOCR(lido);
-  const cands = esperado.filter(x => { const L = confOCR(x.lote); return L && ((L.length >= 5 && T.includes(L)) || (Ld && L === Ld)); })
-    .sort((a, b) => (confOCR(b.lote) === Ld) - (confOCR(a.lote) === Ld) || confOCR(b.lote).length - confOCR(a.lote).length);
-  return { lote: cands[0]?.lote || null, lido, ref: ((txt.match(/REF\s*[:#.]?\s*([A-Z0-9][A-Z0-9\-\/.]{2,30})/i) || [])[1] || '').trim() };
+  const lido = ((txt.match(/(?:L[O0]T[ES]?|BATCH)\b\s*(?:N[º°O.]*)?\s*[:#.]?\s*([A-Z0-9][A-Z0-9\-\/]{2,24})/i) || [])[1] || '').trim();
+  const fichas = [...new Set((txt.toUpperCase().match(/[A-Z0-9][A-Z0-9\/]{4,24}/g) || []).filter(t => /\d.*\d.*\d/.test(t) && !/^\d{4}$/.test(t) && !/^0?\d{13}$/.test(t) && !/^(19|20)\d{6}$/.test(t)))];
+  const T = confOCR(txt), Ld = confOCR(lido), cand = [lido, ...fichas].filter(Boolean).map(confOCR).filter(x => x.length >= 5);
+  const nota = x => { const L = confOCR(x.lote); if (!L) return 9; if (L === Ld) return 0; if (L.length >= 5 && T.includes(L)) return 1; const tol = L.length >= 10 ? 2 : L.length >= 6 ? 1 : 0; const d = Math.min(9, ...cand.map(c => distOCR(c, L))); return d <= tol ? 2 + d : 9; };
+  const ok = esperado.map(x => [x, nota(x)]).filter(([, n]) => n < 9).sort((a, b) => a[1] - b[1]);
+  const lote = ok.length && (ok.length === 1 || ok[0][1] < ok[1][1] || confOCR(ok[0][0].lote) === confOCR(ok[1][0].lote)) ? ok[0][0].lote : null;
+  return { lote, lido: lido || fichas.filter(t => !/-/.test(t)).slice(0, 3).join(' / '), ref: ((txt.match(/REF\s*[:#.]?\s*([A-Z0-9][A-Z0-9\-\/.]{2,30})/i) || [])[1] || '').trim() };
 }
 async function lerTextoEtiqueta(fonte) {
   _ultOCR = null;
   try { _ultOCR = loteNoTexto(await ocr(fonte), ui.inv?.esperado || []); } catch (e) { _ultOCR = { erro: e.message }; return null; }
   return _ultOCR.lote;
 }
-const msgOCR = () => _ultOCR?.erro ? ` (leitor de texto: ${esc(_ultOCR.erro)})` : _ultOCR?.lido ? ` Li no texto <b class="mono">LOT ${esc(_ultOCR.lido)}</b>${_ultOCR.ref ? ' · REF ' + esc(_ultOCR.ref) : ''}, mas <b>esse lote não está no relatório</b> deste ${ehEstoque(ui.inv) ? 'estoque' : 'cliente'}.` : ' Também não achei o "LOT" escrito.';
+const msgOCR = () => _ultOCR?.erro ? ` (leitor de texto: ${esc(_ultOCR.erro)})` : _ultOCR?.lido ? ` Li na etiqueta o lote <b class="mono">${esc(_ultOCR.lido)}</b>${_ultOCR.ref ? ' · REF ' + esc(_ultOCR.ref) : ''}, mas <b>esse lote não está no relatório</b> deste ${ehEstoque(ui.inv) ? 'estoque' : 'cliente'} (${esc(ui.inv?.fornecedor || '')}) — não incluí.` : ' Também não consegui ler o lote escrito.';
 // várias fotos: lê o código de cada uma (foto inteira e recortes do centro, com os dois leitores) e mostra a lista para confirmar
 let _cvF = null, _ocrLote = [];
 function recorteImg(img, frac) {
@@ -1485,8 +1490,8 @@ $('f-fotos').onchange = async e => {
   $('fotos-tb').innerHTML = `<thead><tr><th></th><th>Foto</th><th>Resultado</th></tr></thead><tbody>${res.map((x, i) => `<tr>
     <td>${x.r ? `<input type="checkbox" data-foto="${i}" checked>${ehEstoque(ui.inv) ? `<br><input type="number" min="1" value="${qtdDoCodigo(x.txt) || 1}" data-fq="${i}" title="Quantidade (caixa fechada)" style="width:54px;margin-top:4px;padding:3px;border:1px solid #8b5cf6;border-radius:6px;text-align:center">` : ''}` : ''}</td><td class="mono" style="font-size:.66rem;word-break:break-all">${esc(x.nome)}</td>
     <td>${x.r ? `✅ <b class="mono">${esc(x.r.cod)}</b> ${esc(x.r.produto)}<br>Lote <b class="mono">${esc(x.r.lote || '—')}</b> · val. ${dataVal(x.id.validade || x.r.validade)}${diasAte(x.id.validade || x.r.validade) < 0 ? ' <span class="venc">⛔ VENCIDO — separar</span>' : ''}${cega() ? '' : ` · fica <b>${qtd(x.n)}/${qtd(x.r.saldo)}</b>${x.n > x.r.saldo ? ' <span class="venc">a mais que o saldo</span>' : ''}`}${(x.id.cands || []).length > 1 ? ' <span style="color:var(--warn-c)">⚠ lote também em outro produto — confira</span>' : ''}`
-      : !x.txt && _ocrLote[i]?.lido ? `❌ Li no texto <b class="mono">LOT ${esc(_ocrLote[i].lido)}</b>, mas esse lote não está no relatório`
-      : x.txt ? `❌ Código lido, mas não está no relatório <span class="mono" style="font-size:.66rem">${esc(String(x.txt).slice(0, 60))}</span>` : '⚠ Nenhum código encontrado na foto'}</td></tr>`).join('')}</tbody>`;
+      : !x.txt && _ocrLote[i]?.lido ? `❌ Sem código de barras. Li na etiqueta o lote <b class="mono">${esc(_ocrLote[i].lido)}</b>, mas ele <b>não está no relatório</b> deste ${ehEstoque(ui.inv) ? 'estoque' : 'cliente'}`
+      : x.txt ? `❌ Código lido, mas não está no relatório <span class="mono" style="font-size:.66rem">${esc(String(x.txt).slice(0, 60))}</span>` : '⚠ Nenhum código de barras nem lote legível na foto'}</td></tr>`).join('')}</tbody>`;
   const marcadas = () => [...$('fotos-tb').querySelectorAll('[data-foto]:checked')].map(c => res[+c.dataset.foto]);
   const rot = () => { const n = marcadas().length; $('fotos-ok').textContent = `Incluir ${n} embalage${n === 1 ? 'm' : 'ns'}`; $('fotos-ok').disabled = !n; };
   $('fotos-tb').querySelectorAll('[data-foto]').forEach(c => c.onchange = rot); rot();
@@ -1813,7 +1818,7 @@ window.baixarAjuste = () => {
   XLSX.writeFile(wb, `Ajuste de estoque ${ui.inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
 };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.inv) carregarLeituras().then(desenharInv); });
-const VERSAO = '2026-11-04.160651';
+const VERSAO = '2026-11-04.161346';
 async function conferirVersao() {
   try {
     const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];
