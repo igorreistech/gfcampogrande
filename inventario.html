@@ -81,6 +81,8 @@ html.embed .top .so-solto{display:none}
 #cam .cam-bts{position:absolute;right:8px;bottom:8px;display:flex;gap:6px}
 #cam .cam-bts button{border:0;border-radius:10px;padding:9px 12px;background:rgba(15,23,42,.8);color:#fff;font-weight:700;font-size:.8rem}
 #cam .cam-top{display:none}
+#cam #cam-diag{position:absolute;left:8px;bottom:8px;z-index:3;color:#fff;font-family:var(--mono);font-size:.6rem;text-shadow:0 1px 2px #000;pointer-events:none;max-width:60%}
+#cam.cheia #cam-diag{bottom:auto;top:62px}
 #cam-conf{display:none;position:absolute;left:8px;right:8px;bottom:8px;z-index:5;background:#fff;color:var(--text);border-radius:14px;padding:12px 14px;box-shadow:0 6px 30px rgba(0,0,0,.45);font-size:.84rem;line-height:1.35}
 #cam-conf.on{display:block}
 #cam-conf .ct{font-weight:800;font-size:.95rem;margin-bottom:4px}
@@ -257,7 +259,7 @@ body:not(.fechado) .so-fechado{display:none!important}
         <span class="muted dica-bip">Bipe <b>uma etiqueta por embalagem</b> (as caixas têm várias etiquetas iguais).</span>
       </div>
       <div id="cam"><div class="cam-top"><button type="button" onclick="alternarCamera()">✕ Fechar</button><span id="cam-cont"></span></div><video id="cam-v" playsinline muted autoplay></video><div class="mira"></div><div class="cam-dica">Encaixe o código de barras inteiro na faixa verde · se não focar, afaste um pouco e use 🔍</div><div id="cam-h5"></div>
-        <div class="cam-bts"><button type="button" id="cam-zoom" style="display:none">🔍 1×</button><button type="button" id="cam-luz" style="display:none">🔦</button></div><div id="cam-conf"></div></div>
+        <div class="cam-bts"><button type="button" id="cam-zoom" style="display:none">🔍 1×</button><button type="button" id="cam-luz" style="display:none">🔦</button><button type="button" id="cam-foto-bt">📸 Capturar</button></div><div id="cam-diag"></div><div id="cam-conf"></div></div>
       <div id="cam-foto" style="display:none"></div>
       <div id="ultimo">Aguardando a primeira leitura…</div>
     </div>
@@ -754,6 +756,24 @@ window.desfazer = async id => {
 // (barcode-detector) — o html5-qrcode fica só de último recurso, ele não lê essas etiquetas direito
 const FORMATOS = ['code_128', 'data_matrix', 'qr_code', 'ean_13', 'code_39', 'upc_a', 'itf'];
 let _detector, _stream = null, _h5 = null, _loop = null, _ultCam = '', _ultCamEm = 0, _zoom = 1, _luz = false;
+let _det2, _cv = null, _quadros = 0;
+async function detectorZx() {
+  if (_det2 !== undefined) return _det2;
+  _det2 = null; try { if (window.BarcodeDetectionAPI) _det2 = new BarcodeDetectionAPI.BarcodeDetector({ formats: FORMATOS }); } catch (e) {}
+  return _det2;
+}
+// pedaço do quadro que está sob a faixa verde, ampliado (o código fino fica com mais pixels para o leitor)
+function recorteMira(v) {
+  const vw = v.videoWidth, vh = v.videoHeight, m = $('cam').querySelector('.mira'); if (!vw || !m) return null;
+  const R = v.getBoundingClientRect(), M = m.getBoundingClientRect(); if (!M.width || !R.width) return null;
+  const s = Math.max(R.width / vw, R.height / vh), ox = (R.width - vw * s) / 2, oy = (R.height - vh * s) / 2;   // object-fit: cover
+  let w = M.width / s * 1.1, hh = M.height / s * 1.6, x = (M.left - R.left - ox) / s - w * 0.045, y = (M.top - R.top - oy) / s - hh * 0.19;
+  x = Math.max(0, x); y = Math.max(0, y); w = Math.min(vw - x, w); hh = Math.min(vh - y, hh); if (w < 20 || hh < 20) return null;
+  const c = _cv || (_cv = document.createElement('canvas')), k = Math.min(2.5, 1800 / w);
+  c.width = Math.round(w * k); c.height = Math.round(hh * k);
+  const g = c.getContext('2d', { willReadFrequently: true }); g.imageSmoothingEnabled = false; g.drawImage(v, x, y, w, hh, 0, 0, c.width, c.height);
+  return c;
+}
 async function detectorNativo() {
   if (_detector !== undefined) return _detector;
   _detector = null;
@@ -829,10 +849,19 @@ window.alternarCamera = async () => {
       try { if ((cap.focusMode || []).includes('continuous')) await tr.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch (e) {}
       _zoom = 1; _luz = false; $('cam-zoom').textContent = '🔍 1×';
       $('cam-zoom').style.display = cap.zoom && cap.zoom.max >= 2 ? '' : 'none'; $('cam-luz').style.display = cap.torch ? '' : 'none';
+      const zx = await detectorZx(), nativo = det !== zx && !(window.BarcodeDetectionAPI && det instanceof BarcodeDetectionAPI.BarcodeDetector);
+      const modos = [[det, 'v'], [det, 'c'], ...(zx && zx !== det ? [[zx, 'c'], [zx, 'v']] : [])];
+      _quadros = 0;
       const ciclo = async () => {
         if (!_stream) return;
-        try { if (v.readyState >= 2) { const r = await det.detect(v); if (r && r.length) lidoCamera(melhorCodigo(r)); } } catch (e) {}
-        _loop = setTimeout(ciclo, 100);
+        try {
+          if (v.readyState >= 2 && !_pend) {
+            const [d, onde] = modos[_quadros++ % modos.length], fonte = onde === 'c' ? recorteMira(v) || v : v;
+            const r = await d.detect(fonte); if (r && r.length) lidoCamera(melhorCodigo(r));
+            if (_quadros % 10 === 0) $('cam-diag').textContent = `leitor: ${nativo ? 'nativo' : 'zxing'}${zx && zx !== det ? ' + zxing' : ''} · ${v.videoWidth}×${v.videoHeight} · ${_quadros} quadros`;
+          }
+        } catch (e) { $('cam-diag').textContent = '⚠ ' + (e?.message || e); }
+        _loop = setTimeout(ciclo, 60);
       };
       ciclo();
     } else {
@@ -850,6 +879,16 @@ $('cam-zoom').onclick = async () => {
   const z = tr.getCapabilities().zoom, op = [1, 2, 3].filter(x => x >= z.min && x <= z.max);
   _zoom = op[(op.indexOf(_zoom) + 1) % op.length] || 1;
   try { await tr.applyConstraints({ advanced: [{ zoom: _zoom }] }); $('cam-zoom').textContent = '🔍 ' + _zoom + '×'; } catch (e) {}
+};
+$('cam-foto-bt').onclick = async () => {
+  const tr = _stream?.getVideoTracks()[0], v = $('cam-v'); if (!tr) return $('f-foto').click();
+  $('cam-diag').textContent = '📸 lendo a foto…';
+  let img = null;
+  try { if (window.ImageCapture) img = await createImageBitmap(await new ImageCapture(tr).takePhoto()); } catch (e) {}
+  const fontes = [img, recorteMira(v), v].filter(Boolean), dets = [await detectorNativo(), await detectorZx()].filter((d, i, a) => d && a.indexOf(d) === i);
+  for (const f of fontes) for (const d of dets) { try { const r = await d.detect(f); if (r && r.length) { $('cam-diag').textContent = ''; _ultCam = ''; return lidoCamera(melhorCodigo(r)); } } catch (e) {} }
+  $('cam-diag').textContent = '📸 nenhum código na foto — chegue a ~15 cm, etiqueta reta e com luz';
+  bipe(false);
 };
 $('cam-luz').onclick = async () => { const tr = _stream?.getVideoTracks()[0]; if (!tr) return; _luz = !_luz; try { await tr.applyConstraints({ advanced: [{ torch: _luz }] }); } catch (e) {} };
 // foto da etiqueta: lê o código na foto em resolução cheia
@@ -959,7 +998,7 @@ window.baixarExcel = () => {
   XLSX.writeFile(wb, `Inventário ${ui.inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
 };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.inv) carregarLeituras().then(desenharInv); });
-const VERSAO = '2026-11-04.120550';
+const VERSAO = '2026-11-04.121138';
 async function conferirVersao() {
   try {
     const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];
