@@ -81,6 +81,8 @@ html.embed .top .so-solto{display:none}
 #cam .cam-bts{position:absolute;right:8px;bottom:8px;display:flex;gap:6px}
 #cam .cam-bts button{border:0;border-radius:10px;padding:9px 12px;background:rgba(15,23,42,.8);color:#fff;font-weight:700;font-size:.8rem}
 #cam .cam-top{display:none}
+#cam .cam-bts button.pisca{background:#16a34a;animation:piscaC 1s ease-in-out infinite}
+@keyframes piscaC{50%{transform:scale(1.12)}}
 #cam #cam-diag{position:absolute;left:8px;bottom:8px;z-index:3;color:#fff;font-family:var(--mono);font-size:.6rem;text-shadow:0 1px 2px #000;pointer-events:none;max-width:60%}
 #cam.cheia #cam-diag{bottom:auto;top:62px}
 #cam-conf{display:none;position:absolute;left:8px;right:8px;bottom:8px;z-index:5;background:#fff;color:var(--text);border-radius:14px;padding:12px 14px;box-shadow:0 6px 30px rgba(0,0,0,.45);font-size:.84rem;line-height:1.35}
@@ -1247,7 +1249,7 @@ window.desfazer = async id => {
 // (barcode-detector) — o html5-qrcode fica só de último recurso, ele não lê essas etiquetas direito
 const FORMATOS = ['code_128', 'data_matrix', 'qr_code', 'ean_13', 'code_39', 'upc_a', 'itf'];
 let _detector, _stream = null, _h5 = null, _loop = null, _ultCam = '', _ultCamEm = 0, _zoom = 1, _luz = false;
-let _det2, _cv = null, _quadros = 0;
+let _det2, _cv = null, _quadros = 0, _camDesde = 0;
 async function detectorZx() {
   if (_det2 !== undefined) return _det2;
   _det2 = null; try { if (window.BarcodeDetectionAPI) _det2 = new BarcodeDetectionAPI.BarcodeDetector({ formats: FORMATOS }); } catch (e) {}
@@ -1260,9 +1262,9 @@ function recorteMira(v) {
   const s = Math.max(R.width / vw, R.height / vh), ox = (R.width - vw * s) / 2, oy = (R.height - vh * s) / 2;   // object-fit: cover
   let w = M.width / s * 1.1, hh = M.height / s * 1.6, x = (M.left - R.left - ox) / s - w * 0.045, y = (M.top - R.top - oy) / s - hh * 0.19;
   x = Math.max(0, x); y = Math.max(0, y); w = Math.min(vw - x, w); hh = Math.min(vh - y, hh); if (w < 20 || hh < 20) return null;
-  const c = _cv || (_cv = document.createElement('canvas')), k = Math.min(2.5, 1800 / w);
+  const c = _cv || (_cv = document.createElement('canvas')), k = Math.min(2.5, Math.max(1, 2400 / w));
   c.width = Math.round(w * k); c.height = Math.round(hh * k);
-  const g = c.getContext('2d', { willReadFrequently: true }); g.imageSmoothingEnabled = false; g.drawImage(v, x, y, w, hh, 0, 0, c.width, c.height);
+  const g = c.getContext('2d', { willReadFrequently: true }); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.drawImage(v, x, y, w, hh, 0, 0, c.width, c.height);
   return c;
 }
 let _cq = null;
@@ -1286,7 +1288,7 @@ async function detectorNativo() {
 // câmera: cada código lido aparece para confirmar ("✅ Incluir" / "✖ Ignorar") e depois mostra o que foi incluído.
 // Enquanto a pergunta está na tela, a câmera não lê outro; a mesma etiqueta só é perguntada de novo 4 s depois.
 let _pend = null, _feitoTimer = null;
-const lidoCamera = txt => { const agora = Date.now(); if (!txt || _pend || (txt === _ultCam && agora - _ultCamEm < 4000)) return; _ultCam = txt; _ultCamEm = agora; confirmarLeitura(txt); };
+const lidoCamera = txt => { const agora = Date.now(); _camDesde = agora; $('cam-foto-bt').classList.remove('pisca'); if (!txt || _pend || (txt === _ultCam && agora - _ultCamEm < 4000)) return; _ultCam = txt; _ultCamEm = agora; confirmarLeitura(txt); };
 function contadorCam() { if (!ui.inv) return; const a = apurar(); $('cam-cont').textContent = cega() ? `🔫 ${qtd(a.bip)} contados` : `✅ ${qtd(a.conf)}/${qtd(a.esp)} · 🔫 ${qtd(a.bip)}`; }
 function descreverLeitura(txt) {
   const id = identificar(txt, ui.inv?.esperado || [], codDoGtin), a = apurar();
@@ -1356,11 +1358,13 @@ window.alternarCamera = async () => {
   const det = await detectorNativo();
   try {
     if (det) {
-      _stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } });
+      _stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 3840 }, height: { ideal: 2160 } } });
       const v = $('cam-v'); v.srcObject = _stream; $('cam').classList.add('nativo'); await v.play().catch(() => {});
       const tr = _stream.getVideoTracks()[0], cap = tr.getCapabilities ? tr.getCapabilities() : {};
       try { if ((cap.focusMode || []).includes('continuous')) await tr.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch (e) {}
       _zoom = 1; _luz = false; $('cam-zoom').textContent = '🔍 1×';
+      if (cap.zoom && cap.zoom.max >= 2) { try { await tr.applyConstraints({ advanced: [{ zoom: 2 }] }); _zoom = 2; $('cam-zoom').textContent = '🔍 2×'; } catch (e) {} }
+      _camDesde = Date.now();
       $('cam-zoom').style.display = cap.zoom && cap.zoom.max >= 2 ? '' : 'none'; $('cam-luz').style.display = cap.torch ? '' : 'none';
       const zx = await detectorZx(), nativo = det !== zx && !(window.BarcodeDetectionAPI && det instanceof BarcodeDetectionAPI.BarcodeDetector);
       const modos = [[det, 'v'], [det, 'c'], [det, 'q'], ...(zx && zx.constructor !== det.constructor ? [[zx, 'c'], [zx, 'q'], [zx, 'v']] : [])];
@@ -1371,6 +1375,7 @@ window.alternarCamera = async () => {
           if (v.readyState >= 2 && !_pend) {
             const [d, onde] = modos[_quadros++ % modos.length], fonte = onde === 'c' ? recorteMira(v) || v : onde === 'q' ? recorteCentro(v) || v : v;
             const r = await d.detect(fonte); if (r && r.length) lidoCamera(melhorCodigo(r));
+            if (_camDesde && Date.now() - _camDesde > 6000 && !$('cam-foto-bt').classList.contains('pisca')) { $('cam-foto-bt').classList.add('pisca'); toast('Não está lendo? Toque em 📸 Capturar: tira a foto em resolução cheia e lê o código (ou o LOT escrito).', 'info'); }
             if (_quadros % 10 === 0) $('cam-diag').textContent = `leitor: ${nativo ? 'nativo' : 'zxing'}${zx && zx.constructor !== det.constructor ? ' + zxing' : ''} · ${v.videoWidth}×${v.videoHeight} · ${_quadros} quadros`;
           }
         } catch (e) { $('cam-diag').textContent = '⚠ ' + (e?.message || e); }
@@ -1818,7 +1823,7 @@ window.baixarAjuste = () => {
   XLSX.writeFile(wb, `Ajuste de estoque ${ui.inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
 };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.inv) carregarLeituras().then(desenharInv); });
-const VERSAO = '2026-11-04.162030';
+const VERSAO = '2026-11-04.163833';
 async function conferirVersao() {
   try {
     const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];
