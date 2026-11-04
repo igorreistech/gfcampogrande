@@ -299,7 +299,10 @@ body:not(.fechado) .so-fechado{display:none!important}
 <div class="ov" id="m-falta"><div class="mod" style="max-width:640px">
   <div class="mh"><span>📤 Itens faltando — enviar por WhatsApp / e-mail</span><button class="x" onclick="fecharModal('m-falta')">✕</button></div>
   <div class="mb">
-    <label style="display:flex;gap:6px;align-items:center;font-size:.78rem;margin-bottom:8px;cursor:pointer"><input type="checkbox" id="falta-valor" checked> mostrar valores (R$)</label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+      <button class="btn p" type="button" data-fmt="wa">💬 Texto WhatsApp</button><button class="btn" type="button" data-fmt="mail">📧 Texto e-mail</button>
+      <label style="display:flex;gap:6px;align-items:center;font-size:.78rem;cursor:pointer;margin-left:auto"><input type="checkbox" id="falta-valor" checked> mostrar valores (R$)</label>
+    </div>
     <textarea id="falta-txt" style="height:340px;font-family:var(--sans);font-size:.78rem;line-height:1.45"></textarea>
     <div class="muted" style="margin-top:6px">Dá para editar o texto antes de enviar.</div>
   </div>
@@ -1051,37 +1054,53 @@ window.imprimir = async () => {
     <script>window.onload=()=>setTimeout(()=>print(),300)<\/script></body></html>`);
   w.document.close();
 };
-// texto dos itens faltando (no relatório C457 e não encontrados) para mandar ao cliente / vendedor
-function textoFaltantes(comValor, wa) {
-  const inv = ui.inv, a = apurar(), b = s => wa ? `*${s}*` : s;
+// texto dos itens faltando, em dois formatos: WhatsApp (curto, *negrito*, em tópicos) e e-mail (formal, com saudação e assinatura)
+function textoFaltantes(comValor, fmt) {
+  const inv = ui.inv, a = apurar(), wa = fmt !== 'mail', b = s => wa ? `*${s}*` : s, gf = GF[FILIAL] || GF.CGR;
   const falt = a.linhas.filter(r => r.st === 'falta').sort((x, y) => String(x.cod).localeCompare(String(y.cod)) || String(x.lote).localeCompare(String(y.lote)));
-  const pct = a.esp ? Math.round(a.conf / a.esp * 100) : 0;
-  const L = [b('Inventário de material consignado'), b(inv.cliente),
-    `${inv.fornecedor || 'Todos os fornecedores'} · relatório C457 de ${dataBR(inv.relatorio_data)}`,
-    `Inventário de ${dataHoraBR(inv.criado_em)}${inv.fechado_em ? ' (encerrado em ' + dataHoraBR(inv.fechado_em) + ')' : ' (em andamento)'}`, '',
-    `📋 No relatório (saldo): ${qtd(a.esp)} un.${comValor ? ' · ' + brl(a.espVal) : ''}`,
-    `📦 Fisicamente no local: ${qtd(a.fis)} un.${comValor ? ' · ' + brl(a.fisVal) : ''} (${pct}% conferido)`,
-    b(`⚠ Faltando: ${qtd(a.falta)} un.${comValor ? ' · ' + brl(a.faltaVal) : ''} (${falt.length} lote${falt.length === 1 ? '' : 's'})`), ''];
-  falt.forEach((r, i) => {
-    const f = r.saldo - r.bip, venc = r.venc != null && r.venc < 0 ? ' ⛔ vencido' : r.venc != null && r.venc <= 90 ? ' ⌛' : '';
-    L.push(`${i + 1}. ${r.cod} — ${r.produto}`);
-    L.push(`   Lote ${r.lote} · val. ${dataVal(r.validade)}${venc} · falta ${qtd(f)}${r.bip ? ' de ' + qtd(r.saldo) : ''}${comValor && r.vunit ? ' · ' + brl(f * r.vunit) : ''}${r.nfs?.length ? ' · NF ' + r.nfs.map(n => n.nf).join(', ') : ''}`);
-  });
-  if (!falt.length) L.push('Nenhum item faltando. 👍');
+  const pct = a.esp ? Math.round(a.conf / a.esp * 100) : 0, R = v => comValor ? brl(v) : '';
+  const quando = inv.fechado_em ? dataHoraBR(inv.fechado_em) : dataHoraBR(new Date().toISOString());
+  const vencFalt = falt.filter(r => r.venc != null && r.venc < 0), unF = r => r.saldo - r.bip;
+  // agrupa por produto: código · descrição → lotes
+  const grupos = []; falt.forEach(r => { const g = grupos[grupos.length - 1]; if (g && g.cod === r.cod) g.l.push(r); else grupos.push({ cod: r.cod, produto: r.produto, l: [r] }); });
+  const loteTxt = r => `Lote ${r.lote} · val. ${dataVal(r.validade)}${r.venc != null && r.venc < 0 ? (wa ? ' ⛔ VENCIDO' : ' (VENCIDO)') : r.venc != null && r.venc <= 90 ? (wa ? ' ⌛ vence em ' + r.venc + ' dias' : ' (vence em ' + r.venc + ' dias)') : ''} · ${qtd(unF(r))} un.${r.bip ? ` (de ${qtd(r.saldo)})` : ''}${comValor && r.vunit ? ' · ' + brl(unF(r) * r.vunit) : ''}${r.nfs?.length ? ' · NF ' + r.nfs.map(n => n.nf).join(', ') : ''}`;
+  const L = [];
+  if (wa) {
+    L.push(`Olá! Segue o resultado do inventário de material consignado:`, '', `🏥 ${b(inv.cliente)}`, `🏷 ${inv.fornecedor || 'Todos os fornecedores'}`, `📅 Inventário em ${quando} · relatório C457 de ${dataBR(inv.relatorio_data)}`, '',
+      b('RESUMO'), `📋 Saldo no relatório: ${qtd(a.esp)} un.${comValor ? ' · ' + R(a.espVal) : ''}`, `✅ Encontrado no local: ${qtd(a.fis)} un.${comValor ? ' · ' + R(a.fisVal) : ''} (${pct}%)`,
+      `⚠ ${b(`Faltando: ${qtd(a.falta)} un.${comValor ? ' · ' + R(a.faltaVal) : ''}`)}`);
+    if (vencFalt.length) L.push(`⛔ Entre os faltantes, ${vencFalt.length} lote${vencFalt.length === 1 ? ' está vencido' : 's estão vencidos'}`);
+    L.push('', b(`ITENS FALTANDO (${falt.length} lote${falt.length === 1 ? '' : 's'})`));
+    grupos.forEach(g => { L.push('', `▪ ${b(g.cod)} — ${g.produto}`); g.l.forEach(r => L.push(`   • ${loteTxt(r)}`)); });
+  } else {
+    L.push('Prezados(as),', '', `Segue o resultado do inventário do material em consignação no(a) ${inv.cliente}, realizado em ${quando}, conferido contra o relatório C457 (Itens Consignados) de ${dataBR(inv.relatorio_data)} — ${inv.fornecedor || 'todos os fornecedores'}.`, '',
+      'RESUMO', '-'.repeat(40),
+      `Saldo no relatório ......... ${qtd(a.esp)} un.${comValor ? '   ' + R(a.espVal) : ''}`,
+      `Encontrado no local ........ ${qtd(a.fis)} un.${comValor ? '   ' + R(a.fisVal) : ''}  (${pct}% conferido)`,
+      `Faltando ................... ${qtd(a.falta)} un.${comValor ? '   ' + R(a.faltaVal) : ''}  (${falt.length} lotes)`);
+    if (vencFalt.length) L.push(`Vencidos entre os faltantes . ${vencFalt.length} lote(s)`);
+    L.push('', `ITENS FALTANDO`, '-'.repeat(40));
+    let n = 0; grupos.forEach(g => { L.push('', `${g.cod} — ${g.produto}`); g.l.forEach(r => L.push(`   ${++n}. ${loteTxt(r)}`)); });
+  }
+  if (!falt.length) L.push('', wa ? '👍 Nenhum item faltando — tudo conferido!' : 'Nenhum item faltando: todo o saldo do relatório foi encontrado no local.');
   const exc = a.linhas.filter(r => r.st === 'exc');
-  if (exc.length) { L.push('', b(`➕ Encontrado a mais que o saldo: ${exc.length} lote${exc.length === 1 ? '' : 's'}`)); exc.forEach(r => L.push(`• ${r.cod} lote ${r.lote}: encontrado ${qtd(r.bip)}, saldo ${qtd(r.saldo)}`)); }
-  L.push('', 'Por favor, confirme se esses itens foram utilizados (para faturar) ou onde estão.', '', `${nomeCurto()} · ${(GF[FILIAL] || GF.CGR).razao} · ${(GF[FILIAL] || GF.CGR).cidade}`);
-  return L.join('\n').replace(/\u00a0/g, ' ');
+  if (exc.length) { L.push('', wa ? b(`➕ ENCONTRADO A MAIS QUE O SALDO (${exc.length})`) : 'ENCONTRADO A MAIS QUE O SALDO DO RELATÓRIO'); exc.forEach(r => L.push(`${wa ? '   • ' : '   - '}${r.cod} · lote ${r.lote}: encontrado ${qtd(r.bip)}, saldo ${qtd(r.saldo)}`)); }
+  if (wa) L.push('', '🙏 Por favor, confirme se os itens faltando foram *utilizados* (para faturarmos) ou onde estão.', '', `${nomeCurto()}`, `${gf.razao} · ${gf.cidade}`);
+  else L.push('', 'Pedimos, por gentileza, que nos confirmem se os itens acima foram utilizados em procedimentos (para emissão do faturamento) ou se estão em outro local, para regularizarmos o saldo do consignado.', '', 'Ficamos à disposição para qualquer dúvida.', '', 'Atenciosamente,', '', nomeCurto(), gf.razao, `CNPJ ${gf.cnpj} · ${gf.cidade}`);
+  return L.join('\n').replace(/ /g, ' ');
 }
 window.abrirFaltantes = () => {
-  const montar = () => { $('falta-txt').value = textoFaltantes($('falta-valor').checked, true); };
+  let fmt = 'wa';
+  const montar = () => { $('falta-txt').value = textoFaltantes($('falta-valor').checked, fmt); document.querySelectorAll('#m-falta [data-fmt]').forEach(x => x.classList.toggle('p', x.dataset.fmt === fmt)); };
+  document.querySelectorAll('#m-falta [data-fmt]').forEach(x => x.onclick = () => { fmt = x.dataset.fmt; montar(); });
   montar(); $('falta-valor').onchange = montar;
-  const assunto = () => `Inventário consignado · ${ui.inv.cliente} · itens faltando`;
-  const semAsterisco = t => t.replace(/\*([^*\n]+)\*/g, '$1');
+  const assunto = () => `Inventário consignado · ${ui.inv.cliente} · itens faltando (${dataBR(hojeISO())})`;
   $('falta-copiar').onclick = () => navigator.clipboard.writeText($('falta-txt').value).then(() => toast('📋 Texto copiado — cole no WhatsApp ou no e-mail'));
-  $('falta-wa').onclick = () => window.open('https://wa.me/?text=' + encodeURIComponent($('falta-txt').value), '_blank');
+  // cada botão usa o seu formato (se o texto da tela for do outro, gera o certo)
+  const texto = f => fmt === f ? $('falta-txt').value : textoFaltantes($('falta-valor').checked, f);
+  $('falta-wa').onclick = () => window.open('https://wa.me/?text=' + encodeURIComponent(texto('wa')), '_blank');
   $('falta-mail').onclick = () => {
-    const corpo = semAsterisco($('falta-txt').value);
+    const corpo = texto('mail');
     if (corpo.length > 1800) navigator.clipboard.writeText(corpo).then(() => toast('Texto grande: já copiei — se o e-mail abrir cortado, apague e cole (Ctrl+V)', 'info')).catch(() => {});
     location.href = 'mailto:?subject=' + encodeURIComponent(assunto()) + '&body=' + encodeURIComponent(corpo);
   };
@@ -1098,7 +1117,7 @@ window.baixarExcel = () => {
   XLSX.writeFile(wb, `Inventário ${ui.inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
 };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.inv) carregarLeituras().then(desenharInv); });
-const VERSAO = '2026-11-04.123350';
+const VERSAO = '2026-11-04.123606';
 async function conferirVersao() {
   try {
     const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];
