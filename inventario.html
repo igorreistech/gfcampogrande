@@ -331,6 +331,9 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const brl = v => (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const qtd = v => (Number(v) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 const dataBR = iso => iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4) : '—';
+// validade com o mês por extenso (03/OUT/2026): não confunde dia e mês
+const MESES = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+const dataVal = iso => iso ? iso.slice(8, 10) + '/' + (MESES[+iso.slice(5, 7) - 1] || iso.slice(5, 7)) + '/' + iso.slice(0, 4) : '—';
 const dataHoraBR = iso => iso ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 const hojeISO = () => new Date().toISOString().slice(0, 10);
 const diasAte = iso => iso ? Math.floor((Date.parse(iso) - Date.parse(hojeISO())) / 864e5) : null;
@@ -668,7 +671,7 @@ function desenharInv() {
   $('tb').innerHTML = `<thead><tr><th>Situação</th><th class="c-q"></th><th>Código</th><th>Produto</th><th>Lote</th><th>Validade</th><th>NF</th><th class="n">Saldo</th><th class="n">Bipado</th><th class="n">Valor un.</th></tr></thead><tbody>${l.map(r => `<tr class="st-${r.st}">
     <td class="st c-st ${r.st}">${ST_TXT[r.st]}${r.st === 'falta' && r.bip ? ` (${qtd(r.saldo - r.bip)})` : r.st === 'exc' ? ` (+${qtd(r.bip - r.saldo)})` : ''}</td>
     <td class="c-q">${qtd(r.bip)}<small>/${r.tipo === 'esp' ? qtd(r.saldo) : '—'}</small></td><td class="mono c-cod">${esc(r.cod || '—')}</td><td class="c-prod">${esc(r.produto || (r.gtin ? 'GTIN ' + r.gtin : 'Não identificado'))}</td><td class="mono c-lote">${esc(r.lote || '—')}</td>
-    <td class="mono c-val ${r.venc != null && r.venc <= 90 ? 'venc' : ''}" title="${r.venc != null ? (r.venc < 0 ? 'vencido há ' + -r.venc + ' dias' : 'vence em ' + r.venc + ' dias') : ''}">${dataBR(r.validade)}${r.venc != null && r.venc < 0 ? ' ⛔' : r.venc != null && r.venc <= 90 ? ' ⌛' : ''}</td>
+    <td class="mono c-val ${r.venc != null && r.venc <= 90 ? 'venc' : ''}" title="${r.venc != null ? (r.venc < 0 ? 'vencido há ' + -r.venc + ' dias' : 'vence em ' + r.venc + ' dias') : ''}">${dataVal(r.validade)}${r.venc != null && r.venc < 0 ? ' ⛔' : r.venc != null && r.venc <= 90 ? ' ⌛' : ''}</td>
     <td class="mono c-nf">${esc((r.nfs || []).map(n => n.nf).join(', ') || '—')}</td><td class="n c-x">${r.tipo === 'esp' ? qtd(r.saldo) : '—'}</td><td class="n c-x"><b>${qtd(r.bip)}</b></td><td class="n c-x">${r.vunit ? brl(r.vunit) : '—'}</td></tr>`).join('') || '<tr><td colspan="9" class="muted" style="padding:16px">Nada neste filtro.</td></tr>'}</tbody>`;
   const ult = [...ui.leit].reverse().slice(0, 60);
   $('n-leit').textContent = ui.leit.length ? `· ${ui.leit.length} (últimas ${ult.length})` : '';
@@ -719,7 +722,7 @@ async function registrar(bruto, origem) {
   const tmp = { ...reg, id: 'tmp' + Math.random().toString(36).slice(2), _tmp: true, criado_em: new Date().toISOString() };
   ui.leit.push(tmp);
   const a = apurar(), r = id.codigo ? a.linhas.find(x => norm(x.cod) === norm(id.codigo) && norm(x.lote) === norm(id.lote)) : null;
-  const vtxt = id.validade ? ` · val. ${dataBR(id.validade)}${diasAte(id.validade) < 0 ? ' ⛔ VENCIDO' : diasAte(id.validade) <= 90 ? ' ⌛' : ''}` : '';
+  const vtxt = id.validade ? ` · val. ${dataVal(id.validade)}${diasAte(id.validade) < 0 ? ' ⛔ VENCIDO' : diasAte(id.validade) <= 90 ? ' ⌛' : ''}` : '';
   if (r && r.bip <= r.saldo) { ultimo(`✅ <b class="mono">${esc(r.cod)}</b> ${esc(r.produto)} · lote <b class="mono">${esc(r.lote)}</b>${vtxt}`, 'ok', `${qtd(r.bip)}/${qtd(r.saldo)}`); bipe(true); }
   else if (r) { ultimo(`⚠ <b class="mono">${esc(r.cod)}</b> lote <b class="mono">${esc(r.lote)}</b>: já bipou <b>${qtd(r.bip)}</b> e o relatório tem só ${qtd(r.saldo)}. É outra embalagem? Se bipou a mesma etiqueta 2×, desfaça abaixo.`, 'av', `${qtd(r.bip)}/${qtd(r.saldo)}`); bipe(false); }
   else { ultimo(`➕ <b>Não está no saldo do relatório</b> · ${id.produto ? esc((id.produtoCod ? id.produtoCod + ' ' : '') + id.produto) + ' · ' : ''}${id.gtin ? 'GTIN <span class="mono">' + esc(id.gtin) + '</span> · ' : ''}lote <b class="mono">${esc(id.lote || '—')}</b>${vtxt}`, 'er'); bipe(false); }
@@ -767,7 +770,7 @@ function descreverLeitura(txt) {
   const id = identificar(txt, ui.inv?.esperado || []), a = apurar();
   if (!id.gtin && _gtinPend && Date.now() - _gtinPend.em < 60000) id.gtin = _gtinPend.gtin;
   const r = id.codigo ? a.linhas.find(x => norm(x.cod) === norm(id.codigo) && norm(x.lote) === norm(id.lote)) : null;
-  const val = id.validade ? `Validade <b>${dataBR(id.validade)}</b>${diasAte(id.validade) < 0 ? ' ⛔ VENCIDO' : diasAte(id.validade) <= 90 ? ' ⌛ vence em ' + diasAte(id.validade) + ' dias' : ''}` : '';
+  const val = id.validade ? `Validade <b>${dataVal(id.validade)}</b>${diasAte(id.validade) < 0 ? ' ⛔ VENCIDO' : diasAte(id.validade) <= 90 ? ' ⌛ vence em ' + diasAte(id.validade) + ' dias' : ''}` : '';
   const sg = !id.codigo && soGtin(txt);
   if (sg) return { ean: true, gtin: sg, html: `<div class="ct">📦 Código do produto</div><div class="mono">GTIN ${esc(sg)}</div><div class="cs av">Falta o lote. Mire agora no <b>outro código</b> da etiqueta — o que tem (17) validade e (10) lote.</div>` };
   if (!id.codigo && /^\d{8,14}$/.test(txt)) return { ean: true, html: `<div class="ct">⚠ Código EAN da embalagem</div><div class="mono">${esc(txt)}</div><div class="cs av">Esse código não tem o lote. Mire no outro código de barras — o comprido, com (01)…(17)…(10)… embaixo.</div>` };
@@ -925,7 +928,7 @@ window.imprimir = async () => {
   let docCli = ''; try { docCli = await docCliente(inv.cliente); } catch (e) {}
   const gf = GF[FILIAL] || GF.CGR;
   const tab = (tit, l, cols) => l.length ? `<h3>${tit} <small>(${l.length})</small></h3><table><thead><tr>${cols.map(c => `<th${c[2] ? ' class="n"' : ''}>${c[0]}</th>`).join('')}</tr></thead><tbody>${l.map(r => `<tr>${cols.map(c => `<td${c[2] ? ' class="n"' : ''}>${c[1](r)}</td>`).join('')}</tr>`).join('')}</tbody></table>` : '';
-  const base = [['Código', r => esc(r.cod || '—')], ['Produto', r => esc(r.produto || (r.gtin ? 'GTIN ' + r.gtin : 'Não identificado'))], ['Lote', r => esc(r.lote || '—')], ['Validade', r => dataBR(r.validade)]];
+  const base = [['Código', r => esc(r.cod || '—')], ['Produto', r => esc(r.produto || (r.gtin ? 'GTIN ' + r.gtin : 'Não identificado'))], ['Lote', r => esc(r.lote || '—')], ['Validade', r => dataVal(r.validade)]];
   const ord = l => [...l].sort((x, y) => String(x.cod).localeCompare(String(y.cod)) || String(x.lote).localeCompare(String(y.lote)));
   w.document.open();
   w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Inventário consignado · ${esc(inv.cliente)}</title><style>
@@ -940,7 +943,7 @@ window.imprimir = async () => {
     <div class="res"><div>No relatório<b>${qtd(a.esp)} un.</b></div><div>Conferido<b>${qtd(a.conf)} un.</b></div><div>Faltando<b>${qtd(a.falta)} un. · ${brl(a.faltaVal)}</b></div><div>A mais / fora do relatório<b>${qtd(a.exc)} un.</b></div><div>Validade ≤ 90 dias<b>${a.venc} lotes</b></div></div>
     ${tab('⚠ Faltando (no relatório e não encontrado)', ord(a.linhas.filter(r => r.st === 'falta')), [...base, ['NF', r => esc(r.nfs.map(n => n.nf).join(', '))], ['Saldo', r => qtd(r.saldo), 1], ['Encontrado', r => qtd(r.bip), 1], ['Falta', r => qtd(r.saldo - r.bip), 1], ['Valor', r => brl((r.saldo - r.bip) * r.vunit), 1]])}
     ${tab('➕ Encontrado a mais / fora do relatório', ord([...a.linhas.filter(r => r.st === 'exc'), ...a.sobras]), [...base, ['Saldo', r => r.tipo === 'esp' ? qtd(r.saldo) : '—', 1], ['Encontrado', r => qtd(r.bip), 1]])}
-    ${tab('⌛ Validade vencida ou em até 90 dias', ord(a.linhas.filter(r => r.venc != null && r.venc <= 90)), [...base, ['Dias', r => r.venc < 0 ? 'vencido' : r.venc, 1], ['Saldo', r => qtd(r.saldo), 1], ['Encontrado', r => qtd(r.bip), 1]])}
+    ${tab('⌛ Validade vencida ou em até 90 dias', a.linhas.filter(r => r.venc != null && r.venc <= 90).sort((x, y) => x.venc - y.venc), [...base, ['Dias', r => r.venc < 0 ? 'vencido' : r.venc, 1], ['Saldo', r => qtd(r.saldo), 1], ['Encontrado', r => qtd(r.bip), 1]])}
     ${tab('✅ Conferido', ord(a.linhas.filter(r => r.st === 'ok')), [...base, ['NF', r => esc(r.nfs.map(n => n.nf).join(', '))], ['Qtd', r => qtd(r.saldo), 1]])}
     <div class="ass"><div><b>${esc(inv.cliente)}</b><br>${docCli ? esc(docCli) + '<br>' : ''}<small>Responsável pelo cliente · nome / assinatura / data</small></div><div><b>${esc(gf.razao)}</b><br>CNPJ ${gf.cnpj} · ${gf.cidade}<br><small>${esc(nomeCurto())}</small></div></div>
     <script>window.onload=()=>setTimeout(()=>print(),300)<\/script></body></html>`);
@@ -948,15 +951,15 @@ window.imprimir = async () => {
 };
 window.baixarExcel = () => {
   const a = apurar();
-  const linhas = [...a.linhas, ...a.sobras].map(r => ({ 'Situação': ST_TXT[r.st].replace(/^\S+\s/, ''), 'Código': r.cod || '', 'Produto': r.produto || '', 'GTIN': r.gtin || '', 'Lote': r.lote || '', 'Validade': dataBR(r.validade), 'NF': (r.nfs || []).map(n => n.nf).join(', '), 'Saldo relatório': r.tipo === 'esp' ? r.saldo : 0, 'Bipado': r.bip, 'Diferença': r.bip - (r.tipo === 'esp' ? r.saldo : 0), 'Valor unitário': r.vunit || 0, 'Valor da diferença': (r.bip - (r.tipo === 'esp' ? r.saldo : 0)) * (r.vunit || 0) }));
-  const leit = ui.leit.filter(l => !l._tmp).map(l => ({ 'Quando': dataHoraBR(l.criado_em), 'Quem': l.usuario || '', 'Como': l.origem === 'camera' ? 'Câmera' : 'Leitor', 'Código': l.codigo || '', 'Produto': l.produto || '', 'GTIN': l.gtin || '', 'Lote': l.lote || '', 'Validade': dataBR(l.validade), 'Lido': l.bruto }));
+  const linhas = [...a.linhas, ...a.sobras].map(r => ({ 'Situação': ST_TXT[r.st].replace(/^\S+\s/, ''), 'Código': r.cod || '', 'Produto': r.produto || '', 'GTIN': r.gtin || '', 'Lote': r.lote || '', 'Validade': dataVal(r.validade), 'NF': (r.nfs || []).map(n => n.nf).join(', '), 'Saldo relatório': r.tipo === 'esp' ? r.saldo : 0, 'Bipado': r.bip, 'Diferença': r.bip - (r.tipo === 'esp' ? r.saldo : 0), 'Valor unitário': r.vunit || 0, 'Valor da diferença': (r.bip - (r.tipo === 'esp' ? r.saldo : 0)) * (r.vunit || 0) }));
+  const leit = ui.leit.filter(l => !l._tmp).map(l => ({ 'Quando': dataHoraBR(l.criado_em), 'Quem': l.usuario || '', 'Como': l.origem === 'camera' ? 'Câmera' : 'Leitor', 'Código': l.codigo || '', 'Produto': l.produto || '', 'GTIN': l.gtin || '', 'Lote': l.lote || '', 'Validade': dataVal(l.validade), 'Lido': l.bruto }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(linhas), 'Conferência');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(leit.length ? leit : [{ Quando: '' }]), 'Leituras');
   XLSX.writeFile(wb, `Inventário ${ui.inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
 };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.inv) carregarLeituras().then(desenharInv); });
-const VERSAO = '2026-11-04.120422';
+const VERSAO = '2026-11-04.120550';
 async function conferirVersao() {
   try {
     const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];
