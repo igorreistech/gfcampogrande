@@ -295,7 +295,24 @@
           if (window._resumoPendente) { window._resumoPendente = false; mostrarResumoInicial(); }
           return;
         }
-        location.href = destino === 'opme' ? 'fichas-opme.html' : destino === 'compras' ? 'compras.html' : destino === 'transf' ? 'transferencias.html' : destino === 'inv' ? 'inventario.html' : 'fretes.html';
+        location.href = destino === 'opme' ? 'fichas-opme.html' : destino === 'compras' ? 'compras.html' : destino === 'transf' ? 'transferencias.html' : destino === 'inv' ? 'inventario.html?tipo=' + (arguments[1] === 'estoque' ? 'estoque' : 'consignado') : 'fretes.html';
+      };
+
+      // 📋 Inventário: pergunta se é do consignado (no cliente) ou do estoque da GF Medical
+      window._escolherInventario = function() {
+        if (document.getElementById('escolhaInvOv')) return;
+        const ov = document.createElement('div'); ov.id = 'escolhaInvOv';
+        ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10003;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(3px)';
+        const bt = 'width:100%;padding:16px 14px;border:none;border-radius:14px;color:#fff;font-weight:800;font-size:.95rem;cursor:pointer;text-align:left;line-height:1.3';
+        ov.innerHTML = `<div style="background:var(--surface,#f0faf3);border-radius:18px;padding:22px 20px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);border-top:3px solid #14b8a6">
+          <div style="font-weight:800;font-size:1.05rem;margin-bottom:4px">📋 Qual inventário?</div>
+          <div style="font-size:.78rem;color:var(--text-dim,#666);margin-bottom:14px">Escolha onde você vai conferir o material.</div>
+          <button type="button" data-t="consignado" style="${bt};background:linear-gradient(135deg,#0f766e,#14b8a6);margin-bottom:10px">🏥 Inventário de consignado<br><span style="font-weight:500;font-size:.75rem;opacity:.9">Material da GF no cliente · relatório C457</span></button>
+          <button type="button" data-t="estoque" style="${bt};background:linear-gradient(135deg,#6d28d9,#8b5cf6)">🏬 Inventário de estoque<br><span style="font-weight:500;font-size:.75rem;opacity:.9">Estoque físico da GF Medical · relatório S013</span></button>
+          <button type="button" data-t="" style="width:100%;margin-top:10px;padding:10px;border:1px solid var(--border,#b8dfc4);border-radius:12px;background:transparent;font-size:.8rem;cursor:pointer;color:var(--text,#333)">Voltar</button>
+        </div>`;
+        document.body.appendChild(ov);
+        ov.addEventListener('click', e => { const b = e.target.closest('[data-t]'); if (e.target === ov || (b && !b.dataset.t)) return ov.remove(); if (b) { ov.remove(); window._irPara('inv', b.dataset.t); } });
       };
 
       window.doLogin = async function() {
@@ -4852,7 +4869,7 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
             <button type="button" class="login-btn" onclick="window._irPara('opme')" style="background:linear-gradient(135deg,#d4920a,#f59e0b);">📋 Fichas OPME</button>
             <button type="button" class="login-btn" id="destinoFretesBtn" onclick="window._irPara('fretes')" style="background:linear-gradient(135deg,#1f7f9c,#2a9fbf);">🚚 Controle de Fretes</button>
             <button type="button" class="login-btn" id="destinoComprasBtn" onclick="window._irPara('compras')" style="background:linear-gradient(135deg,#6d28d9,#8b5cf6);">🛒 Programação de Compras</button>
-            <button type="button" class="login-btn" id="destinoInvBtn" onclick="window._irPara('inv')" style="background:linear-gradient(135deg,#0f766e,#14b8a6);">📋 Inventário consignado</button>
+            <button type="button" class="login-btn" id="destinoInvBtn" onclick="window._escolherInventario()" style="background:linear-gradient(135deg,#0f766e,#14b8a6);">📋 Inventário</button>
         </div>
     </div>
 </div>

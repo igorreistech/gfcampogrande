@@ -228,7 +228,8 @@ body:not(.fechado) .so-fechado{display:none!important}
 
 <div class="top">
   <img src="logo.jpg" alt="GF Medical">
-  <div class="tit">📋 Inventário consignado<small id="filial-lbl">—</small></div>
+  <div class="tit"><span id="tit-tipo">📋 Inventário</span><small id="filial-lbl">—</small></div>
+  <span class="lk" id="troca-tipo" onclick="trocarTipo()" title="Trocar entre inventário de consignado e de estoque"></span>
   <span class="lk user" id="user-nm" onclick="pedirOperador()" title="Quem está fazendo o inventário">—</span>
   <a class="so-solto" href="index.html">⬅ Monitor</a>
   <a class="so-solto" href="index.html?hub=1">🏠 GF Hub</a>
@@ -239,7 +240,7 @@ body:not(.fechado) .so-fechado{display:none!important}
   <div class="card">
     <div class="drop" id="drop" onclick="document.getElementById('f-pdf').click()">
       <div style="font-size:1.6rem">📥</div>
-      <b>Novo inventário</b>
+      <b id="novo-tit">Novo inventário</b>
       <div class="muted" style="margin-top:4px">Clique ou arraste aqui o PDF do <b>C457 - Itens Consignados</b> (consignado no cliente) ou do <b>S013 - Estoque</b> (estoque da GF Medical). Pode soltar <b>vários de uma vez</b>, de clientes diferentes: cria um inventário por cliente (os fornecedores do mesmo cliente se juntam).</div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:10px">
@@ -618,6 +619,25 @@ async function iniciar() {
   else await carregarLista();
 }
 
+// ───────── Tipo: consignado (C457, no cliente) × estoque (S013, da GF Medical) ─────────
+let TIPO = params.get('tipo');
+try { if (TIPO === 'estoque' || TIPO === 'consignado') sessionStorage.setItem('gf_inv_tipo', TIPO); else TIPO = sessionStorage.getItem('gf_inv_tipo'); } catch (e) {}
+if (TIPO !== 'estoque' && TIPO !== 'consignado') TIPO = null;
+function aplicarTipo() {
+  const est = TIPO === 'estoque';
+  $('tit-tipo').textContent = TIPO ? (est ? '🏬 Inventário de estoque' : '🏥 Inventário de consignado') : '📋 Inventário';
+  $('troca-tipo').textContent = TIPO ? (est ? '🔁 ir para consignado' : '🔁 ir para estoque') : '';
+  $('troca-tipo').style.display = TIPO ? '' : 'none';
+  $('novo-tit').textContent = TIPO ? (est ? 'Novo inventário de estoque' : 'Novo inventário de consignado') : 'Novo inventário';
+  $('drop').querySelector('.muted').innerHTML = est ? 'Clique ou arraste aqui o PDF do relatório <b>S013 - Estoque</b> (estoque físico da GF Medical).'
+    : TIPO ? 'Clique ou arraste aqui o PDF do <b>C457 - Itens Consignados</b>. Pode soltar <b>vários de uma vez</b>, de clientes diferentes: cria um inventário por cliente (os fornecedores do mesmo cliente se juntam).'
+    : $('drop').querySelector('.muted').innerHTML;
+  document.title = (est ? 'Inventário de estoque' : TIPO ? 'Inventário de consignado' : 'Inventário') + ' · GF Medical · ' + BR.label;
+}
+window.trocarTipo = () => { TIPO = TIPO === 'estoque' ? 'consignado' : 'estoque'; try { sessionStorage.setItem('gf_inv_tipo', TIPO); } catch (e) {} const u = new URL(location.href); u.searchParams.set('tipo', TIPO); u.searchParams.delete('inv'); history.replaceState(null, '', u.href); aplicarTipo(); carregarLista(); };
+aplicarTipo();
+const doTipo = i => !TIPO || (TIPO === 'estoque') === ehEstoque(i);
+
 // ───────── Lista de inventários ─────────
 async function carregarLista() {
   ui.inv = null; pararTempoReal(); pararCamera();
@@ -636,7 +656,7 @@ async function carregarLista() {
 function desenharLista() {
   ['aberto', 'fechado', ''].forEach(f => $('fl-' + (f || 'todos')).classList.toggle('p', ui.fl === f));
   const b = norm(ui.buscaInv);
-  const l = ui.invs.filter(i => (!ui.fl || i.status === ui.fl) && (!b || norm(i.cliente + ' ' + i.fornecedor).includes(b)));
+  const l = ui.invs.filter(i => doTipo(i) && (!ui.fl || i.status === ui.fl) && (!b || norm(i.cliente + ' ' + i.fornecedor).includes(b)));
   $('lista').innerHTML = l.length ? l.map(i => {
     const esp = (i.esperado || []).reduce((s, e) => s + Number(e.saldo || 0), 0), bip = Math.min(ui.contagem.get(i.id) || 0, esp), pct = esp ? Math.round(bip / esp * 100) : 0;
     return `<div class="card inv" onclick="abrirInv('${i.id}')">
@@ -648,7 +668,7 @@ function desenharLista() {
 }
 document.querySelectorAll('[data-fl]').forEach(b => b.onclick = () => { ui.fl = b.dataset.fl; desenharLista(); });
 $('busca-inv').oninput = e => { ui.buscaInv = e.target.value; desenharLista(); };
-window.voltarLista = () => { history.replaceState(null, '', location.pathname + (location.search.includes('embed=1') ? '?embed=1' : '')); carregarLista(); };
+window.voltarLista = () => { const u = new URL(location.href); u.searchParams.delete('inv'); u.searchParams.delete('cam'); if (TIPO) u.searchParams.set('tipo', TIPO); history.replaceState(null, '', u.href); carregarLista(); };
 
 // ───────── Novo inventário (PDF C457) ─────────
 async function linhasPdf(file) {
@@ -676,7 +696,12 @@ async function importarPdfs(files) {
     try { lidos.push({ ...lerRelatorio(await linhasPdf(f)), arquivo: f.name }); } catch (e) { erros.push(`${f.name}: ${e.message}`); }
   }
   ultimoLote('');
-  if (!lidos.length) { toast('Nenhum PDF era o relatório C457 ou S013. ' + erros.join(' · '), 'err'); return; }
+  if (TIPO) {
+    const errado = lidos.filter(r => (r.tipo === 'estoque') !== (TIPO === 'estoque'));
+    errado.forEach(r => erros.push(`${r.arquivo}: é ${r.tipo === 'estoque' ? 'S013 (estoque)' : 'C457 (consignado)'} — use o inventário de ${r.tipo === 'estoque' ? 'estoque' : 'consignado'}`));
+    lidos.splice(0, lidos.length, ...lidos.filter(r => !errado.includes(r)));
+  }
+  if (!lidos.length) { toast((TIPO ? `Nenhum PDF era do inventário de ${TIPO}. ` : 'Nenhum PDF era o relatório C457 ou S013. ') + erros.join(' · '), 'err'); return; }
   // um inventário por cliente
   const grupos = new Map(); lidos.forEach(r => { const k = norm(r.cliente); grupos.set(k, [...(grupos.get(k) || []), r]); });
   const novos = [...grupos.values()].map(montarNovo).sort((x, y) => x.cliente.localeCompare(y.cliente));
@@ -1314,7 +1339,7 @@ window.baixarExcel = () => {
   XLSX.writeFile(wb, `Inventário ${inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
 };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.inv) carregarLeituras().then(desenharInv); });
-const VERSAO = '2026-11-04.133652';
+const VERSAO = '2026-11-04.134102';
 async function conferirVersao() {
   try {
     const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];
