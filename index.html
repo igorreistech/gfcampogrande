@@ -5393,7 +5393,7 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
             <div class="form-grid">
                 <div class="form-group full">
                     <label class="form-label">Hospital *</label>
-                    <input class="form-input" id="f-hospital" list="hospital-list" placeholder="Digite ou selecione o hospital" autocomplete="off" required style="width:100%;" oninput="toggleOutroHospital(this.value)">
+                    <input class="form-input" id="f-hospital" list="hospital-list" placeholder="Digite ou selecione o hospital" autocomplete="off" required style="width:100%;" oninput="toggleOutroHospital(this.value); window._mostrarCnpjCliente && _mostrarCnpjCliente(this)"><div id="f-hospital-cnpj" style="font-family:var(--mono);font-size:.68rem;color:var(--text-dim);margin-top:3px;min-height:1em"></div>
                     <datalist id="hospital-list">
             <option value="Outro...">
             <option value="19.406.061 FABIO SABIO PEREIRA GOMES">
@@ -11395,6 +11395,24 @@ function autoRetirada(dataCirurgia) {
     if (campo) campo.value = retirada;
 }
 
+// CNPJ/CPF do cadastro de clientes (tabela "clientes" no Supabase, só para logados — não fica no HTML público).
+// Depois do login, coloca o CNPJ no label de cada cliente da lista de hospitais (aparece e dá para buscar por ele).
+const _nomeCli = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, ' ').trim().toUpperCase();
+window._clientesCad = new Map();
+window._cnpjCliente = nome => (window._clientesCad.get(_nomeCli(nome)) || {}).doc || '';
+window._mostrarCnpjCliente = inp => { const d = document.getElementById('f-hospital-cnpj'), c = window._clientesCad.get(_nomeCli(inp.value)); if (d) d.textContent = c && c.doc ? `${String(c.doc).replace(/\D/g, '').length === 11 ? 'CPF' : 'CNPJ'} ${c.doc} · cód. ${c.codigo}` : ''; };
+window._carregarClientesCad = async () => {
+    if (!window._supabase || !window._currentUser) return false;
+    const { data, error } = await window._supabase.from('clientes').select('codigo,nome,doc').limit(10000);
+    if (error || !data) return !!error;   // tabela ainda não criada: não insiste
+    const m = new Map(); data.forEach(c => m.set(_nomeCli(c.nome), c)); window._clientesCad = m;
+    const dl = document.getElementById('hospital-list'); if (!dl) return true;
+    const tem = new Set();
+    dl.querySelectorAll('option').forEach(o => { const c = m.get(_nomeCli(o.value)); if (!c) return; tem.add(_nomeCli(o.value)); if (c.doc) o.label = `${String(c.doc).replace(/\D/g, '').length === 11 ? 'CPF' : 'CNPJ'} ${c.doc} · cód. ${c.codigo}`; });
+    data.filter(c => !tem.has(_nomeCli(c.nome))).forEach(c => { const o = document.createElement('option'); o.value = c.nome; if (c.doc) o.label = `CNPJ ${c.doc} · cód. ${c.codigo}`; dl.appendChild(o); });
+    return true;
+};
+(function _esperaLogin() { const t = setInterval(async () => { if (window._currentUser && window._supabase) { clearInterval(t); try { await window._carregarClientesCad(); } catch (e) {} } }, 1500); })();
 function toggleOutroHospital(valor) {
     const grp = document.getElementById('g-outro-hospital');
     const inp = document.getElementById('f-outro-hospital');
