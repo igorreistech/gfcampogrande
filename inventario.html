@@ -272,6 +272,7 @@ body:not(.fechado) .so-fechado{display:none!important}
 
   <div class="acoes" id="acoes">
     <button class="btn" onclick="imprimir()">🖨 Relatório para assinatura</button>
+    <button class="btn b" onclick="abrirFaltantes()">📤 Enviar faltantes</button>
     <button class="btn" onclick="baixarExcel()">📊 Excel</button>
     <button class="btn p so-aberto" onclick="encerrar()">✔ Encerrar inventário</button>
     <button class="btn so-fechado" onclick="reabrir()">🔓 Reabrir</button>
@@ -288,6 +289,21 @@ body:not(.fechado) .so-fechado{display:none!important}
   <div class="mh"><span>📥 Novo inventário</span><button class="x" onclick="fecharModal('m-novo')">✕</button></div>
   <div class="mb" id="novo-corpo"></div>
   <div class="mf"><button class="btn" onclick="fecharModal('m-novo')">Cancelar</button><button class="btn p" id="novo-ok">Iniciar inventário</button></div>
+</div></div>
+
+<div class="ov" id="m-falta"><div class="mod" style="max-width:640px">
+  <div class="mh"><span>📤 Itens faltando — enviar por WhatsApp / e-mail</span><button class="x" onclick="fecharModal('m-falta')">✕</button></div>
+  <div class="mb">
+    <label style="display:flex;gap:6px;align-items:center;font-size:.78rem;margin-bottom:8px;cursor:pointer"><input type="checkbox" id="falta-valor" checked> mostrar valores (R$)</label>
+    <textarea id="falta-txt" style="height:340px;font-family:var(--sans);font-size:.78rem;line-height:1.45"></textarea>
+    <div class="muted" style="margin-top:6px">Dá para editar o texto antes de enviar.</div>
+  </div>
+  <div class="mf">
+    <button class="btn" id="falta-copiar">📋 Copiar</button>
+    <button class="btn" id="falta-share" style="display:none">🔗 Compartilhar</button>
+    <button class="btn" id="falta-mail">📧 E-mail</button>
+    <button class="btn p" id="falta-wa" style="background:#16a34a;border-color:#16a34a">💬 WhatsApp</button>
+  </div>
 </div></div>
 
 <div class="ov" id="m-cel"><div class="mod" style="max-width:380px">
@@ -641,6 +657,7 @@ function apurar() {
   return {
     linhas, sobras: sob,
     esp: tot(linhas, r => r.saldo), conf: tot(linhas, r => Math.min(r.bip, r.saldo)),
+    espVal: tot(linhas, r => r.saldo * r.vunit), fis: tot(linhas, r => r.bip), fisVal: tot(linhas, r => r.bip * r.vunit),
     falta: tot(linhas, r => Math.max(0, r.saldo - r.bip)), faltaVal: tot(linhas, r => Math.max(0, r.saldo - r.bip) * r.vunit),
     exc: tot(linhas, r => Math.max(0, r.bip - r.saldo)) + tot(sob, s => s.bip), bip: tot(ui.leit, l => Number(l.qtd || 0)),
     venc: linhas.filter(r => r.venc != null && r.venc <= 90 && r.saldo > 0).length,
@@ -979,7 +996,7 @@ window.imprimir = async () => {
     @media print{body{margin:8mm}h3{page-break-after:avoid}tr{page-break-inside:avoid}}</style></head><body>
     <div class="cab"><div><h1>Inventário de material consignado</h1><div><b>${esc(inv.cliente)}</b></div><div>${esc(inv.fornecedor || 'Todos os fornecedores')} · relatório C457 de ${dataBR(inv.relatorio_data)}</div>
     <div>Iniciado em ${dataHoraBR(inv.criado_em)} por ${esc(inv.criado_por || '—')}${inv.fechado_em ? ` · encerrado em ${dataHoraBR(inv.fechado_em)} por ${esc(inv.fechado_por || '—')}` : ' · <b>em andamento</b>'}</div></div><img src="${location.origin + location.pathname.replace(/[^/]*$/, '')}logo.jpg" alt=""></div>
-    <div class="res"><div>No relatório<b>${qtd(a.esp)} un.</b></div><div>Conferido<b>${qtd(a.conf)} un.</b></div><div>Faltando<b>${qtd(a.falta)} un. · ${brl(a.faltaVal)}</b></div><div>A mais / fora do relatório<b>${qtd(a.exc)} un.</b></div><div>Validade ≤ 90 dias<b>${a.venc} lotes</b></div></div>
+    <div class="res"><div>No relatório<b>${qtd(a.esp)} un. · ${brl(a.espVal)}</b></div><div>Fisicamente no local<b>${qtd(a.fis)} un. · ${brl(a.fisVal)}</b></div><div>Faltando<b>${qtd(a.falta)} un. · ${brl(a.faltaVal)}</b></div><div>A mais / fora do relatório<b>${qtd(a.exc)} un.</b></div><div>Validade ≤ 90 dias<b>${a.venc} lotes</b></div></div>
     ${tab('⚠ Faltando (no relatório e não encontrado)', ord(a.linhas.filter(r => r.st === 'falta')), [...base, ['NF', r => esc(r.nfs.map(n => n.nf).join(', '))], ['Saldo', r => qtd(r.saldo), 1], ['Encontrado', r => qtd(r.bip), 1], ['Falta', r => qtd(r.saldo - r.bip), 1], ['Valor', r => brl((r.saldo - r.bip) * r.vunit), 1]])}
     ${tab('➕ Encontrado a mais / fora do relatório', ord([...a.linhas.filter(r => r.st === 'exc'), ...a.sobras]), [...base, ['Saldo', r => r.tipo === 'esp' ? qtd(r.saldo) : '—', 1], ['Encontrado', r => qtd(r.bip), 1]])}
     ${tab('⌛ Validade vencida ou em até 90 dias', a.linhas.filter(r => r.venc != null && r.venc <= 90).sort((x, y) => x.venc - y.venc), [...base, ['Dias', r => r.venc < 0 ? 'vencido' : r.venc, 1], ['Saldo', r => qtd(r.saldo), 1], ['Encontrado', r => qtd(r.bip), 1]])}
@@ -987,6 +1004,43 @@ window.imprimir = async () => {
     <div class="ass"><div><b>${esc(inv.cliente)}</b><br>${docCli ? esc(docCli) + '<br>' : ''}<small>Responsável pelo cliente · nome / assinatura / data</small></div><div><b>${esc(gf.razao)}</b><br>CNPJ ${gf.cnpj} · ${gf.cidade}<br><small>${esc(nomeCurto())}</small></div></div>
     <script>window.onload=()=>setTimeout(()=>print(),300)<\/script></body></html>`);
   w.document.close();
+};
+// texto dos itens faltando (no relatório C457 e não encontrados) para mandar ao cliente / vendedor
+function textoFaltantes(comValor, wa) {
+  const inv = ui.inv, a = apurar(), b = s => wa ? `*${s}*` : s;
+  const falt = a.linhas.filter(r => r.st === 'falta').sort((x, y) => String(x.cod).localeCompare(String(y.cod)) || String(x.lote).localeCompare(String(y.lote)));
+  const pct = a.esp ? Math.round(a.conf / a.esp * 100) : 0;
+  const L = [b('Inventário de material consignado'), b(inv.cliente),
+    `${inv.fornecedor || 'Todos os fornecedores'} · relatório C457 de ${dataBR(inv.relatorio_data)}`,
+    `Inventário de ${dataHoraBR(inv.criado_em)}${inv.fechado_em ? ' (encerrado em ' + dataHoraBR(inv.fechado_em) + ')' : ' (em andamento)'}`, '',
+    `📋 No relatório (saldo): ${qtd(a.esp)} un.${comValor ? ' · ' + brl(a.espVal) : ''}`,
+    `📦 Fisicamente no local: ${qtd(a.fis)} un.${comValor ? ' · ' + brl(a.fisVal) : ''} (${pct}% conferido)`,
+    b(`⚠ Faltando: ${qtd(a.falta)} un.${comValor ? ' · ' + brl(a.faltaVal) : ''} (${falt.length} lote${falt.length === 1 ? '' : 's'})`), ''];
+  falt.forEach((r, i) => {
+    const f = r.saldo - r.bip, venc = r.venc != null && r.venc < 0 ? ' ⛔ vencido' : r.venc != null && r.venc <= 90 ? ' ⌛' : '';
+    L.push(`${i + 1}. ${r.cod} — ${r.produto}`);
+    L.push(`   Lote ${r.lote} · val. ${dataVal(r.validade)}${venc} · falta ${qtd(f)}${r.bip ? ' de ' + qtd(r.saldo) : ''}${comValor && r.vunit ? ' · ' + brl(f * r.vunit) : ''}${r.nfs?.length ? ' · NF ' + r.nfs.map(n => n.nf).join(', ') : ''}`);
+  });
+  if (!falt.length) L.push('Nenhum item faltando. 👍');
+  const exc = a.linhas.filter(r => r.st === 'exc');
+  if (exc.length) { L.push('', b(`➕ Encontrado a mais que o saldo: ${exc.length} lote${exc.length === 1 ? '' : 's'}`)); exc.forEach(r => L.push(`• ${r.cod} lote ${r.lote}: encontrado ${qtd(r.bip)}, saldo ${qtd(r.saldo)}`)); }
+  L.push('', 'Por favor, confirme se esses itens foram utilizados (para faturar) ou onde estão.', '', `${nomeCurto()} · ${(GF[FILIAL] || GF.CGR).razao} · ${(GF[FILIAL] || GF.CGR).cidade}`);
+  return L.join('\n').replace(/\u00a0/g, ' ');
+}
+window.abrirFaltantes = () => {
+  const montar = () => { $('falta-txt').value = textoFaltantes($('falta-valor').checked, true); };
+  montar(); $('falta-valor').onchange = montar;
+  const assunto = () => `Inventário consignado · ${ui.inv.cliente} · itens faltando`;
+  const semAsterisco = t => t.replace(/\*([^*\n]+)\*/g, '$1');
+  $('falta-copiar').onclick = () => navigator.clipboard.writeText($('falta-txt').value).then(() => toast('📋 Texto copiado — cole no WhatsApp ou no e-mail'));
+  $('falta-wa').onclick = () => window.open('https://wa.me/?text=' + encodeURIComponent($('falta-txt').value), '_blank');
+  $('falta-mail').onclick = () => {
+    const corpo = semAsterisco($('falta-txt').value);
+    if (corpo.length > 1800) navigator.clipboard.writeText(corpo).then(() => toast('Texto grande: já copiei — se o e-mail abrir cortado, apague e cole (Ctrl+V)', 'info')).catch(() => {});
+    location.href = 'mailto:?subject=' + encodeURIComponent(assunto()) + '&body=' + encodeURIComponent(corpo);
+  };
+  if (navigator.share) { $('falta-share').style.display = ''; $('falta-share').onclick = () => navigator.share({ title: assunto(), text: $('falta-txt').value }).catch(() => {}); }
+  $('m-falta').classList.add('open');
 };
 window.baixarExcel = () => {
   const a = apurar();
@@ -998,7 +1052,7 @@ window.baixarExcel = () => {
   XLSX.writeFile(wb, `Inventário ${ui.inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
 };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.inv) carregarLeituras().then(desenharInv); });
-const VERSAO = '2026-11-04.121138';
+const VERSAO = '2026-11-04.122921';
 async function conferirVersao() {
   try {
     const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];
