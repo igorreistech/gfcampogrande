@@ -80,6 +80,28 @@ html.embed .top .so-solto{display:none}
 #cam .cam-dica{position:absolute;left:0;right:0;top:6px;text-align:center;color:#fff;font-size:.7rem;text-shadow:0 1px 3px #000;pointer-events:none}
 #cam .cam-bts{position:absolute;right:8px;bottom:8px;display:flex;gap:6px}
 #cam .cam-bts button{border:0;border-radius:10px;padding:9px 12px;background:rgba(15,23,42,.8);color:#fff;font-weight:700;font-size:.8rem}
+#cam .cam-top{display:none}
+#cam-conf{display:none;position:absolute;left:8px;right:8px;bottom:8px;z-index:5;background:#fff;color:var(--text);border-radius:14px;padding:12px 14px;box-shadow:0 6px 30px rgba(0,0,0,.45);font-size:.84rem;line-height:1.35}
+#cam-conf.on{display:block}
+#cam-conf .ct{font-weight:800;font-size:.95rem;margin-bottom:4px}
+#cam-conf .cs{margin-top:6px;font-weight:700}
+#cam-conf .cs.ok{color:var(--ok-c)}#cam-conf .cs.av{color:var(--warn-c)}#cam-conf .cs.er{color:var(--crit-c)}
+#cam-conf .cb{display:flex;gap:8px;margin-top:10px}
+#cam-conf .cb button{flex:1;border:0;border-radius:12px;padding:13px 8px;font-weight:800;font-size:.95rem;cursor:pointer}
+#cam-conf .cb .sim{background:var(--accent);color:#fff}#cam-conf .cb .nao{background:#e5e7eb;color:#111}
+#cam-conf.feito{background:#dcfce7;color:#14532d}#cam-conf.feito.av{background:#fef3c7;color:#78350f}#cam-conf.feito.er{background:#fee2e2;color:#7f1d1d}
+/* tela cheia (celular): o vídeo ocupa a tela toda em qualquer orientação */
+#cam.cheia{position:fixed;inset:0;z-index:260;margin:0!important;max-width:none;border-radius:0}
+#cam.cheia video{width:100%;height:100%;object-fit:cover}
+#cam.foto .cam-top,#cam.foto .cam-dica,#cam.foto .cam-bts{display:none!important}
+#cam.cheia .cam-top{display:flex;position:absolute;left:0;right:0;top:0;z-index:4;align-items:center;gap:8px;padding:10px 12px;padding-top:max(10px,env(safe-area-inset-top));background:linear-gradient(rgba(0,0,0,.65),transparent);color:#fff;font-size:.8rem;font-weight:700}
+#cam.cheia .cam-top button{border:0;border-radius:10px;padding:9px 13px;background:rgba(255,255,255,.92);color:#111;font-weight:800;font-size:.85rem}
+#cam.cheia .cam-top span{margin-left:auto;font-family:var(--mono);text-shadow:0 1px 3px #000}
+#cam.cheia .cam-dica{top:auto;bottom:70px;padding:0 14px}
+#cam.cheia .cam-bts{bottom:auto;top:58px}
+#cam.cheia #cam-conf{bottom:max(10px,env(safe-area-inset-bottom));max-width:560px;margin:0 auto}
+@media (orientation:portrait){#cam.cheia .mira{left:5%;right:5%;top:38%;height:17%}}
+@media (orientation:landscape){#cam.cheia .mira{left:12%;right:12%;top:26%;height:36%}#cam.cheia #cam-conf{left:auto;right:10px;width:min(380px,48%);bottom:10px}#cam.cheia .cam-dica{bottom:12px;right:50%}}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:14px}
 .kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 12px;cursor:pointer}
 .kpi b{display:block;font-family:var(--display);font-size:1.25rem}
@@ -234,8 +256,8 @@ body:not(.fechado) .so-fechado{display:none!important}
         <button class="btn so-pc" type="button" onclick="abrirCelular()">📱 Bipar com outro celular</button>
         <span class="muted dica-bip">Bipe <b>uma etiqueta por embalagem</b> (as caixas têm várias etiquetas iguais).</span>
       </div>
-      <div id="cam"><video id="cam-v" playsinline muted autoplay></video><div class="mira"></div><div class="cam-dica">Encaixe o código de barras inteiro na faixa verde · se não focar, afaste um pouco e use 🔍</div><div id="cam-h5"></div>
-        <div class="cam-bts"><button type="button" id="cam-zoom" style="display:none">🔍 1×</button><button type="button" id="cam-luz" style="display:none">🔦</button></div></div>
+      <div id="cam"><div class="cam-top"><button type="button" onclick="alternarCamera()">✕ Fechar</button><span id="cam-cont"></span></div><video id="cam-v" playsinline muted autoplay></video><div class="mira"></div><div class="cam-dica">Encaixe o código de barras inteiro na faixa verde · se não focar, afaste um pouco e use 🔍</div><div id="cam-h5"></div>
+        <div class="cam-bts"><button type="button" id="cam-zoom" style="display:none">🔍 1×</button><button type="button" id="cam-luz" style="display:none">🔦</button></div><div id="cam-conf"></div></div>
       <div id="cam-foto" style="display:none"></div>
       <div id="ultimo">Aguardando a primeira leitura…</div>
     </div>
@@ -670,7 +692,7 @@ async function registrar(bruto, origem) {
   if (ui.inv.status !== 'aberto') { ultimo('🔒 Inventário encerrado — reabra para bipar.', 'er'); return; }
   const id = identificar(bruto, ui.inv.esperado || []);
   // EAN-13 / UPC da caixa (só números, sem lote): não serve para o inventário — pede o código com (01)(17)(10)
-  if (!id.codigo && /^\d{8,14}$/.test(bruto)) {
+  if (!id.codigo && /^\d{8,14}$/.test(bruto)) { if (origem === 'camera') return false;
     ultimo(`⚠ Esse é o código <b>EAN</b> da embalagem (<span class="mono">${esc(bruto)}</span>) — ele não tem o lote. Bipe o <b>outro código de barras</b>, o comprido que tem (01)…(17)…(10)… embaixo, ou digite o lote.`, 'av'); bipe(false); return;
   }
   if (!id.codigo && id.gtin) { const n = await nomeDoGtin(id.gtin); if (n) { id.produto = n.produto; id.produtoCod = n.codigo; } }
@@ -685,9 +707,9 @@ async function registrar(bruto, origem) {
   desenharInv();
   const { data, error } = await supabase.from('inventario_leituras').insert(reg).select('*').single();
   const i = ui.leit.indexOf(tmp);
-  if (error) { if (i >= 0) ui.leit.splice(i, 1); desenharInv(); ultimo('❌ Não gravou a leitura: ' + esc(error.message) + ' — bipe de novo.', 'er'); bipe(false); if (semTabela(error)) pedirSql(); return; }
+  if (error) { if (i >= 0) ui.leit.splice(i, 1); desenharInv(); ultimo('❌ Não gravou a leitura: ' + esc(error.message) + ' — bipe de novo.', 'er'); bipe(false); if (semTabela(error)) pedirSql(); return false; }
   if (i >= 0) ui.leit[i] = data; if (ui.leit.filter(x => x.id === data.id).length > 1) ui.leit.splice(ui.leit.lastIndexOf(data), 1);
-  desenharInv();
+  desenharInv(); return true;
 }
 const focarBip = () => { if (!ehCelular && ui.inv?.status === 'aberto') setTimeout(() => $('bip')?.focus(), 50); };
 $('f-bip').onsubmit = e => { e.preventDefault(); const v = $('bip').value; $('bip').value = ''; registrar(v, 'leitor'); focarBip(); };
@@ -717,18 +739,57 @@ async function detectorNativo() {
   try { if (!_detector && window.BarcodeDetectionAPI) _detector = new BarcodeDetectionAPI.BarcodeDetector({ formats: FORMATOS }); } catch (e) {}
   return _detector;
 }
-const lidoCamera = txt => { const agora = Date.now(); if (!txt || (txt === _ultCam && agora - _ultCamEm < 2500)) return; _ultCam = txt; _ultCamEm = agora; registrar(txt, 'camera'); };   // a câmera lê a mesma etiqueta várias vezes seguidas
+// câmera: cada código lido aparece para confirmar ("✅ Incluir" / "✖ Ignorar") e depois mostra o que foi incluído.
+// Enquanto a pergunta está na tela, a câmera não lê outro; a mesma etiqueta só é perguntada de novo 4 s depois.
+let _pend = null, _feitoTimer = null;
+const lidoCamera = txt => { const agora = Date.now(); if (!txt || _pend || (txt === _ultCam && agora - _ultCamEm < 4000)) return; _ultCam = txt; _ultCamEm = agora; confirmarLeitura(txt); };
+function contadorCam() { if (!ui.inv) return; const a = apurar(); $('cam-cont').textContent = `✅ ${qtd(a.conf)}/${qtd(a.esp)} · 🔫 ${qtd(a.bip)}`; }
+function descreverLeitura(txt) {
+  const id = identificar(txt, ui.inv?.esperado || []), a = apurar();
+  const r = id.codigo ? a.linhas.find(x => norm(x.cod) === norm(id.codigo) && norm(x.lote) === norm(id.lote)) : null;
+  const val = id.validade ? `Validade <b>${dataBR(id.validade)}</b>${diasAte(id.validade) < 0 ? ' ⛔ VENCIDO' : diasAte(id.validade) <= 90 ? ' ⌛ vence em ' + diasAte(id.validade) + ' dias' : ''}` : '';
+  if (!id.codigo && /^\d{8,14}$/.test(txt)) return { ean: true, html: `<div class="ct">⚠ Código EAN da embalagem</div><div class="mono">${esc(txt)}</div><div class="cs av">Esse código não tem o lote. Mire no outro código de barras — o comprido, com (01)…(17)…(10)… embaixo.</div>` };
+  const corpo = `<div class="ct">${r ? `<span class="mono">${esc(r.cod)}</span> · ${esc(r.produto)}` : id.produto ? esc((id.produtoCod ? id.produtoCod + ' · ' : '') + id.produto) : 'Produto fora do relatório'}</div>
+    <div>Lote <b class="mono">${esc(id.lote || '—')}</b>${val ? ' · ' + val : ''}${id.gtin ? `<br><span class="mono" style="font-size:.72rem;color:var(--text3)">GTIN ${esc(id.gtin)}</span>` : ''}</div>`;
+  const st = r && r.bip < r.saldo ? `<div class="cs ok">Vai contar ${qtd(r.bip + 1)} de ${qtd(r.saldo)} deste lote.</div>`
+    : r ? `<div class="cs av">⚠ Já foram bipados ${qtd(r.bip)} de ${qtd(r.saldo)} deste lote. É outra embalagem?</div>`
+    : `<div class="cs er">➕ Não está no saldo do relatório — vai entrar como "fora do relatório".</div>`;
+  return { html: corpo + st, id, r };
+}
+function confirmarLeitura(txt, origem = 'camera') {
+  if (!ui.inv || ui.inv.status !== 'aberto') return;
+  clearTimeout(_feitoTimer);
+  const d = descreverLeitura(txt), c = $('cam-conf');
+  _pend = txt; c.className = 'on'; bipe(true);
+  const fim = () => { _pend = null; _ultCamEm = Date.now(); c.className = ''; c.innerHTML = ''; };
+  if (d.ean) { c.innerHTML = d.html + `<div class="cb"><button class="nao" type="button">OK</button></div>`; c.querySelector('.nao').onclick = fim; return; }
+  c.innerHTML = `<div style="font-size:.7rem;color:var(--text3);font-weight:700;letter-spacing:.05em">CÓDIGO LIDO — INCLUIR NO INVENTÁRIO?</div>` + d.html + `<div class="cb"><button class="nao" type="button">✖ Ignorar</button><button class="sim" type="button">✅ Incluir</button></div>`;
+  c.querySelector('.nao').onclick = fim;
+  c.querySelector('.sim').onclick = async () => {
+    c.querySelector('.sim').disabled = true;
+    const ok = await registrar(txt, origem);
+    const a = apurar(), r = d.id.codigo ? a.linhas.find(x => norm(x.cod) === norm(d.id.codigo) && norm(x.lote) === norm(d.id.lote)) : null;
+    const desc = `${r ? esc(r.cod) + ' · ' + esc(r.produto) : esc(d.id.produto || 'Fora do relatório')} · lote ${esc(d.id.lote || '—')}`;
+    c.className = 'on feito ' + (!ok ? 'er' : r && r.bip <= r.saldo ? '' : r ? 'av' : 'er');
+    c.innerHTML = ok ? `<div class="ct">✅ Incluído</div><div>${desc}</div><div class="cs">${r ? `${qtd(r.bip)} de ${qtd(r.saldo)} deste lote · ` : ''}${qtd(a.conf)} de ${qtd(a.esp)} un. conferidas</div>` : `<div class="ct">❌ Não gravou</div><div>Mire de novo na etiqueta.</div>`;
+    contadorCam(); _pend = '…';
+    _feitoTimer = setTimeout(fim, 1800);
+  };
+}
 // a embalagem tem vários códigos (EAN, GS1 com lote…): prefere o GS1 com lote, depois qualquer um que não seja EAN/UPC
 const melhorCodigo = r => (r.find(x => gs1(x.rawValue)?.['10']) || r.find(x => gs1(x.rawValue)) || r.find(x => !/^(ean|upc)/.test(x.format)) || r[0]).rawValue;
 async function pararCamera() {
   clearTimeout(_loop); _loop = null;
   if (_stream) { _stream.getTracks().forEach(t => t.stop()); _stream = null; }
   if (_h5) { try { await _h5.stop(); } catch (e) {} try { _h5.clear(); } catch (e) {} _h5 = null; }
-  $('cam-v').srcObject = null; $('cam').classList.remove('on', 'nativo'); $('b-cam').textContent = '📷 Câmera deste aparelho';
+  _pend = null; clearTimeout(_feitoTimer); $('cam-conf').className = ''; document.body.style.overflow = '';
+  $('cam-v').srcObject = null; $('cam').classList.remove('on', 'nativo', 'cheia'); $('b-cam').textContent = '📷 Câmera deste aparelho';
 }
 window.alternarCamera = async () => {
   if (_stream || _h5) return pararCamera();
   $('cam').classList.add('on'); $('b-cam').textContent = '⏹ Fechar câmera';
+  if (ehCelular || innerWidth < 900) { $('cam').classList.add('cheia'); document.body.style.overflow = 'hidden'; }
+  contadorCam();
   const det = await detectorNativo();
   try {
     if (det) {
@@ -762,13 +823,21 @@ $('cam-zoom').onclick = async () => {
 };
 $('cam-luz').onclick = async () => { const tr = _stream?.getVideoTracks()[0]; if (!tr) return; _luz = !_luz; try { await tr.applyConstraints({ advanced: [{ torch: _luz }] }); } catch (e) {} };
 // foto da etiqueta: lê o código na foto em resolução cheia
+// foto fora da câmera ao vivo: mostra a mesma confirmação, com o painel por cima da tela
+function fotoLida(txt) {
+  ultimo('📸 Código lido na foto — confirme abaixo.', '');
+  if (!$('cam').classList.contains('on')) { $('cam').classList.add('on', 'cheia', 'foto'); $('cam').style.background = 'rgba(10,42,24,.55)'; document.body.style.overflow = 'hidden';
+    const so = () => { if (!_pend && !_stream && !_h5) { $('cam').classList.remove('on', 'cheia', 'foto'); $('cam').style.background = ''; document.body.style.overflow = ''; } else setTimeout(so, 300); };
+    setTimeout(so, 300); }
+  contadorCam(); confirmarLeitura(txt);
+}
 async function lerFoto(file) {
   if (!file) return;
   ultimo('⏳ Lendo o código na foto…');
   try {
     const det = await detectorNativo();
-    if (det) { const r = await det.detect(await createImageBitmap(file)); if (r && r.length) return registrar(melhorCodigo(r), 'camera'); }
-    if (window.Html5Qrcode) { const h5 = new Html5Qrcode('cam-foto', { verbose: false }); try { return registrar(await h5.scanFile(file, false), 'camera'); } finally { try { h5.clear(); } catch (e) {} } }
+    if (det) { const r = await det.detect(await createImageBitmap(file)); if (r && r.length) return fotoLida(melhorCodigo(r)); }
+    if (window.Html5Qrcode) { const h5 = new Html5Qrcode('cam-foto', { verbose: false }); try { return fotoLida(await h5.scanFile(file, false)); } finally { try { h5.clear(); } catch (e) {} } }
   } catch (e) {}
   ultimo('⚠ Não achei o código de barras na foto. Tire de novo com a etiqueta reta, inteira e bem iluminada — ou digite o lote.', 'er'); bipe(false);
 }
