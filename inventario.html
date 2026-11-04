@@ -622,6 +622,10 @@ async function registrar(bruto, origem) {
   if (!bruto || !ui.inv) return;
   if (ui.inv.status !== 'aberto') { ultimo('🔒 Inventário encerrado — reabra para bipar.', 'er'); return; }
   const id = identificar(bruto, ui.inv.esperado || []);
+  // EAN-13 / UPC da caixa (só números, sem lote): não serve para o inventário — pede o código com (01)(17)(10)
+  if (!id.codigo && /^\d{8,14}$/.test(bruto)) {
+    ultimo(`⚠ Esse é o código <b>EAN</b> da embalagem (<span class="mono">${esc(bruto)}</span>) — ele não tem o lote. Bipe o <b>outro código de barras</b>, o comprido que tem (01)…(17)…(10)… embaixo, ou digite o lote.`, 'av'); bipe(false); return;
+  }
   if (!id.codigo && id.gtin) { const n = await nomeDoGtin(id.gtin); if (n) { id.produto = n.produto; id.produtoCod = n.codigo; } }
   const reg = { inventario_id: ui.inv.id, bruto: bruto.slice(0, 300), gtin: id.gtin, lote: id.lote, validade: id.validade, serie: id.serie, codigo: id.codigo, produto: id.produto, qtd: 1, origem, usuario: quemSou() };
   const tmp = { ...reg, id: 'tmp' + Math.random().toString(36).slice(2), _tmp: true, criado_em: new Date().toISOString() };
@@ -667,6 +671,8 @@ async function detectorNativo() {
   return _detector;
 }
 const lidoCamera = txt => { const agora = Date.now(); if (!txt || (txt === _ultCam && agora - _ultCamEm < 2500)) return; _ultCam = txt; _ultCamEm = agora; registrar(txt, 'camera'); };   // a câmera lê a mesma etiqueta várias vezes seguidas
+// a embalagem tem vários códigos (EAN, GS1 com lote…): prefere o GS1 com lote, depois qualquer um que não seja EAN/UPC
+const melhorCodigo = r => (r.find(x => gs1(x.rawValue)?.['10']) || r.find(x => gs1(x.rawValue)) || r.find(x => !/^(ean|upc)/.test(x.format)) || r[0]).rawValue;
 async function pararCamera() {
   clearTimeout(_loop); _loop = null;
   if (_stream) { _stream.getTracks().forEach(t => t.stop()); _stream = null; }
@@ -687,7 +693,7 @@ window.alternarCamera = async () => {
       $('cam-zoom').style.display = cap.zoom && cap.zoom.max >= 2 ? '' : 'none'; $('cam-luz').style.display = cap.torch ? '' : 'none';
       const ciclo = async () => {
         if (!_stream) return;
-        try { if (v.readyState >= 2) { const r = await det.detect(v); if (r && r.length) lidoCamera(r[0].rawValue); } } catch (e) {}
+        try { if (v.readyState >= 2) { const r = await det.detect(v); if (r && r.length) lidoCamera(melhorCodigo(r)); } } catch (e) {}
         _loop = setTimeout(ciclo, 100);
       };
       ciclo();
@@ -714,7 +720,7 @@ async function lerFoto(file) {
   ultimo('⏳ Lendo o código na foto…');
   try {
     const det = await detectorNativo();
-    if (det) { const r = await det.detect(await createImageBitmap(file)); if (r && r.length) return registrar(r[0].rawValue, 'camera'); }
+    if (det) { const r = await det.detect(await createImageBitmap(file)); if (r && r.length) return registrar(melhorCodigo(r), 'camera'); }
     if (window.Html5Qrcode) { const h5 = new Html5Qrcode('cam-foto', { verbose: false }); try { return registrar(await h5.scanFile(file, false), 'camera'); } finally { try { h5.clear(); } catch (e) {} } }
   } catch (e) {}
   ultimo('⚠ Não achei o código de barras na foto. Tire de novo com a etiqueta reta, inteira e bem iluminada — ou digite o lote.', 'er'); bipe(false);
