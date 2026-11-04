@@ -910,17 +910,30 @@ window.excluir = async () => {
 };
 
 // ───────── Relatório / Excel ─────────
-window.imprimir = () => {
+// CNPJ do cliente: cadastro de clientes do ERP (tabela "clientes", só para logados); da GF Medical: da filial
+const GF = { CGR: { razao: 'GF MEDICAL COMÉRCIO E REPRESENTAÇÕES LTDA', cnpj: '07.356.800/0001-99', cidade: 'Campo Grande/MS' }, CBA: { razao: 'GF MEDICAL COMÉRCIO E REPRESENTAÇÕES LTDA', cnpj: '07.356.800/0002-70', cidade: 'Cuiabá/MT' } };
+let _clientes = null;
+async function docCliente(nome) {
+  const chave = s => norm(s).replace(/[^A-Z0-9]+/g, ' ').trim();
+  if (!_clientes) { const { data } = await supabase.from('clientes').select('codigo,nome,doc').limit(10000); _clientes = new Map((data || []).map(c => [chave(c.nome), c])); }
+  const c = _clientes.get(chave(nome));
+  return c && c.doc && /\d{2}\.?\d{3}\.?\d{3}/.test(c.doc) ? `${String(c.doc).replace(/\D/g, '').length === 11 ? 'CPF' : 'CNPJ'} ${c.doc}` : '';
+}
+window.imprimir = async () => {
   const inv = ui.inv, a = apurar(), w = window.open('', '_blank'); if (!w) return toast('Libere as janelas pop-up para imprimir.', 'err');
+  w.document.write('<p style="font-family:Arial;padding:20px">Montando o relatório…</p>');
+  let docCli = ''; try { docCli = await docCliente(inv.cliente); } catch (e) {}
+  const gf = GF[FILIAL] || GF.CGR;
   const tab = (tit, l, cols) => l.length ? `<h3>${tit} <small>(${l.length})</small></h3><table><thead><tr>${cols.map(c => `<th${c[2] ? ' class="n"' : ''}>${c[0]}</th>`).join('')}</tr></thead><tbody>${l.map(r => `<tr>${cols.map(c => `<td${c[2] ? ' class="n"' : ''}>${c[1](r)}</td>`).join('')}</tr>`).join('')}</tbody></table>` : '';
   const base = [['Código', r => esc(r.cod || '—')], ['Produto', r => esc(r.produto || (r.gtin ? 'GTIN ' + r.gtin : 'Não identificado'))], ['Lote', r => esc(r.lote || '—')], ['Validade', r => dataBR(r.validade)]];
   const ord = l => [...l].sort((x, y) => String(x.cod).localeCompare(String(y.cod)) || String(x.lote).localeCompare(String(y.lote)));
+  w.document.open();
   w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Inventário consignado · ${esc(inv.cliente)}</title><style>
     body{font-family:Arial,sans-serif;font-size:10.5px;color:#111;margin:16px}h1{font-size:16px;margin:0 0 2px}h3{font-size:12px;margin:16px 0 5px}h3 small{font-weight:normal;color:#555}
     .cab{display:flex;justify-content:space-between;gap:16px;border-bottom:2px solid #1a7a4a;padding-bottom:8px;margin-bottom:10px}.cab img{width:44px;height:44px;border-radius:8px}
     .res{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.res div{border:1px solid #bbb;border-radius:6px;padding:5px 9px}.res b{display:block;font-size:13px}
     table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:3px 5px;text-align:left}th{background:#eef5f0;font-size:9.5px}.n{text-align:right;white-space:nowrap}
-    .ass{display:flex;gap:40px;margin-top:46px}.ass div{flex:1;border-top:1px solid #000;padding-top:4px;text-align:center}
+    .ass{display:flex;gap:40px;margin-top:46px}.ass div{flex:1;border-top:1px solid #000;padding-top:4px;text-align:center;line-height:1.45}
     @media print{body{margin:8mm}h3{page-break-after:avoid}tr{page-break-inside:avoid}}</style></head><body>
     <div class="cab"><div><h1>Inventário de material consignado</h1><div><b>${esc(inv.cliente)}</b></div><div>${esc(inv.fornecedor || 'Todos os fornecedores')} · relatório C457 de ${dataBR(inv.relatorio_data)}</div>
     <div>Iniciado em ${dataHoraBR(inv.criado_em)} por ${esc(inv.criado_por || '—')}${inv.fechado_em ? ` · encerrado em ${dataHoraBR(inv.fechado_em)} por ${esc(inv.fechado_por || '—')}` : ' · <b>em andamento</b>'}</div></div><img src="${location.origin + location.pathname.replace(/[^/]*$/, '')}logo.jpg" alt=""></div>
@@ -929,7 +942,7 @@ window.imprimir = () => {
     ${tab('➕ Encontrado a mais / fora do relatório', ord([...a.linhas.filter(r => r.st === 'exc'), ...a.sobras]), [...base, ['Saldo', r => r.tipo === 'esp' ? qtd(r.saldo) : '—', 1], ['Encontrado', r => qtd(r.bip), 1]])}
     ${tab('⌛ Validade vencida ou em até 90 dias', ord(a.linhas.filter(r => r.venc != null && r.venc <= 90)), [...base, ['Dias', r => r.venc < 0 ? 'vencido' : r.venc, 1], ['Saldo', r => qtd(r.saldo), 1], ['Encontrado', r => qtd(r.bip), 1]])}
     ${tab('✅ Conferido', ord(a.linhas.filter(r => r.st === 'ok')), [...base, ['NF', r => esc(r.nfs.map(n => n.nf).join(', '))], ['Qtd', r => qtd(r.saldo), 1]])}
-    <div class="ass"><div>Responsável pelo cliente<br><small>nome / assinatura / data</small></div><div>GF Medical<br><small>${esc(nomeCurto())}</small></div></div>
+    <div class="ass"><div><b>${esc(inv.cliente)}</b><br>${docCli ? esc(docCli) + '<br>' : ''}<small>Responsável pelo cliente · nome / assinatura / data</small></div><div><b>${esc(gf.razao)}</b><br>CNPJ ${gf.cnpj} · ${gf.cidade}<br><small>${esc(nomeCurto())}</small></div></div>
     <script>window.onload=()=>setTimeout(()=>print(),300)<\/script></body></html>`);
   w.document.close();
 };
@@ -943,7 +956,7 @@ window.baixarExcel = () => {
   XLSX.writeFile(wb, `Inventário ${ui.inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
 };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.inv) carregarLeituras().then(desenharInv); });
-const VERSAO = '2026-11-04.115223';
+const VERSAO = '2026-11-04.120422';
 async function conferirVersao() {
   try {
     const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];
