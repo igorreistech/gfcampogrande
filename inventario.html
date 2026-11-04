@@ -1027,7 +1027,9 @@ window.imprimir = async () => {
   w.document.write('<p style="font-family:Arial;padding:20px">Montando o relatório…</p>');
   let docCli = ''; try { docCli = await docCliente(inv.cliente); } catch (e) {}
   const gf = GF[FILIAL] || GF.CGR;
-  const tab = (tit, l, cols) => l.length ? `<h3>${tit} <small>(${l.length})</small></h3><table><thead><tr>${cols.map(c => `<th${c[2] ? ' class="n"' : ''}>${c[0]}</th>`).join('')}</tr></thead><tbody>${l.map(r => `<tr>${cols.map(c => `<td${c[2] ? ' class="n"' : ''}>${c[1](r)}</td>`).join('')}</tr>`).join('')}</tbody></table>` : '';
+  const tab = (tit, l, cols, rotTotal) => l.length ? `<h3>${tit} <small>(${l.length})</small></h3><table><thead><tr>${cols.map(c => `<th${c[2] ? ' class="n"' : ''}>${c[0]}</th>`).join('')}</tr></thead><tbody>${l.map(r => `<tr>${cols.map(c => `<td${c[2] ? ' class="n"' : ''}>${c[1](r)}</td>`).join('')}</tr>`).join('')}</tbody>
+    <tfoot><tr class="tot">${cols.map((c, i) => `<td${c[2] ? ' class="n"' : ''}>${i === 0 ? `TOTAL${rotTotal ? ' · ' + rotTotal : ''}` : c[3] ? c[3](l) : ''}</td>`).join('')}</tr></tfoot></table>` : '';
+  const soma = f => l => qtd(l.reduce((s, r) => s + f(r), 0)), somaR = f => l => brl(l.reduce((s, r) => s + f(r), 0));
   const base = [['Código', r => esc(r.cod || '—')], ['Produto', r => esc(r.produto || (r.gtin ? 'GTIN ' + r.gtin : 'Não identificado'))], ['Lote', r => esc(r.lote || '—')], ['Validade', r => dataVal(r.validade)]];
   const ord = l => [...l].sort((x, y) => String(x.cod).localeCompare(String(y.cod)) || String(x.lote).localeCompare(String(y.lote)));
   w.document.open();
@@ -1035,16 +1037,16 @@ window.imprimir = async () => {
     body{font-family:Arial,sans-serif;font-size:10.5px;color:#111;margin:16px}h1{font-size:16px;margin:0 0 2px}h3{font-size:12px;margin:16px 0 5px}h3 small{font-weight:normal;color:#555}
     .cab{display:flex;justify-content:space-between;gap:16px;border-bottom:2px solid #1a7a4a;padding-bottom:8px;margin-bottom:10px}.cab img{width:44px;height:44px;border-radius:8px}
     .res{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.res div{border:1px solid #bbb;border-radius:6px;padding:5px 9px}.res b{display:block;font-size:13px}
-    table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:3px 5px;text-align:left}th{background:#eef5f0;font-size:9.5px}.n{text-align:right;white-space:nowrap}
+    table{width:100%;border-collapse:collapse}tr.tot td{font-weight:bold;background:#eef5f0;border-top:2px solid #1a7a4a}th,td{border:1px solid #ccc;padding:3px 5px;text-align:left}th{background:#eef5f0;font-size:9.5px}.n{text-align:right;white-space:nowrap}
     .ass{display:flex;gap:40px;margin-top:46px}.ass div{flex:1;border-top:1px solid #000;padding-top:4px;text-align:center;line-height:1.45}
     @media print{body{margin:8mm}h3{page-break-after:avoid}tr{page-break-inside:avoid}}</style></head><body>
     <div class="cab"><div><h1>Inventário de material consignado</h1><div><b>${esc(inv.cliente)}</b></div><div>${esc(inv.fornecedor || 'Todos os fornecedores')} · relatório C457 de ${dataBR(inv.relatorio_data)}</div>
     <div>Iniciado em ${dataHoraBR(inv.criado_em)} por ${esc(inv.criado_por || '—')}${inv.fechado_em ? ` · encerrado em ${dataHoraBR(inv.fechado_em)} por ${esc(inv.fechado_por || '—')}` : ' · <b>em andamento</b>'}</div></div><img src="${location.origin + location.pathname.replace(/[^/]*$/, '')}logo.jpg" alt=""></div>
     <div class="res"><div>No relatório<b>${qtd(a.esp)} un. · ${brl(a.espVal)}</b></div><div>Fisicamente no local<b>${qtd(a.fis)} un. · ${brl(a.fisVal)}</b></div><div>Faltando<b>${qtd(a.falta)} un. · ${brl(a.faltaVal)}</b></div><div>A mais / fora do relatório<b>${qtd(a.exc)} un.</b></div><div>Validade ≤ 90 dias<b>${a.venc} lotes</b></div></div>
-    ${tab('⚠ Faltando (no relatório e não encontrado)', ord(a.linhas.filter(r => r.st === 'falta')), [...base, ['NF', r => esc(r.nfs.map(n => n.nf).join(', '))], ['Saldo', r => qtd(r.saldo), 1], ['Encontrado', r => qtd(r.bip), 1], ['Falta', r => qtd(r.saldo - r.bip), 1], ['Valor', r => brl((r.saldo - r.bip) * r.vunit), 1]])}
-    ${tab('➕ Encontrado a mais / fora do relatório', ord([...a.linhas.filter(r => r.st === 'exc'), ...a.sobras]), [...base, ['Saldo', r => r.tipo === 'esp' ? qtd(r.saldo) : '—', 1], ['Encontrado', r => qtd(r.bip), 1]])}
-    ${tab('⌛ Validade vencida ou em até 90 dias', a.linhas.filter(r => r.venc != null && r.venc <= 90).sort((x, y) => x.venc - y.venc), [...base, ['Dias', r => r.venc < 0 ? 'vencido' : r.venc, 1], ['Saldo', r => qtd(r.saldo), 1], ['Encontrado', r => qtd(r.bip), 1]])}
-    ${tab('✅ Conferido', ord(a.linhas.filter(r => r.st === 'ok')), [...base, ['NF', r => esc(r.nfs.map(n => n.nf).join(', '))], ['Qtd', r => qtd(r.saldo), 1]])}
+    ${tab('⚠ Faltando (no relatório e não encontrado)', ord(a.linhas.filter(r => r.st === 'falta')), [...base, ['NF', r => esc(r.nfs.map(n => n.nf).join(', '))], ['Saldo', r => qtd(r.saldo), 1, soma(r => r.saldo)], ['Encontrado', r => qtd(r.bip), 1, soma(r => r.bip)], ['Falta', r => qtd(r.saldo - r.bip), 1, soma(r => r.saldo - r.bip)], ['Valor', r => brl((r.saldo - r.bip) * r.vunit), 1, somaR(r => (r.saldo - r.bip) * r.vunit)]])}
+    ${tab('➕ Encontrado a mais / fora do relatório', ord([...a.linhas.filter(r => r.st === 'exc'), ...a.sobras]), [...base, ['Saldo', r => r.tipo === 'esp' ? qtd(r.saldo) : '—', 1, soma(r => r.tipo === 'esp' ? r.saldo : 0)], ['Encontrado', r => qtd(r.bip), 1, soma(r => r.bip)], ['A mais', r => qtd(r.bip - (r.tipo === 'esp' ? r.saldo : 0)), 1, soma(r => r.bip - (r.tipo === 'esp' ? r.saldo : 0))], ['Valor', r => r.vunit ? brl((r.bip - r.saldo) * r.vunit) : '—', 1, somaR(r => r.vunit ? (r.bip - r.saldo) * r.vunit : 0)]])}
+    ${tab('⌛ Validade vencida ou em até 90 dias', a.linhas.filter(r => r.venc != null && r.venc <= 90).sort((x, y) => x.venc - y.venc), [...base, ['Dias', r => r.venc < 0 ? 'vencido' : r.venc, 1], ['Saldo', r => qtd(r.saldo), 1, soma(r => r.saldo)], ['Encontrado', r => qtd(r.bip), 1, soma(r => r.bip)], ['Valor', r => brl(r.saldo * r.vunit), 1, somaR(r => r.saldo * r.vunit)]], (() => { const l = a.linhas.filter(r => r.venc != null && r.venc <= 90), v = l.filter(r => r.venc < 0).length; return `${v} vencido${v === 1 ? '' : 's'} · ${l.length - v} a vencer`; })())}
+    ${tab('✅ Conferido', ord(a.linhas.filter(r => r.st === 'ok')), [...base, ['NF', r => esc(r.nfs.map(n => n.nf).join(', '))], ['Qtd', r => qtd(r.saldo), 1, soma(r => r.saldo)], ['Valor', r => brl(r.saldo * r.vunit), 1, somaR(r => r.saldo * r.vunit)]])}
     <div class="ass"><div><b>${esc(inv.cliente)}</b><br>${docCli ? esc(docCli) + '<br>' : ''}<small>Responsável pelo cliente · nome / assinatura / data</small></div><div><b>${esc(gf.razao)}</b><br>CNPJ ${gf.cnpj} · ${gf.cidade}<br><small>${esc(nomeCurto())}</small></div></div>
     <script>window.onload=()=>setTimeout(()=>print(),300)<\/script></body></html>`);
   w.document.close();
@@ -1096,7 +1098,7 @@ window.baixarExcel = () => {
   XLSX.writeFile(wb, `Inventário ${ui.inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
 };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.inv) carregarLeituras().then(desenharInv); });
-const VERSAO = '2026-11-04.123132';
+const VERSAO = '2026-11-04.123350';
 async function conferirVersao() {
   try {
     const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];
