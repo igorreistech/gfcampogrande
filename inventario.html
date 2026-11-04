@@ -532,10 +532,10 @@ function lerS013(linhas) {
   for (const l of linhas) {
     const m = RE_S013.exec(l);
     if (m) {
-      n++; const qtd = numBR(m[7]); if (qtd <= 0) { ult = null; continue; }
+      n++; const qtd = numBR(m[8]); if (qtd <= 0) { ult = null; continue; }   // saldo = Estoque Disp. (os reservados ficam fora da contagem)
       const [lote, serie] = m[5].split('|').map(s => s.trim()), k = norm(m[2]) + '|' + norm(lote || '');
-      const e = mapa.get(k) || { cod: m[2], produto: m[3].trim(), lote: lote || '', serie: serie || '', validade: m[6] === 'N/A' ? null : dISO(m[6]), saldo: 0, vunit: numBR(m[13]), nfs: [] };
-      e.saldo += qtd; mapa.set(k, e); ult = e; continue;
+      const e = mapa.get(k) || { cod: m[2], produto: m[3].trim(), lote: lote || '', serie: serie || '', validade: m[6] === 'N/A' ? null : dISO(m[6]), saldo: 0, total: 0, vunit: numBR(m[13]), nfs: [] };
+      e.saldo += qtd; e.total += numBR(m[7]); mapa.set(k, e); ult = e; continue;
     }
     if (RE_S013_CAB.test(l)) { ult = null; continue; }
     if (ult && l.trim() && !/^\d/.test(l) && ult.produto.length < 120) ult.produto += ' ' + l.trim();   // continuação da descrição
@@ -726,7 +726,7 @@ function aplicarTipo() {
   $('troca-tipo').textContent = TIPO ? (est ? '🔁 ir para consignado' : '🔁 ir para estoque') : '';
   $('troca-tipo').style.display = TIPO ? '' : 'none';
   $('novo-tit').textContent = TIPO ? (est ? 'Novo inventário de estoque' : 'Novo inventário de consignado') : 'Novo inventário';
-  $('drop').querySelector('.muted').innerHTML = est ? 'Clique ou arraste aqui o PDF do relatório <b>S013 - Estoque</b> (estoque físico da GF Medical).'
+  $('drop').querySelector('.muted').innerHTML = est ? 'Clique ou arraste aqui o PDF do relatório <b>S013 - Estoque</b> (estoque físico da GF Medical). O saldo a conferir é a coluna <b>Estoque Disp.</b> — os itens reservados não entram na contagem.'
     : TIPO ? 'Clique ou arraste aqui o PDF do <b>C457 - Itens Consignados</b>. Pode soltar <b>vários de uma vez</b>, de clientes diferentes: cria um inventário por cliente (os fornecedores do mesmo cliente se juntam).'
     : $('drop').querySelector('.muted').innerHTML;
   document.title = (est ? 'Inventário de estoque' : TIPO ? 'Inventário de consignado' : 'Inventário') + ' · GF Medical · ' + BR.label;
@@ -827,7 +827,7 @@ async function importarPdfs(files) {
       <div style="font-family:var(--display);font-weight:700;font-size:1rem">${esc(novo.cliente)}</div>
       <div class="muted" style="margin:4px 0 12px">${esc(novo.fornecedor || '—')} · relatório de ${dataBR(novo.relatorio_data)} · ${esc(novo.arquivos)}</div>
       <div class="kpis" style="margin-top:0"><div class="kpi"><span>Lotes</span><b>${s.lotes}</b></div><div class="kpi"><span>Unidades</span><b>${qtd(s.un)}</b></div><div class="kpi"><span>Valor</span><b style="font-size:.95rem">${brl(s.val)}</b></div>${s.venc ? `<div class="kpi er"><span>Validade ≤ 90 dias</span><b>${s.venc}</b></div>` : ''}</div>
-      <div class="muted" style="margin-top:12px">Só entram os lotes com <b>saldo</b> no cliente (os de saldo 0 já foram vendidos ou devolvidos).</div>`;
+      <div class="muted" style="margin-top:12px">${novo.obs === 'estoque' ? `Saldo pela coluna <b>Estoque Disp.</b> do S013 (só os lotes com disponível &gt; 0)${(() => { const r = novo.esperado.reduce((s, e) => s + Math.max(0, (e.total || e.saldo) - e.saldo), 0); return r ? ` · <b>${qtd(r)} un. reservadas</b> ficam fora da contagem — deixe-as separadas.` : ''; })()}` : 'Só entram os lotes com <b>saldo</b> no cliente (os de saldo 0 já foram vendidos ou devolvidos).'}</div>`;
     $('novo-ok').textContent = 'Iniciar inventário'; $('novo-ok').disabled = false;
     $('novo-ok').onclick = async () => {
       $('novo-ok').disabled = true;
@@ -1818,7 +1818,7 @@ window.baixarAjuste = () => {
   XLSX.writeFile(wb, `Ajuste de estoque ${ui.inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
 };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.inv) carregarLeituras().then(desenharInv); });
-const VERSAO = '2026-11-04.161346';
+const VERSAO = '2026-11-04.162030';
 async function conferirVersao() {
   try {
     const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];
