@@ -271,7 +271,7 @@ body:not(.fechado) .so-fechado{display:none!important}
         <button class="btn so-pc" type="button" onclick="abrirCelular()">📱 Bipar com outro celular</button>
         <span class="muted dica-bip">Bipe <b>uma etiqueta por embalagem</b> (as caixas têm várias etiquetas iguais).</span>
       </div>
-      <div id="cam"><div class="cam-top"><button type="button" onclick="alternarCamera()">✕ Fechar</button><span id="cam-cont"></span></div><video id="cam-v" playsinline muted autoplay></video><div class="mira"></div><div class="cam-dica">Encaixe o código de barras inteiro na faixa verde · se não focar, afaste um pouco e use 🔍</div><div id="cam-h5"></div>
+      <div id="cam"><div class="cam-top"><button type="button" onclick="alternarCamera()">✕ Fechar</button><span id="cam-cont"></span></div><video id="cam-v" playsinline muted autoplay></video><div class="mira"></div><div class="cam-dica">Código comprido: na faixa verde · quadradinho (DataMatrix/UDI): no centro da tela · se não focar, afaste e use 🔍</div><div id="cam-h5"></div>
         <div class="cam-bts"><button type="button" id="cam-zoom" style="display:none">🔍 1×</button><button type="button" id="cam-luz" style="display:none">🔦</button><button type="button" id="cam-foto-bt">📸 Capturar</button></div><div id="cam-diag"></div><div id="cam-conf"></div></div>
       <div id="cam-foto" style="display:none"></div>
       <div id="ultimo">Aguardando a primeira leitura…</div>
@@ -811,7 +811,7 @@ async function registrar(bruto, origem) {
   _gtinPend = null;
   // só entra o que está no relatório do cliente; o resto só avisa (não grava)
   if (!id.codigo) {
-    ultimo(`❌ <b>Não incluído</b> — esse código não está no relatório deste cliente${id.lote ? ' (lote <b class="mono">' + esc(id.lote) + '</b>)' : ''}. Confira se bipou o código com o <b>lote</b> da etiqueta certa.`, 'er'); bipe(false);
+    ultimo(`✔ Código lido, mas ❌ <b>não incluído</b>: esse lote não está no relatório deste cliente (${esc(ui.inv.fornecedor || '')})${id.lote ? ' (lote <b class="mono">' + esc(id.lote) + '</b>)' : ''}. Confira se bipou o código com o <b>lote</b> da etiqueta certa.`, 'er'); bipe(false);
     return false;
   }
   const reg = { inventario_id: ui.inv.id, bruto: bruto.slice(0, 300), gtin: id.gtin, lote: id.lote, validade: id.validade, serie: id.serie, codigo: id.codigo, produto: id.produto, qtd: 1, origem, usuario: quemSou() };
@@ -882,6 +882,17 @@ function recorteMira(v) {
   const g = c.getContext('2d', { willReadFrequently: true }); g.imageSmoothingEnabled = false; g.drawImage(v, x, y, w, hh, 0, 0, c.width, c.height);
   return c;
 }
+let _cq = null;
+function recorteCentro(v, frac = 0.62) {
+  const vw = v.videoWidth, vh = v.videoHeight; if (!vw) return null;
+  const R = v.getBoundingClientRect(); if (!R.width) return null;
+  const s = Math.max(R.width / vw, R.height / vh), visW = R.width / s, visH = R.height / s;   // parte do vídeo visível (object-fit: cover)
+  const lado = Math.min(visW, visH) * frac, x = (vw - lado) / 2, y = (vh - lado) / 2;
+  const c = _cq || (_cq = document.createElement('canvas')), k = Math.min(3, 1100 / lado);
+  c.width = c.height = Math.round(lado * k);
+  const g = c.getContext('2d', { willReadFrequently: true }); g.imageSmoothingEnabled = false; g.drawImage(v, x, y, lado, lado, 0, 0, c.width, c.height);
+  return c;
+}
 async function detectorNativo() {
   if (_detector !== undefined) return _detector;
   _detector = null;
@@ -904,7 +915,7 @@ function descreverLeitura(txt) {
   if (!id.codigo && /^\d{8,14}$/.test(txt)) return { ean: true, html: `<div class="ct">⚠ Código EAN da embalagem</div><div class="mono">${esc(txt)}</div><div class="cs av">Esse código não tem o lote. Mire no outro código de barras — o comprido, com (01)…(17)…(10)… embaixo.</div>` };
   const corpo = `<div class="ct">${r ? `<span class="mono">${esc(r.cod)}</span> · ${esc(r.produto)}` : id.produto ? esc((id.produtoCod ? id.produtoCod + ' · ' : '') + id.produto) : 'Produto fora do relatório'}</div>
     <div>Lote <b class="mono">${esc(id.lote || '—')}</b>${val ? ' · ' + val : ''}${id.gtin ? `<br><span class="mono" style="font-size:.72rem;color:var(--text3)">GTIN ${esc(id.gtin)}</span>` : ''}</div>`;
-  if (!r) return { ean: true, html: `<div class="ct">❌ Não está no relatório</div><div>Lote <b class="mono">${esc(id.lote || '—')}</b>${id.gtin ? ' · <span class="mono">GTIN ' + esc(id.gtin) + '</span>' : ''}</div><div class="cs er">Não foi incluído. Mire no código com o <b>lote</b> de uma embalagem deste cliente.</div>` };
+  if (!r) return { ean: true, html: `<div class="ct">✔ Código lido — mas ❌ não está no relatório</div><div>Lote <b class="mono">${esc(id.lote || '—')}</b>${id.gtin ? ' · <span class="mono">GTIN ' + esc(id.gtin) + '</span>' : ''}</div><div class="cs er">Não foi incluído. Mire no código com o <b>lote</b> de uma embalagem deste cliente.</div>` };
   const st = r && r.bip < r.saldo ? `<div class="cs ok">Vai contar ${qtd(r.bip + 1)} de ${qtd(r.saldo)} deste lote.</div>`
     : r ? `<div class="cs av">⚠ Já foram bipados ${qtd(r.bip)} de ${qtd(r.saldo)} deste lote. É outra embalagem?</div>`
     : `<div class="cs er">➕ Não está no saldo do relatório — vai entrar como "fora do relatório".</div>`;
@@ -961,13 +972,13 @@ window.alternarCamera = async () => {
       _zoom = 1; _luz = false; $('cam-zoom').textContent = '🔍 1×';
       $('cam-zoom').style.display = cap.zoom && cap.zoom.max >= 2 ? '' : 'none'; $('cam-luz').style.display = cap.torch ? '' : 'none';
       const zx = await detectorZx(), nativo = det !== zx && !(window.BarcodeDetectionAPI && det instanceof BarcodeDetectionAPI.BarcodeDetector);
-      const modos = [[det, 'v'], [det, 'c'], ...(zx && zx !== det ? [[zx, 'c'], [zx, 'v']] : [])];
+      const modos = [[det, 'v'], [det, 'c'], [det, 'q'], ...(zx && zx !== det ? [[zx, 'c'], [zx, 'q'], [zx, 'v']] : [])];
       _quadros = 0;
       const ciclo = async () => {
         if (!_stream) return;
         try {
           if (v.readyState >= 2 && !_pend) {
-            const [d, onde] = modos[_quadros++ % modos.length], fonte = onde === 'c' ? recorteMira(v) || v : v;
+            const [d, onde] = modos[_quadros++ % modos.length], fonte = onde === 'c' ? recorteMira(v) || v : onde === 'q' ? recorteCentro(v) || v : v;
             const r = await d.detect(fonte); if (r && r.length) lidoCamera(melhorCodigo(r));
             if (_quadros % 10 === 0) $('cam-diag').textContent = `leitor: ${nativo ? 'nativo' : 'zxing'}${zx && zx !== det ? ' + zxing' : ''} · ${v.videoWidth}×${v.videoHeight} · ${_quadros} quadros`;
           }
@@ -996,7 +1007,7 @@ $('cam-foto-bt').onclick = async () => {
   $('cam-diag').textContent = '📸 lendo a foto…';
   let img = null;
   try { if (window.ImageCapture) img = await createImageBitmap(await new ImageCapture(tr).takePhoto()); } catch (e) {}
-  const fontes = [img, recorteMira(v), v].filter(Boolean), dets = [await detectorNativo(), await detectorZx()].filter((d, i, a) => d && a.indexOf(d) === i);
+  const fontes = [img, recorteCentro(v), recorteCentro(v, 0.4), recorteMira(v), v].filter(Boolean), dets = [await detectorNativo(), await detectorZx()].filter((d, i, a) => d && a.indexOf(d) === i);
   for (const f of fontes) for (const d of dets) { try { const r = await d.detect(f); if (r && r.length) { $('cam-diag').textContent = ''; _ultCam = ''; return lidoCamera(melhorCodigo(r)); } } catch (e) {} }
   $('cam-diag').textContent = '📸 nenhum código na foto — chegue a ~15 cm, etiqueta reta e com luz';
   bipe(false);
@@ -1196,7 +1207,7 @@ window.baixarExcel = () => {
   XLSX.writeFile(wb, `Inventário ${inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
 };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.inv) carregarLeituras().then(desenharInv); });
-const VERSAO = '2026-11-04.131849';
+const VERSAO = '2026-11-04.132814';
 async function conferirVersao() {
   try {
     const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];
