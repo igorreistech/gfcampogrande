@@ -133,6 +133,30 @@ tr.st-ok td:first-child{box-shadow:inset 3px 0 var(--ok-c)}tr.st-falta td:first-
 .cq{display:flex;align-items:center;gap:6px;margin-top:8px;font-weight:700}
 .cq button{border:0;border-radius:10px;padding:8px 14px;background:#e5e7eb;font-weight:800;font-size:1rem}
 .cq input{width:64px;padding:7px;border:2px solid #8b5cf6;border-radius:10px;text-align:center;font-weight:800;font-size:1rem}
+.painel{margin-top:12px}
+.painel h4{font-family:var(--display);font-size:.9rem;margin-bottom:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.painel h4 select{padding:4px 6px;border:1px solid var(--border);border-radius:8px;font-size:.75rem}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.chips:empty{display:none}
+.chip{border:1px solid var(--border);background:var(--surface);border-radius:20px;padding:6px 11px;font-size:.74rem;font-weight:700;cursor:pointer}
+.chip.on{box-shadow:0 0 0 2px var(--accent)}
+.chip.v0{background:#fee2e2;color:#991b1b;border-color:#fca5a5}.chip.v30{background:#ffedd5;color:#9a3412;border-color:#fdba74}.chip.v60{background:#fef3c7;color:#92400e;border-color:#fcd34d}.chip.v90{background:#fefce8;color:#854d0e;border-color:#fde68a}
+.bdg{display:inline-block;margin-top:3px;font-size:.66rem;font-weight:700;padding:2px 7px;border-radius:8px;background:var(--info-bg);color:var(--info-c);white-space:normal}
+.bdg.cir{background:#dcfce7;color:#166534}.bdg.rep{background:#fee2e2;color:#991b1b}.bdg.jus{background:#ede9fe;color:#5b21b6}.bdg.rc{background:#fef3c7;color:#92400e}
+button.bdg{border:0;cursor:pointer;font-family:inherit}
+.ev{border:0;background:none;cursor:pointer;font-size:.8rem;padding:0 3px;opacity:.65}.ev:hover{opacity:1}
+.mini{width:100%;font-size:.74rem;border-collapse:collapse}.mini td,.mini th{padding:4px 6px}
+#fila-aviso{display:none;position:fixed;left:10px;right:10px;bottom:44px;z-index:350;background:#b45309;color:#fff;padding:10px 14px;border-radius:12px;font-weight:700;font-size:.82rem;box-shadow:var(--shadow-md);align-items:center;gap:10px;max-width:640px;margin:0 auto}
+#fila-aviso.on{display:flex}
+#fila-aviso button{margin-left:auto;border:0;border-radius:8px;padding:6px 10px;font-weight:800;cursor:pointer}
+.ass-cv{width:100%;height:200px;border:2px dashed var(--accent2);border-radius:12px;background:#fff;touch-action:none;display:block;cursor:crosshair}
+.cega-aviso{margin-top:10px;padding:10px 12px;border-radius:12px;background:#1e293b;color:#fff;font-weight:700;font-size:.82rem}
+.loc-box{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px;padding:8px 10px;border-radius:12px;background:#e0f2fe;font-size:.8rem;font-weight:600}
+.loc-box input{flex:1;min-width:140px;padding:8px 10px;border:2px solid #0284c7;border-radius:10px;font-weight:700;font-size:.9rem;background:#fff}
+.fotos-ev{display:flex;gap:10px;flex-wrap:wrap}.fotos-ev figure{position:relative;width:200px}.fotos-ev img{width:200px;height:200px;object-fit:contain;background:#000;border-radius:10px;border:1px solid var(--border);cursor:zoom-in}
+.fotos-ev img.gr{position:fixed;inset:10px;width:calc(100% - 20px);height:calc(100% - 20px);z-index:400;cursor:zoom-out}
+.fotos-ev button{position:absolute;top:4px;right:4px;border:0;border-radius:8px;background:#dc2626;color:#fff;padding:3px 7px;cursor:pointer}
+.just-l{border-top:1px solid var(--border);padding:9px 0;font-size:.8rem}.just-l select,.just-l input{width:100%;margin-top:5px}
 .tot-tela{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 .tot-tela div{flex:1;min-width:140px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 11px;font-size:.72rem;color:var(--text3)}
 .tot-tela b{display:block;font-family:var(--mono);font-size:.9rem;color:var(--text)}
@@ -217,6 +241,7 @@ body:not(.fechado) .so-fechado{display:none!important}
   .leit div.l{flex-wrap:wrap;gap:4px 8px}
   .leit div.l span.h{margin-left:0;width:100%;order:3}
   .mod .mf .btn{flex:1;justify-content:center}
+  #fila-aviso{bottom:10px}
 }
 </style>
 <script>if (/[?&]embed=1/.test(location.search)) document.documentElement.classList.add('embed');</script>
@@ -260,6 +285,7 @@ body:not(.fechado) .so-fechado{display:none!important}
     <input type="file" id="f-pasta" webkitdirectory directory multiple style="display:none">
   </div>
   <div class="filtros"><input id="busca-inv" placeholder="🔍 Buscar cliente ou fornecedor…"><button class="btn" data-fl="aberto" id="fl-aberto">⏳ Em andamento</button><button class="btn" data-fl="fechado" id="fl-fechado">✔ Encerrados</button><button class="btn" data-fl="" id="fl-todos">Todos</button></div>
+  <div class="card painel" id="p-atraso" style="display:none"></div>
   <div class="lista" id="lista"></div>
 </div>
 
@@ -281,6 +307,10 @@ body:not(.fechado) .so-fechado{display:none!important}
         <label><input type="checkbox" id="qtd-manter"> manter</label>
         <span class="muted">Caixa fechada: digite quantas unidades vêm dentro e bipe a etiqueta da caixa uma vez. Sem "manter", volta para 1 depois de cada bipe.</span>
       </div>
+      <div class="loc-box" id="loc-box" style="display:none">
+        <span>📍 Local que estou contando:</span><input id="local-bip" list="dl-locais" placeholder="ex.: Prateleira A3 · Sala 2 · Gaveta 5" autocomplete="off"><datalist id="dl-locais"></datalist>
+        <span class="muted" style="flex-basis:100%;font-weight:400">Cada pessoa escolhe a área que está contando; as leituras ficam marcadas com o local (andamento por local e por pessoa logo abaixo da lista).</span>
+      </div>
       <div class="bts-bip">
         <button class="btn b" id="b-cam" type="button" onclick="alternarCamera()">📷 Câmera deste aparelho</button>
         <label class="btn" for="f-fotos" title="Escolha várias fotos de etiquetas de uma vez: cada foto conta 1 embalagem">🖼 Fotos em lote</label><input type="file" id="f-fotos" accept="image/*" multiple style="display:none">
@@ -288,23 +318,34 @@ body:not(.fechado) .so-fechado{display:none!important}
         <button class="btn so-pc" type="button" onclick="abrirCelular()">📱 Bipar com outro celular</button>
         <span class="muted dica-bip">Bipe <b>uma etiqueta por embalagem</b> (as caixas têm várias etiquetas iguais).</span>
       </div>
-      <div id="cam"><div class="cam-top"><button type="button" onclick="alternarCamera()">✕ Fechar</button><span id="cam-cont"></span></div><video id="cam-v" playsinline muted autoplay></video><div class="mira"></div><div class="cam-dica">Código comprido: na faixa verde · quadradinho (DataMatrix/UDI): no centro da tela · se não focar, afaste e use 🔍</div><div id="cam-h5"></div>
+      <div id="cam"><div class="cam-top"><button type="button" onclick="alternarCamera()">✕ Fechar</button><span id="cam-cont"></span></div><video id="cam-v" playsinline muted autoplay></video><div class="mira"></div><div class="cam-dica">Código comprido: na faixa verde · quadradinho (DataMatrix/UDI): no centro · sem código de barras: mire no "LOT" e toque 📸 Capturar</div><div id="cam-h5"></div>
         <div class="cam-bts"><button type="button" id="cam-zoom" style="display:none">🔍 1×</button><button type="button" id="cam-luz" style="display:none">🔦</button><button type="button" id="cam-foto-bt">📸 Capturar</button></div><div id="cam-diag"></div><div id="cam-conf"></div></div>
       <div id="cam-foto" style="display:none"></div>
       <div id="ultimo">Aguardando a primeira leitura…</div>
+      <div class="cega-aviso" id="cega-aviso" style="display:none">🙈 Contagem cega: o saldo do sistema está escondido. Conte tudo o que estiver no local; o resultado aparece quando alguém tocar em 👁 Revelar resultado.</div>
     </div>
     <div class="so-fechado muted" style="margin-top:10px" id="i-fechado-info"></div>
   </div>
 
   <div class="kpis" id="kpis"></div>
+  <div class="chips" id="venc-faixas"></div>
   <div class="filtros"><input id="busca" placeholder="🔍 Buscar código, produto, lote, NF…"></div>
   <div class="tw"><table id="tb"></table></div>
   <div class="tot-tela" id="tb-tot"></div>
+  <div class="card painel" id="p-cir" style="display:none"></div>
+  <div class="card painel" id="p-locais" style="display:none"></div>
+  <div class="card painel" id="p-hist" style="display:none"></div>
 
   <div class="acoes" id="acoes">
     <button class="btn" onclick="imprimir()">🖨 Relatório para assinatura</button>
     <button class="btn b" onclick="abrirFaltantes()">📤 Enviar faltantes</button>
     <button class="btn" onclick="baixarExcel()">📊 Excel</button>
+    <button class="btn" id="b-cir" onclick="cruzarCirurgias(true)">🩺 Cruzar com cirurgias</button>
+    <button class="btn" onclick="abrirJustificativas()">📝 Justificar faltantes</button>
+    <button class="btn" onclick="abrirAssinatura()">✍️ Assinar na tela</button>
+    <button class="btn so-aberto" id="b-cega" onclick="alternarCega()">🙈 Contagem cega</button>
+    <button class="btn so-aberto" id="b-recont" onclick="abrirRecontagem()">🔁 Recontar divergentes</button>
+    <button class="btn" id="b-ajuste" onclick="baixarAjuste()">🧾 Ajuste de estoque</button>
     <button class="btn p so-aberto" onclick="encerrar()">✔ Encerrar inventário</button>
     <button class="btn so-fechado" onclick="reabrir()">🔓 Reabrir</button>
     <button class="btn r" id="b-excluir" onclick="excluir()">🗑 Excluir</button>
@@ -325,7 +366,7 @@ body:not(.fechado) .so-fechado{display:none!important}
 <div class="ov" id="m-fotos"><div class="mod" style="max-width:720px">
   <div class="mh"><span>🖼 Fotos das etiquetas em lote</span><button class="x" onclick="fecharModal('m-fotos')">✕</button></div>
   <div class="mb"><div id="fotos-prog" class="muted" style="margin-bottom:8px"></div><div class="tw"><table id="fotos-tb"></table></div>
-    <div class="muted" style="margin-top:8px">Cada foto conta <b>1 embalagem</b>. Só entram as marcadas (as que estão no relatório).</div></div>
+    <div class="muted" style="margin-top:8px">Cada foto conta <b>1 embalagem</b>. Só entram as marcadas (as que estão no relatório). Sem código de barras, o lote é lido do texto <b>LOT</b> impresso (demora uns segundos por foto).</div></div>
   <div class="mf"><button class="btn" onclick="fecharModal('m-fotos')">Cancelar</button><button class="btn p" id="fotos-ok" disabled>Incluir</button></div>
 </div></div>
 
@@ -378,8 +419,42 @@ body:not(.fechado) .so-fechado{display:none!important}
     <div id="venc-desc" style="font-size:.88rem;margin-bottom:12px"></div>
     <div id="venc-acao" style="background:#fee2e2;color:#7f1d1d;border-radius:12px;padding:12px;font-weight:700;font-size:.95rem">Separe esta embalagem para <u>devolver ao estoque da GF Medical</u>.<br>Não deixe no cliente.</div>
   </div>
-  <div class="mf" style="justify-content:center"><button class="btn p" id="venc-fechar" style="background:#dc2626;border-color:#dc2626;padding:13px 18px;font-size:.95rem">📦 Separei para devolução</button></div>
+  <div class="mf" style="justify-content:center"><button class="btn" id="venc-foto" type="button" style="padding:13px 14px">📸 Foto de evidência</button><button class="btn p" id="venc-fechar" style="background:#dc2626;border-color:#dc2626;padding:13px 18px;font-size:.95rem">📦 Separei para devolução</button></div>
 </div></div>
+
+<div class="ov" id="m-just"><div class="mod" style="max-width:680px">
+  <div class="mh"><span>📝 Justificar os itens faltando</span><button class="x" onclick="fecharModal('m-just')">✕</button></div>
+  <div class="mb" id="just-corpo"></div>
+  <div class="mf"><button class="btn" id="just-pular">Encerrar sem justificar</button><button class="btn p" id="just-ok">Salvar</button></div>
+</div></div>
+
+<div class="ov" id="m-ass"><div class="mod" style="max-width:600px">
+  <div class="mh"><span>✍️ Assinatura na tela</span><button class="x" onclick="fecharModal('m-ass')">✕</button></div>
+  <div class="mb">
+    <div style="display:flex;gap:8px;margin-bottom:10px"><button class="btn" type="button" data-lado="cli" style="flex:1;justify-content:center">🏥 Responsável do cliente</button><button class="btn" type="button" data-lado="gf" style="flex:1;justify-content:center">🟢 GF Medical</button></div>
+    <input type="text" id="ass-nome" placeholder="Nome de quem assina" style="margin-bottom:8px">
+    <input type="text" id="ass-doc" placeholder="Cargo / CPF / registro (opcional)" style="margin-bottom:8px">
+    <canvas id="ass-cv" class="ass-cv"></canvas>
+    <div class="muted" style="margin-top:6px">Assine com o dedo (ou o mouse) no quadro. A assinatura sai no relatório para assinatura.</div>
+    <div id="ass-atual" class="muted" style="margin-top:8px"></div>
+  </div>
+  <div class="mf"><button class="btn" type="button" onclick="limparAss()">🧽 Limpar</button><button class="btn p" id="ass-salvar" type="button">Salvar assinatura</button></div>
+</div></div>
+
+<div class="ov" id="m-recont"><div class="mod" style="max-width:640px">
+  <div class="mh"><span>🔁 Recontagem dos lotes com diferença</span><button class="x" onclick="fecharModal('m-recont')">✕</button></div>
+  <div class="mb" id="recont-corpo"></div>
+  <div class="mf"><button class="btn" onclick="fecharModal('m-recont')">Cancelar</button><button class="btn p" id="recont-ok">Começar recontagem</button></div>
+</div></div>
+
+<div class="ov" id="m-ev"><div class="mod" style="max-width:700px">
+  <div class="mh"><span>📎 Fotos de evidência · <span id="ev-tit"></span></span><button class="x" onclick="fecharModal('m-ev')">✕</button></div>
+  <div class="mb" id="ev-corpo"></div>
+  <div class="mf"><button class="btn p" id="ev-mais" type="button">📸 Adicionar foto</button></div>
+</div></div>
+<input type="file" id="f-ev" accept="image/*" capture="environment" style="display:none">
+
+<div id="fila-aviso">📶 <span><b id="fila-n">0</b> leitura(s) guardada(s) neste aparelho, aguardando internet</span><button type="button" onclick="enviarFila()">Enviar agora</button></div>
 
 <div class="toasts" id="toasts"></div>
 <div class="rodape">© GF Medical · Desenvolvido por Igor Reis</div>
@@ -576,8 +651,14 @@ end $$;
 do $$ begin
   alter publication supabase_realtime add table public.inventario_leituras;
 exception when others then null; end $$;
+-- melhorias: justificativas, assinatura na tela, fotos, contagem cega, recontagem (extra) e local da leitura
+alter table public.inventarios add column if not exists extra jsonb not null default '{}'::jsonb;
+alter table public.inventario_leituras add column if not exists local text;
 notify pgrst, 'reload schema';`;
 const semTabela = e => /inventario|relation|schema cache|PGRST205|42P01/i.test(String(e?.message || e?.code || e)) && /does not exist|could not find|schema cache|PGRST205|42P01/i.test(String(e?.message || '') + (e?.code || ''));
+const semColuna = e => /extra|local/i.test(String(e?.message || '')) && /column|schema cache|PGRST204|42703/i.test(String(e?.message || '') + (e?.code || ''));
+// sem internet: o supabase devolve "Failed to fetch" / "Load failed" / NetworkError
+const erroRede = e => !navigator.onLine || /fetch|network|load failed|offline|timeout|ERR_INTERNET/i.test(String(e?.message || e || ''));
 function pedirSql() { $('sql-txt').value = SQL; $('sql-abrir').href = `https://supabase.com/dashboard/project/${BR.ref}/sql/new`; $('m-sql').classList.add('open'); }
 
 // ───────── Login (mesma conta do Monitor) ─────────
@@ -629,6 +710,7 @@ const params = new URLSearchParams(location.search);
 const ehCelular = matchMedia('(pointer:coarse)').matches && innerWidth < 900;
 
 async function iniciar() {
+  enviarFila();
   const id = params.get('inv');
   if (id) await abrirInv(id, params.get('cam') === '1' && ehCelular);
   else await carregarLista();
@@ -658,8 +740,10 @@ async function carregarLista() {
   ui.inv = null; pararTempoReal(); pararCamera();
   $('v-inv').style.display = 'none'; $('v-lista').style.display = '';
   const { data, error } = await supabase.from('inventarios').select('id,cliente,fornecedor,relatorio_data,status,criado_por,criado_em,fechado_em,esperado,obs').eq('filial', FILIAL).order('criado_em', { ascending: false }).limit(200);
+  if (error && erroRede(error)) { try { ui.invs = JSON.parse(localStorage.getItem('gf_inv_lista_' + FILIAL) || '[]'); } catch (e) { ui.invs = []; } toast('📶 Sem internet: mostrando a última lista salva neste aparelho.', 'info'); ui.contagem = new Map(); desenharLista(); return; }
   if (error) { if (semTabela(error)) pedirSql(); else toast('Erro ao carregar: ' + error.message, 'err'); ui.invs = []; desenharLista(); return; }
   ui.invs = data || [];
+  try { localStorage.setItem('gf_inv_lista_' + FILIAL, JSON.stringify(ui.invs.slice(0, 80).map(i => ({ ...i, esperado: [{ saldo: (i.esperado || []).reduce((s, e) => s + Number(e.saldo || 0), 0) }] })))); } catch (e) {}
   const abertos = ui.invs.filter(i => i.status === 'aberto').map(i => i.id);
   ui.contagem = new Map();
   if (abertos.length) {
@@ -668,7 +752,21 @@ async function carregarLista() {
   }
   desenharLista();
 }
+// ⏰ clientes cujo último inventário (encerrado) passou do prazo
+function painelAtraso() {
+  const p = $('p-atraso'); if (TIPO === 'estoque') { p.style.display = 'none'; return; }
+  let dias = 30; try { dias = Number(localStorage.getItem('gf_inv_periodo')) || 30; } catch (e) {}
+  const ult = new Map(); ui.invs.filter(i => !ehEstoque(i)).forEach(i => { const k = norm(i.cliente), o = ult.get(k); if (!o || String(i.criado_em) > String(o.criado_em)) ult.set(k, i); });
+  if (!ult.size) { p.style.display = 'none'; return; }
+  const at = [...ult.values()].filter(i => i.status === 'fechado').map(i => ({ i, d: -diasAte(String(i.criado_em).slice(0, 10)) })).filter(x => x.d >= dias).sort((x, y) => y.d - x.d);
+  p.style.display = '';
+  p.innerHTML = `<h4>⏰ Periodicidade dos inventários <span class="muted">avisar quando passar de</span><select id="periodo">${[15, 30, 45, 60, 90, 120].map(n => `<option value="${n}" ${n === dias ? 'selected' : ''}>${n} dias</option>`).join('')}</select></h4>`
+    + (at.length ? `<div style="font-weight:700;color:var(--crit-c);font-size:.8rem;margin-bottom:4px">${at.length} cliente${at.length === 1 ? '' : 's'} com inventário atrasado:</div>` + at.map(x => `<div style="font-size:.8rem;padding:5px 0;border-top:1px dashed var(--border)"><b>${esc(x.i.cliente)}</b> · último há <b style="color:var(--crit-c)">${x.d} dias</b> <span class="muted">(${dataBR(String(x.i.criado_em).slice(0, 10))})</span></div>`).join('')
+      : `<div class="muted">✅ Todos os clientes com inventário nos últimos ${dias} dias.</div>`);
+  $('periodo').onchange = e => { try { localStorage.setItem('gf_inv_periodo', e.target.value); } catch (er) {} painelAtraso(); };
+}
 function desenharLista() {
+  painelAtraso();
   ['aberto', 'fechado', ''].forEach(f => $('fl-' + (f || 'todos')).classList.toggle('p', ui.fl === f));
   const b = norm(ui.buscaInv);
   const l = ui.invs.filter(i => doTipo(i) && (!ui.fl || i.status === ui.fl) && (!b || norm(i.cliente + ' ' + i.fornecedor).includes(b)));
@@ -772,29 +870,80 @@ drop.addEventListener('drop', e => importarPdfs(e.dataTransfer.files));
 
 // ───────── Inventário aberto ─────────
 window.abrirInv = async (id, comCamera) => {
-  const { data, error } = await supabase.from('inventarios').select('*').eq('id', id).maybeSingle();
+  let { data, error } = await supabase.from('inventarios').select('*').eq('id', id).maybeSingle(), offline = null;
+  if (error && erroRede(error)) { try { offline = JSON.parse(localStorage.getItem(cacheK(id)) || 'null'); } catch (e) {} if (offline) { data = offline.inv; error = null; toast('📶 Sem internet: abri a cópia salva neste aparelho. O que bipar fica guardado e sobe quando a conexão voltar.', 'info'); } }
   if (error || !data) { toast(error ? 'Erro: ' + error.message : 'Inventário não encontrado', 'err'); if (error && semTabela(error)) pedirSql(); return carregarLista(); }
-  ui.inv = data; ui.filtro = ''; ui.busca = ''; $('busca').value = '';
+  ui.inv = data; ui.filtro = ''; ui.busca = ''; $('busca').value = ''; ui.leit = offline ? offline.leit || [] : []; ui.usos = null; ui.hist = null;
+  try { $('local-bip').value = sessionStorage.getItem('gf_inv_local_' + id) || ''; } catch (e) {}
   const u = new URL(location.href); u.searchParams.set('inv', id); u.searchParams.delete('cam'); history.replaceState(null, '', u.href);
   $('v-lista').style.display = 'none'; $('v-inv').style.display = '';
   await carregarLeituras(); desenharInv(); iniciarTempoReal();
+  if (!offline) { carregarHistorico(); if (!ehEstoque(data)) cruzarCirurgias(false); }
   if (comCamera && data.status === 'aberto') alternarCamera(); else focarBip();
 };
 async function carregarLeituras() {
   if (!ui.inv) return;
-  const { data, error } = await supabase.from('inventario_leituras').select('*').eq('inventario_id', ui.inv.id).order('criado_em', { ascending: true }).limit(20000);
-  if (error) { toast('Erro ao carregar leituras: ' + error.message, 'err'); return; }
-  const tmp = ui.leit.filter(l => l._tmp);
-  ui.leit = [...(data || []), ...tmp];
+  const id = ui.inv.id, { data, error } = await supabase.from('inventario_leituras').select('*').eq('inventario_id', id).order('criado_em', { ascending: true }).limit(20000);
+  if (ui.inv?.id !== id) return;
+  if (error && !erroRede(error)) toast('Erro ao carregar leituras: ' + error.message, 'err');
+  // as guardadas no aparelho (sem internet) continuam aparecendo até subir
+  const fila = lerFila().filter(x => x.reg.inventario_id === id).map(x => ({ ...x.reg, id: x.tid, _tmp: true, _fila: true, criado_em: x.em }));
+  const tmp = ui.leit.filter(l => l._tmp && !l._fila && l.inventario_id === id);
+  ui.leit = [...(error ? ui.leit.filter(l => !l._tmp) : data || []), ...tmp, ...fila];
+  if (!error) guardarCache();
 }
+// ───────── Sem internet: leituras guardadas no aparelho e cópia do inventário ─────────
+const FILA_K = 'gf_inv_fila_' + BRANCH, cacheK = id => 'gf_inv_cache_' + id;
+const lerFila = () => { try { return JSON.parse(localStorage.getItem(FILA_K) || '[]'); } catch (e) { return []; } };
+const gravarFila = f => { try { localStorage.setItem(FILA_K, JSON.stringify(f)); } catch (e) { toast('Memória do aparelho cheia — não consegui guardar a leitura.', 'err'); } };
+let _cacheT = null;
+function guardarCache() {
+  clearTimeout(_cacheT); _cacheT = setTimeout(() => { if (!ui.inv) return; try {
+    const { fotos, ...ex } = EX();   // fotos não (pesadas)
+    localStorage.setItem(cacheK(ui.inv.id), JSON.stringify({ inv: { ...ui.inv, extra: ex }, leit: ui.leit.filter(l => !l._tmp), em: Date.now() }));
+    const ks = JSON.parse(localStorage.getItem('gf_inv_cache_ids') || '[]').filter(x => x !== ui.inv.id); ks.unshift(ui.inv.id);
+    ks.slice(5).forEach(x => localStorage.removeItem(cacheK(x))); localStorage.setItem('gf_inv_cache_ids', JSON.stringify(ks.slice(0, 5)));
+  } catch (e) {} }, 1500);
+}
+async function inserirLeitura(reg) {
+  let r = await supabase.from('inventario_leituras').insert(reg).select('*').single();
+  if (r.error && reg.local && semColuna(r.error)) {   // coluna "local" ainda não criada: grava sem o local
+    if (!window._avisouLocal) { window._avisouLocal = true; pedirSql(); toast('Para gravar o 📍 local, rode o SQL novo do inventário (janela aberta). A leitura foi gravada sem o local.', 'err'); }
+    const { local, ...sem } = reg; r = await supabase.from('inventario_leituras').insert(sem).select('*').single();
+  }
+  return r;
+}
+let _enviando = false;
+window.enviarFila = async () => {
+  avisoFila(); if (_enviando || !navigator.onLine) return;
+  const f = lerFila(); if (!f.length) return;
+  _enviando = true; let ok = 0;
+  try {
+    for (const x of f) {
+      const { data, error } = await inserirLeitura(x.reg);
+      if (error && erroRede(error)) break;
+      gravarFila(lerFila().filter(y => y.tid !== x.tid));
+      const i = ui.leit.findIndex(l => l.id === x.tid);
+      if (error) { if (i >= 0) ui.leit.splice(i, 1); toast('Uma leitura guardada não foi aceita: ' + error.message, 'err'); continue; }
+      ok++; if (i >= 0) ui.leit[i] = data;
+    }
+  } finally { _enviando = false; }
+  if (ok) { toast(`📶 Internet de volta: ${ok} leitura${ok === 1 ? '' : 's'} guardada${ok === 1 ? '' : 's'} enviada${ok === 1 ? '' : 's'}`); if (ui.inv) { ui.leit = ui.leit.filter((l, i, a) => !l.id || a.findIndex(y => y.id === l.id) === i); desenharInv(); guardarCache(); } }
+  avisoFila();
+};
+function avisoFila() { const n = lerFila().length; $('fila-aviso').classList.toggle('on', n > 0); $('fila-n').textContent = n; }
+addEventListener('online', () => enviarFila()); addEventListener('offline', avisoFila); setInterval(() => enviarFila(), 20000);
 // compara o relatório com o que foi bipado
-function apurar() {
-  const linhas = (ui.inv?.esperado || []).map(e => ({ ...e, tipo: 'esp', bip: 0, venc: diasAte(e.validade) }));
+const kL = (cod, lote) => norm(cod) + '|' + norm(lote);
+function apurar(inv = ui.inv, leit = ui.leit) {
+  const rc = inv?.extra?.recont || {};
+  const linhas = (inv?.esperado || []).map(e => ({ ...e, tipo: 'esp', bip: 0, antes: 0, recont: !!rc[kL(e.cod, e.lote)], venc: diasAte(e.validade) }));
   const porLote = new Map(linhas.map(r => [norm(r.cod) + '|' + norm(r.lote), r]));
   const sobras = new Map();
-  ui.leit.forEach(l => {
+  leit.forEach(l => {
     const r = l.codigo ? porLote.get(norm(l.codigo) + '|' + norm(l.lote)) : null;
-    if (r) { r.bip += Number(l.qtd || 0); return; }
+    // recontagem: as leituras de antes da recontagem desse lote ficam guardadas, mas vale a contagem nova
+    if (r) { const t = rc[kL(r.cod, r.lote)]; if (t && !l._tmp && String(l.criado_em || '') < t) r.antes += Number(l.qtd || 0); else r.bip += Number(l.qtd || 0); return; }
     const k = (l.gtin || '') + '|' + norm(l.lote || l.bruto);
     const s = sobras.get(k) || { tipo: 'sobra', cod: l.codigo || '', produto: l.produto || '', gtin: l.gtin, lote: l.lote || '', validade: l.validade, venc: diasAte(l.validade), saldo: 0, vunit: 0, nfs: [], bip: 0 };
     s.bip += Number(l.qtd || 0); sobras.set(k, s);
@@ -807,62 +956,176 @@ function apurar() {
     esp: tot(linhas, r => r.saldo), conf: tot(linhas, r => Math.min(r.bip, r.saldo)),
     espVal: tot(linhas, r => r.saldo * r.vunit), fis: tot(linhas, r => r.bip), fisVal: tot(linhas, r => r.bip * r.vunit),
     falta: tot(linhas, r => Math.max(0, r.saldo - r.bip)), faltaVal: tot(linhas, r => Math.max(0, r.saldo - r.bip) * r.vunit),
-    exc: tot(linhas, r => Math.max(0, r.bip - r.saldo)) + tot(sob, s => s.bip), bip: tot(ui.leit, l => Number(l.qtd || 0)),
+    exc: tot(linhas, r => Math.max(0, r.bip - r.saldo)) + tot(sob, s => s.bip), bip: tot(leit, l => Number(l.qtd || 0)),
     venc: linhas.filter(r => r.venc != null && r.venc <= 90 && r.saldo > 0).length,
   };
 }
 const ehEstoque = inv => inv?.obs === 'estoque';
+const EX = () => ui.inv?.extra || {};
+// grava no "extra" do inventário: relê do banco antes (outro aparelho pode ter mudado) e aplica só a alteração
+async function salvarExtra(mut, quieto) {
+  const id = ui.inv?.id; if (!id) return false;
+  const { data: f, error: e0 } = await supabase.from('inventarios').select('extra').eq('id', id).maybeSingle();
+  const falhou = e => { if (quieto) return false; if (semColuna(e)) { pedirSql(); toast('Falta rodar o SQL novo do inventário (coluna "extra") — copie da janela e rode no Supabase.', 'err'); } else toast('Não salvou: ' + (erroRede(e) ? 'sem internet' : e.message), 'err'); return false; };
+  if (e0) return falhou(e0);
+  const ex = JSON.parse(JSON.stringify(f?.extra || {})); mut(ex);
+  const { error } = await supabase.from('inventarios').update({ extra: ex }).eq('id', id);
+  if (error) return falhou(error);
+  if (ui.inv?.id === id) ui.inv.extra = ex; guardarCache(); return true;
+}
+// contagem cega (estoque): quem conta não vê o saldo do sistema
+const cega = () => ehEstoque(ui.inv) && !!EX().cega && ui.inv?.status === 'aberto';
+const semCega = () => { if (!cega()) return false; toast('🙈 Contagem cega ligada: toque em 👁 Revelar resultado primeiro.', 'err'); return true; };
+const iniciais = s => String(s || '').trim().split(/\s+/).filter(Boolean).map(x => x[0].toUpperCase() + '.').join('') || '—';
+const isoDe = s => /^\d{4}-\d{2}-\d{2}/.test(s || '') ? String(s).slice(0, 10) : /^\d{2}\/\d{2}\/\d{4}/.test(s || '') ? s.slice(6, 10) + '-' + s.slice(3, 5) + '-' + s.slice(0, 2) : '';
+// curto: paciente só com as iniciais (texto que sai para fora: WhatsApp, e-mail, relatório)
+const usoTxt = (u, curto) => `${u.fonte} · ${curto ? iniciais(u.paciente) : u.paciente || '—'} · ${dataBR(u.data)}${u.pedido ? ' · PV ' + u.pedido : ''}`;
+const justDe = r => (EX().just || {})[kL(r.cod, r.lote)];
+const motivoTxt = r => { const j = justDe(r), us = ui.usos?.get(kL(r.cod, r.lote)); return j ? [j.m, j.o].filter(Boolean).join(' — ') : us?.length ? 'Encontrado em cirurgia: ' + usoTxt(us[0], true) : ''; };
+const faixa = v => v == null ? null : v < 0 ? 'v0' : v <= 30 ? 'v30' : v <= 60 ? 'v60' : v <= 90 ? 'v90' : null;
+const ROT_FX = { v0: '⛔ Vencidos', v30: '⌛ Vencem em até 30 dias', v60: '⌛ 31 a 60 dias', v90: '⌛ 61 a 90 dias' };
 const relNome = inv => ehEstoque(inv) ? 'S013 - Estoque' : 'C457';
 const ST_TXT = { ok: '✅ Conferido', falta: '⚠ Faltando', exc: '➕ A mais', sobra: '➕ Fora do relatório' };
 function desenharInv() {
   const inv = ui.inv; if (!inv) return;
   document.body.classList.toggle('fechado', inv.status === 'fechado');
   $('qtd-box').style.display = ehEstoque(inv) ? '' : 'none';
+  const est = ehEstoque(inv), C = cega();
+  $('loc-box').style.display = est ? '' : 'none';
+  $('cega-aviso').style.display = C ? '' : 'none';
+  $('b-cir').style.display = est ? 'none' : ''; $('b-ajuste').style.display = est ? '' : 'none';
+  $('b-cega').style.display = est ? '' : 'none'; $('b-cega').textContent = C ? '👁 Revelar resultado' : '🙈 Contagem cega';
+  $('b-recont').style.display = est && !C ? '' : 'none';
+  $('dl-locais').innerHTML = [...new Set(ui.leit.map(l => l.local).filter(Boolean))].map(l => `<option value="${esc(l)}">`).join('');
+  if (C && /^(ok|falta|exc)$/.test(ui.filtro)) ui.filtro = '';
   $('i-cli').textContent = inv.cliente;
-  $('i-info').innerHTML = `${esc(inv.fornecedor || 'Todos os fornecedores')} · relatório ${relNome(inv)} de ${dataBR(inv.relatorio_data)}<br>Iniciado por ${esc(inv.criado_por || '—')} em ${dataHoraBR(inv.criado_em)}`;
+  $('i-info').innerHTML = `${esc(inv.fornecedor || 'Todos os fornecedores')} · relatório ${relNome(inv)} de ${dataBR(inv.relatorio_data)}<br>Iniciado por ${esc(inv.criado_por || '—')} em ${dataHoraBR(inv.criado_em)}${(() => { const A = EX().ass || {}; return A.cli || A.gf ? `<br>✍️ Assinado: ${[A.cli && 'cliente (' + esc(A.cli.nome) + ')', A.gf && 'GF Medical (' + esc(A.gf.nome) + ')'].filter(Boolean).join(' · ')}` : ''; })()}`;
   $('i-status').className = 'tag ' + (inv.status === 'aberto' ? 'ab' : 'fe'); $('i-status').textContent = inv.status === 'aberto' ? 'em andamento' : 'encerrado';
   $('i-fechado-info').textContent = inv.status === 'fechado' ? `✔ Encerrado por ${inv.fechado_por || '—'} em ${dataHoraBR(inv.fechado_em)}. Reabra para bipar de novo.` : '';
   $('b-excluir').style.display = _role === 'admin' ? '' : 'none';
   const a = apurar(), pct = a.esp ? Math.round(a.conf / a.esp * 100) : 0;
   const k = (f, cls, rot, val, sub) => `<div class="kpi ${cls} ${ui.filtro === f ? 'on' : ''}" data-f="${f}"><span>${rot}</span><b>${val}</b>${sub ? `<small>${sub}</small>` : ''}</div>`;
-  $('kpis').innerHTML = k('', '', 'No relatório', qtd(a.esp) + ' un.', `${a.linhas.length} lotes`) + k('ok', 'ok', '✅ Conferido', qtd(a.conf), pct + '%')
+  const nRc = a.linhas.filter(r => r.recont).length;
+  $('kpis').innerHTML = C ? k('bip', '', '🔫 Contados', qtd(a.bip) + ' un.', ui.leit.length + ' leituras') + k('', '', 'Lotes no relatório', a.linhas.length, 'saldo escondido') + k('cont', 'ok', '🔢 Lotes já contados', a.linhas.filter(r => r.bip > 0).length, 'de ' + a.linhas.length) + (nRc ? k('rc', 'av', '🔁 A recontar', nRc, 'lotes') : '') : k('', '', 'No relatório', qtd(a.esp) + ' un.', `${a.linhas.length} lotes`) + k('ok', 'ok', '✅ Conferido', qtd(a.conf), pct + '%')
     + k('falta', 'av', '⚠ Faltando', qtd(a.falta), brl(a.faltaVal)) + k('exc', 'er', '➕ A mais / fora', qtd(a.exc), 'não estão no saldo')
-    + k('venc', 'er', '⌛ Validade ≤ 90 d', a.venc, 'lotes') + k('bip', '', '🔫 Bipados', qtd(a.bip), ui.leit.length + ' leituras');
-  $('kpis').querySelectorAll('[data-f]').forEach(el => el.onclick = () => { ui.filtro = ui.filtro === el.dataset.f ? '' : el.dataset.f; desenharInv(); });
+    + k('venc', 'er', '⌛ Validade ≤ 90 d', a.venc, 'lotes') + k('bip', '', '🔫 Bipados', qtd(a.bip), ui.leit.length + ' leituras') + (nRc ? k('rc', 'av', '🔁 Em recontagem', nRc, 'lotes') : '');
+  // validade em faixas: vencidos · 30 · 60 · 90 dias (toque para filtrar)
+  const fx = { v0: [], v30: [], v60: [], v90: [] }; a.linhas.forEach(r => { const f = faixa(r.venc); if (f && (r.saldo > 0 || r.bip > 0)) fx[f].push(r); });
+  $('venc-faixas').innerHTML = Object.keys(fx).filter(f => fx[f].length).map(f => `<button type="button" class="chip ${f} ${ui.filtro === f ? 'on' : ''}" data-f="${f}">${ROT_FX[f]}: ${fx[f].length} lote${fx[f].length === 1 ? '' : 's'}${C ? '' : ' · ' + qtd(fx[f].reduce((s, r) => s + r.saldo, 0)) + ' un. · ' + brl(fx[f].reduce((s, r) => s + r.saldo * r.vunit, 0))}</button>`).join('');
+  document.querySelectorAll('#kpis [data-f], #venc-faixas [data-f]').forEach(el => el.onclick = () => { ui.filtro = ui.filtro === el.dataset.f ? '' : el.dataset.f; desenharInv(); });
+  ui.vezes = new Map(); (ui.hist || []).forEach(x => (x.faltaCods || []).forEach(c => ui.vezes.set(c, (ui.vezes.get(c) || 0) + 1)));
   const b = norm(ui.busca);
   let l = [...a.linhas, ...a.sobras];
   if (ui.filtro === 'ok' || ui.filtro === 'falta') l = l.filter(r => r.st === ui.filtro);
   else if (ui.filtro === 'exc') l = l.filter(r => r.st === 'exc' || r.st === 'sobra');
   else if (ui.filtro === 'venc') l = l.filter(r => r.venc != null && r.venc <= 90);
-  else if (ui.filtro === 'bip') l = l.filter(r => r.bip > 0);
+  else if (ui.filtro === 'bip' || ui.filtro === 'cont') l = l.filter(r => r.bip > 0);
+  else if (ui.filtro === 'rc') l = l.filter(r => r.recont);
+  else if (/^v\d+$/.test(ui.filtro)) l = l.filter(r => faixa(r.venc) === ui.filtro);
   if (b) l = l.filter(r => norm([r.cod, r.produto, r.lote, r.gtin, ...(r.nfs || []).map(n => n.nf)].join(' ')).includes(b));
   const ordem = { falta: 0, exc: 1, sobra: 2, ok: 3 };
-  l.sort((x, y) => ordem[x.st] - ordem[y.st] || String(x.cod).localeCompare(String(y.cod)) || String(x.lote).localeCompare(String(y.lote)));
-  $('tb').innerHTML = `<thead><tr><th>Situação</th><th class="c-q"></th><th>Código</th><th>Produto</th><th>Lote</th><th>Validade</th><th>NF</th><th class="n">Saldo</th><th class="n">Bipado</th><th class="n">Valor un.</th></tr></thead><tbody>${l.map(r => `<tr class="st-${r.st}">
-    <td class="st c-st ${r.st}">${ST_TXT[r.st]}${r.st === 'falta' && r.bip ? ` (${qtd(r.saldo - r.bip)})` : r.st === 'exc' ? ` (+${qtd(r.bip - r.saldo)})` : ''}</td>
-    <td class="c-q">${qtd(r.bip)}<small>/${r.tipo === 'esp' ? qtd(r.saldo) : '—'}</small>${r.tipo === 'esp' && inv.status === 'aberto' ? `<button class="mais1" type="button" title="Etiqueta sem código de barras: contar 1 deste lote" onclick="contarManual('${esc(r.cod)}','${esc(r.lote)}')">+1</button>` : ''}</td><td class="mono c-cod">${esc(r.cod || '—')}</td><td class="c-prod">${esc(r.produto || (r.gtin ? 'GTIN ' + r.gtin : 'Não identificado'))}</td><td class="mono c-lote">${esc(r.lote || '—')}</td>
+  l.sort((x, y) => (C ? 0 : ordem[x.st] - ordem[y.st]) || String(x.cod).localeCompare(String(y.cod)) || String(x.lote).localeCompare(String(y.lote)));
+  $('tb').innerHTML = `<thead><tr><th>Situação</th><th class="c-q"></th><th>Código</th><th>Produto</th><th>Lote</th><th>Validade</th><th>NF</th><th class="n">Saldo</th><th class="n">Bipado</th><th class="n">Valor un.</th></tr></thead><tbody>${l.map(r => `<tr class="st-${C ? (r.bip ? 'ok' : '') : r.st}">
+    <td class="st c-st ${C ? (r.bip ? 'ok' : '') : r.st}">${C ? (r.bip ? '🔢 Contado' : '⬜ Não contado') : ST_TXT[r.st] + (r.st === 'falta' && r.bip ? ` (${qtd(r.saldo - r.bip)})` : r.st === 'exc' ? ` (+${qtd(r.bip - r.saldo)})` : '')}${C ? '' : `<button class="ev" type="button" title="Anexar foto de evidência" onclick="anexarFoto('${esc(kL(r.cod, r.lote))}')">📷</button>`}${extrasLinha(r, C)}</td>
+    <td class="c-q">${qtd(r.bip)}<small>/${r.tipo === 'esp' && !C ? qtd(r.saldo) : '—'}</small>${r.tipo === 'esp' && inv.status === 'aberto' ? `<button class="mais1" type="button" title="Etiqueta sem código de barras: contar 1 deste lote" onclick="contarManual('${esc(r.cod)}','${esc(r.lote)}')">+1</button>` : ''}</td><td class="mono c-cod">${esc(r.cod || '—')}</td><td class="c-prod">${esc(r.produto || (r.gtin ? 'GTIN ' + r.gtin : 'Não identificado'))}</td><td class="mono c-lote">${esc(r.lote || '—')}</td>
     <td class="mono c-val ${r.venc != null && r.venc <= 90 ? 'venc' : ''}" title="${r.venc != null ? (r.venc < 0 ? 'vencido há ' + -r.venc + ' dias' : 'vence em ' + r.venc + ' dias') : ''}">${dataVal(r.validade)}${r.venc != null && r.venc < 0 ? ' ⛔' : r.venc != null && r.venc <= 90 ? ' ⌛' : ''}</td>
-    <td class="mono c-nf">${esc((r.nfs || []).map(n => n.nf).join(', ') || '—')}</td><td class="n c-x">${r.tipo === 'esp' ? qtd(r.saldo) : '—'}</td><td class="n c-x"><b>${qtd(r.bip)}</b>${r.tipo === 'esp' && inv.status === 'aberto' ? `<button class="mais1" type="button" title="Etiqueta sem código de barras: contar 1 deste lote" onclick="contarManual('${esc(r.cod)}','${esc(r.lote)}')">+1</button>` : ''}</td><td class="n c-x">${r.vunit ? brl(r.vunit) : '—'}</td></tr>`).join('') || '<tr><td colspan="9" class="muted" style="padding:16px">Nada neste filtro.</td></tr>'}</tbody>`;
+    <td class="mono c-nf">${esc((r.nfs || []).map(n => n.nf).join(', ') || '—')}</td><td class="n c-x">${r.tipo === 'esp' ? (C ? '•••' : qtd(r.saldo)) : '—'}</td><td class="n c-x"><b>${qtd(r.bip)}</b>${r.tipo === 'esp' && inv.status === 'aberto' ? `<button class="mais1" type="button" title="Etiqueta sem código de barras: contar 1 deste lote" onclick="contarManual('${esc(r.cod)}','${esc(r.lote)}')">+1</button>` : ''}</td><td class="n c-x">${r.vunit ? brl(r.vunit) : '—'}</td></tr>`).join('') || '<tr><td colspan="9" class="muted" style="padding:16px">Nada neste filtro.</td></tr>'}</tbody>`;
   const S = (f, ls = l) => ls.reduce((s, r) => s + f(r), 0), esp = l.filter(r => r.tipo === 'esp');
   const ok = esp.filter(r => r.st === 'ok'), fal = esp.filter(r => r.st === 'falta'), exc = l.filter(r => r.st === 'exc' || r.st === 'sobra'), ven = esp.filter(r => r.venc != null && r.venc <= 90);
   const cx = (cls, rot, un, val, sub) => `<div class="${cls}">${rot}<b>${qtd(un)} un.${val != null ? ' · ' + brl(val) : ''}</b>${sub || ''}</div>`;
-  $('tb-tot').innerHTML = l.length ? cx('t', `TOTAL da lista (${l.length} lote${l.length === 1 ? '' : 's'}) · saldo`, S(r => r.saldo, esp), S(r => r.saldo * r.vunit, esp), `bipado: ${qtd(S(r => r.bip))} un. · ${brl(S(r => r.bip * (r.vunit || 0)))}`)
+  $('tb-tot').innerHTML = C ? `<div class="t">🔫 Contado nesta lista (${l.length} lotes)<b>${qtd(S(r => r.bip))} un.</b></div>` : l.length ? cx('t', `TOTAL da lista (${l.length} lote${l.length === 1 ? '' : 's'}) · saldo`, S(r => r.saldo, esp), S(r => r.saldo * r.vunit, esp), `bipado: ${qtd(S(r => r.bip))} un. · ${brl(S(r => r.bip * (r.vunit || 0)))}`)
     + cx('ok', '✅ Conferido (encontrado do saldo)', S(r => Math.min(r.bip, r.saldo), esp), S(r => Math.min(r.bip, r.saldo) * r.vunit, esp), `${ok.length} lote${ok.length === 1 ? '' : 's'} completo${ok.length === 1 ? '' : 's'}`)
     + cx('av', '⚠ Faltando', S(r => Math.max(0, r.saldo - r.bip), esp), S(r => Math.max(0, r.saldo - r.bip) * r.vunit, esp), `${fal.length} lote${fal.length === 1 ? '' : 's'}`)
     + (exc.length ? cx('er', '➕ A mais / fora', S(r => r.bip - (r.tipo === 'esp' ? r.saldo : 0), exc), null) : '')
     + (ven.length ? cx('er', `⌛ Vencidos / ≤ 90 dias (${ven.filter(r => r.venc < 0).length} vencidos)`, S(r => r.saldo, ven), S(r => r.saldo * r.vunit, ven)) : '') : '';
+  [['p-cir', C ? '' : painelCir(a)], ['p-locais', painelLocais()], ['p-hist', C ? '' : painelHist(a)]].forEach(([id, x]) => { $(id).style.display = x ? '' : 'none'; $(id).innerHTML = x; });
   const ult = [...ui.leit].reverse().slice(0, 60);
   $('n-leit').textContent = ui.leit.length ? `· ${ui.leit.length} (últimas ${ult.length})` : '';
   $('leituras').innerHTML = ult.map(x => `<div class="l"><span>${x.codigo ? '✅' : '➕'}</span><span>${Number(x.qtd) > 1 ? `<b style="color:#6d28d9">${qtd(x.qtd)}×</b> ` : ''}<b class="mono">${esc(x.codigo || x.gtin || '—')}</b> · lote <span class="mono">${esc(x.lote || '—')}</span> ${x.produto ? '· ' + esc(x.produto) : ''}</span>
-    <span class="h">${x.origem === 'camera' ? '📷' : x.origem === 'manual' ? '✍️' : x.origem === 'foto' ? '🖼' : '🔫'} ${esc(String(x.usuario || '').replace(/\s*\(.*\)$/, ''))} · ${x._tmp ? 'enviando…' : dataHoraBR(x.criado_em).slice(11)}</span>${inv.status === 'aberto' && !x._tmp ? `<button class="x" title="Desfazer esta leitura" onclick="desfazer('${x.id}')">✕</button>` : ''}</div>`).join('') || '<div class="muted" style="padding:8px 0">Nenhuma leitura ainda.</div>';
+    <span class="h">${x.local ? '📍 ' + esc(x.local) + ' · ' : ''}${x.origem === 'camera' ? '📷' : x.origem === 'manual' ? '✍️' : x.origem === 'foto' ? '🖼' : '🔫'} ${esc(String(x.usuario || '').replace(/\s*\(.*\)$/, ''))} · ${x._fila ? '📶 guardada, aguardando internet' : x._tmp ? 'enviando…' : dataHoraBR(x.criado_em).slice(11)}</span>${inv.status === 'aberto' && (!x._tmp || x._fila) ? `<button class="x" title="Desfazer esta leitura" onclick="desfazer('${x.id}')">✕</button>` : ''}</div>`).join('') || '<div class="muted" style="padding:8px 0">Nenhuma leitura ainda.</div>';
 }
 $('busca').oninput = e => { ui.busca = e.target.value; desenharInv(); };
+// selos de cada lote na tabela: recontagem, cirurgia, faltou antes, justificativa, fotos
+function extrasLinha(r, C) {
+  if (C) return r.recont ? '<br><span class="bdg rc">🔁 recontar este lote</span>' : '';
+  const k = kL(r.cod, r.lote), j = (EX().just || {})[k], us = ui.usos?.get(k), n = ui.vezes?.get(r.cod), f = (EX().fotos || {})[k];
+  return (r.recont ? `<br><span class="bdg rc">🔁 recontagem · 1ª contagem: ${qtd(r.antes)}</span>` : '')
+    + (r.st === 'falta' && us?.length ? `<br><span class="bdg cir">🩺 ${us.some(u => u.faturado) ? 'usado e faturado' : 'usado em cirurgia — faturar'}: ${esc(usoTxt(us[0]))}${us.length > 1 ? ` (+${us.length - 1})` : ''}</span>` : '')
+    + (r.st === 'falta' && n ? `<br><span class="bdg rep">🔁 faltou também em ${n} inventário${n > 1 ? 's' : ''} anterior${n > 1 ? 'es' : ''}</span>` : '')
+    + (j && r.st === 'falta' ? `<br><span class="bdg jus">📝 ${esc(j.m || 'obs.')}${j.o ? ' · ' + esc(j.o) : ''}</span>` : '')
+    + (f?.length ? `<br><button type="button" class="bdg" onclick="verFotos('${esc(k)}')">📎 ${f.length} foto${f.length > 1 ? 's' : ''}</button>` : '');
+}
+// 🩺 faltantes do consignado × cirurgias do Monitor (fichas OPME e itens da cirurgia, pelo lote)
+function painelCir(a) {
+  if (!ui.usos || ehEstoque(ui.inv)) return '';
+  const l = a.linhas.filter(r => r.st === 'falta' && ui.usos.has(kL(r.cod, r.lote)));
+  if (!l.length) return a.falta ? `<h4>🩺 Cruzamento com cirurgias</h4><div class="muted">Nenhum lote faltante apareceu nas fichas OPME nem nas cirurgias do Monitor.</div>` : '';
+  const un = l.reduce((s, r) => s + r.saldo - r.bip, 0), val = l.reduce((s, r) => s + (r.saldo - r.bip) * r.vunit, 0);
+  return `<h4>🩺 Faltantes que aparecem em cirurgias <span class="muted">${l.length} lote${l.length === 1 ? '' : 's'} · ${qtd(un)} un. · ${brl(val)}</span></h4>
+    <div class="muted" style="margin-bottom:4px">Provavelmente foram usados: confira e fature (🧾) — os já faturados aparecem em 🟢.</div>
+    ${l.map(r => `<div style="font-size:.78rem;padding:6px 0;border-top:1px dashed var(--border)"><b class="mono">${esc(r.cod)}</b> ${esc(r.produto)} · lote <b class="mono">${esc(r.lote)}</b> · falta <b>${qtd(r.saldo - r.bip)}</b>${r.vunit ? ' · ' + brl((r.saldo - r.bip) * r.vunit) : ''}<br>${ui.usos.get(kL(r.cod, r.lote)).map(u => `<span class="bdg ${u.faturado ? '' : 'cir'}">${u.faturado ? '🟢 faturado' : '🧾 faturar'} · ${esc(usoTxt(u))}${u.hospital ? ' · ' + esc(u.hospital) : ''}</span>`).join(' ')}</div>`).join('')}`;
+}
+window.cruzarCirurgias = async manual => {
+  const inv = ui.inv; if (!inv || ehEstoque(inv)) return;
+  const falt = apurar().linhas.filter(r => r.st === 'falta' && norm(r.lote).replace(/\s+/g, '').length >= 3);
+  if (!falt.length) { ui.usos = new Map(); if (manual) toast('Nenhum item faltando para procurar.', 'info'); return desenharInv(); }
+  if (manual) $('b-cir').textContent = '🩺 Procurando…';
+  const nl = s => norm(s).replace(/\s+/g, ''), lotes = new Map(); falt.forEach(r => lotes.set(nl(r.lote), [...(lotes.get(nl(r.lote)) || []), r]));
+  const achou = new Map(), add = (lt, u) => (lotes.get(nl(lt)) || []).forEach(r => { const k = kL(r.cod, r.lote), l = achou.get(k) || []; if (!l.some(x => x.fonte === u.fonte && x.id === u.id)) l.push(u); achou.set(k, l); });
+  try {
+    const { data } = await supabase.from('fichas_opme').select('*').limit(5000);
+    (data || []).forEach(f => (Array.isArray(f.itens) ? f.itens : []).forEach(it => { if (it?.lote) add(it.lote, { fonte: 'Ficha OPME', id: f.id, paciente: f.paciente, hospital: f.hospital || f.cliente, data: isoDe(f.data_cirurgia) || isoDe(f.criado_em), pedido: f.numero_pedido, faturado: f.status === 'faturado' || f.status === 5 }); }));
+  } catch (e) {}
+  try {
+    const { data } = await supabase.from('procedimentos').select('*').ilike('itens', '%LOTE:%').limit(5000);
+    (data || []).forEach(p => String(p.itens || '').split('\n').forEach(l => { const lt = (l.match(/\[LOTE:([^\]]*)\]/) || [])[1]; if (lt) add(lt, { fonte: 'Cirurgia', id: p.id, paciente: p.paciente, hospital: p.hospital, data: isoDe(p.data) }); }));
+  } catch (e) {}
+  achou.forEach(l => l.sort((x, y) => String(y.data).localeCompare(String(x.data))));
+  ui.usos = achou;
+  if (manual) { $('b-cir').textContent = '🩺 Cruzar com cirurgias'; toast(achou.size ? `🩺 ${achou.size} lote(s) faltante(s) aparecem em cirurgias — veja abaixo da lista` : 'Nenhum faltante apareceu nas cirurgias registradas.', achou.size ? 'ok' : 'info'); }
+  if (ui.inv?.id === inv.id) desenharInv();
+};
+// 📍 andamento por local (estoque) e por pessoa
+function painelLocais() {
+  const lt = ui.leit; if (!lt.length) return '';
+  const nome = u => String(u || '').replace(/\s*\(.*\)$/, '') || '—';
+  const por = f => { const m = new Map(); lt.forEach(l => { const k = f(l) || '— sem local —', x = m.get(k) || { un: 0, n: 0, ult: '', lotes: new Set(), quem: new Set() }; x.un += Number(l.qtd || 0); x.n++; if (String(l.criado_em) > x.ult) x.ult = l.criado_em; x.lotes.add(l.codigo + '|' + l.lote); x.quem.add(nome(l.usuario)); m.set(k, x); }); return [...m.entries()].sort((p, q) => q[1].un - p[1].un); };
+  const temLoc = lt.some(l => l.local), pes = por(l => nome(l.usuario));
+  if (!temLoc && pes.length < 2 && !ehEstoque(ui.inv)) return '';
+  const tab = (tit, rows, col) => `<div style="flex:1;min-width:260px"><div style="font-weight:700;font-size:.78rem;margin-bottom:4px">${tit}</div><div class="tw"><table class="mini"><thead><tr><th>${col}</th><th class="n">Un.</th><th class="n">Lotes</th><th>${col === 'Local' ? 'Quem' : 'Última'}</th></tr></thead><tbody>${rows.map(([k, x]) => `<tr><td><b>${esc(k)}</b></td><td class="n">${qtd(x.un)}</td><td class="n">${x.lotes.size}</td><td class="muted">${col === 'Local' ? esc([...x.quem].join(', ')) : dataHoraBR(x.ult).slice(11)}</td></tr>`).join('')}</tbody></table></div></div>`;
+  return `<h4>📍 Andamento ${temLoc ? 'por local e ' : ''}por pessoa</h4><div style="display:flex;gap:12px;flex-wrap:wrap">${temLoc ? tab('Por local', por(l => l.local), 'Local') : ''}${tab('Por pessoa', pes, 'Pessoa')}</div>`;
+}
+// 📈 histórico: inventários anteriores do mesmo cliente / estoque
+function resumir(inv, leit) { const a = apurar(inv, leit); return { esp: a.esp, conf: a.conf, falta: a.falta, faltaVal: Math.round(a.faltaVal * 100) / 100, faltaCods: [...new Set(a.linhas.filter(r => r.st === 'falta').map(r => r.cod))] }; }
+async function carregarHistorico() {
+  const inv = ui.inv; if (!inv) return;
+  const { data, error } = await supabase.from('inventarios').select('*').eq('filial', FILIAL).eq('cliente', inv.cliente).eq('status', 'fechado').order('fechado_em', { ascending: false }).limit(8);
+  if (error || ui.inv?.id !== inv.id) return;
+  const ant = (data || []).filter(i => i.id !== inv.id && ehEstoque(i) === ehEstoque(inv)).slice(0, 6);
+  let lt = []; const semRes = ant.filter(i => !i.extra?.resumo).map(i => i.id);
+  if (semRes.length) { const { data: l } = await supabase.from('inventario_leituras').select('inventario_id,codigo,lote,qtd,criado_em').in('inventario_id', semRes).limit(50000); lt = l || []; }
+  ui.hist = ant.map(i => ({ id: i.id, em: i.fechado_em || i.criado_em, ...(i.extra?.resumo || resumir(i, lt.filter(l => l.inventario_id === i.id))) }));
+  if (ui.inv?.id === inv.id) desenharInv();
+}
+function painelHist(a) {
+  const h = ui.hist; if (!h || !h.length) return '';
+  const pc = x => x.esp ? Math.round(x.conf / x.esp * 100) + '%' : '—';
+  const de = [...new Set(a.linhas.filter(r => r.st === 'falta').map(r => r.cod))].filter(c => ui.vezes.get(c)).map(c => ({ c, n: ui.vezes.get(c), p: a.linhas.find(r => r.cod === c).produto })).sort((x, y) => y.n - x.n);
+  return `<h4>📈 Histórico ${ehEstoque(ui.inv) ? 'deste estoque' : 'deste cliente'} <span class="muted">${h.length} inventário${h.length === 1 ? '' : 's'} anterior${h.length === 1 ? '' : 'es'}</span></h4>
+    <div class="tw"><table class="mini"><thead><tr><th>Inventário</th><th class="n">Saldo</th><th class="n">Conferido</th><th class="n">Faltou</th><th class="n">Valor que faltou</th></tr></thead><tbody>
+    <tr style="font-weight:700"><td>Este (agora)</td><td class="n">${qtd(a.esp)}</td><td class="n">${pc(a)}</td><td class="n">${qtd(a.falta)}</td><td class="n">${brl(a.faltaVal)}</td></tr>
+    ${h.map(x => `<tr><td><a href="#" onclick="abrirInv('${x.id}');return false">${dataBR(String(x.em).slice(0, 10))}</a></td><td class="n">${qtd(x.esp)}</td><td class="n">${pc(x)}</td><td class="n">${qtd(x.falta)}</td><td class="n">${brl(x.faltaVal)}</td></tr>`).join('')}</tbody></table></div>
+    ${de.length ? `<div style="margin-top:10px;font-weight:700;color:var(--crit-c);font-size:.8rem">🔁 Faltando de novo: ${de.length} produto${de.length === 1 ? '' : 's'} que também faltaram antes</div>${de.slice(0, 20).map(s => `<div style="font-size:.76rem;margin-top:3px"><b class="mono">${esc(s.c)}</b> ${esc(s.p)} · faltou em <b>${s.n}</b> inventário${s.n > 1 ? 's' : ''} anterior${s.n > 1 ? 'es' : ''}</div>`).join('')}` : ''}`;
+}
 
 // ───────── Bipar ─────────
 let _ctx = null;
-function bipe(ok) {
-  try { _ctx = _ctx || new (window.AudioContext || window.webkitAudioContext)(); const tocar = (f, t0, d) => { const o = _ctx.createOscillator(), g = _ctx.createGain(); o.frequency.value = f; o.connect(g); g.connect(_ctx.destination); g.gain.value = .12; o.start(_ctx.currentTime + t0); o.stop(_ctx.currentTime + t0 + d); }; if (ok) tocar(1400, 0, .08); else { tocar(420, 0, .14); tocar(420, .2, .14); } } catch (e) {}
-  if (navigator.vibrate) navigator.vibrate(ok ? 70 : [80, 60, 80]);
+// som e vibração diferentes: ✅ certo (bip agudo curto) · ⚠ atenção (dois tons) · ❌ errado (buzina grave) — dá para bipar sem olhar a tela
+function bipe(k) {
+  k = k === true ? 'ok' : k === false ? 'er' : k;
+  try { _ctx = _ctx || new (window.AudioContext || window.webkitAudioContext)(); const tocar = (f, t0, d, tipo = 'sine') => { const o = _ctx.createOscillator(), g = _ctx.createGain(); o.type = tipo; o.frequency.value = f; o.connect(g); g.connect(_ctx.destination); g.gain.value = tipo === 'square' ? .07 : .12; o.start(_ctx.currentTime + t0); o.stop(_ctx.currentTime + t0 + d); };
+    if (k === 'ok') tocar(1400, 0, .08); else if (k === 'av') { tocar(880, 0, .1); tocar(620, .15, .14); } else { tocar(200, 0, .25, 'square'); tocar(200, .33, .25, 'square'); } } catch (e) {}
+  if (navigator.vibrate) navigator.vibrate(k === 'ok' ? 70 : k === 'av' ? [60, 50, 60] : [250, 100, 250]);
 }
 // produto vencido bipado: separar para devolver ao estoque da GF Medical
 const ALERTA_VENC = `<span class="alerta-venc">⛔ PRODUTO VENCIDO — separe esta embalagem para <u>devolver ao estoque da GF Medical</u>. Não deixe no cliente.</span>`;
@@ -880,10 +1143,13 @@ async function nomeDoGtin(gtin) {
   const { data } = await supabase.from('inventario_leituras').select('codigo,produto').eq('gtin', gtin).not('codigo', 'is', null).limit(1);
   const r = data && data[0] ? data[0] : null; _gtinNome.set(gtin, r); return r;
 }
+let _ultBip = { txt: '', em: 0 }, _vencK = null;
 async function registrar(bruto, origem, forcarCod, qtdForcada) {
   bruto = String(bruto || '').replace(/[\r\n]+/g, '').trim();
   if (!bruto || !ui.inv) return;
   if (ui.inv.status !== 'aberto') { ultimo('🔒 Inventário encerrado — reabra para bipar.', 'er'); return; }
+  // a mesma etiqueta duas vezes em menos de 2 s (gatilho apertado 2×): ignora; bipando de novo, conta
+  if (origem === 'leitor' && bruto === _ultBip.txt && Date.now() - _ultBip.em < 2000) { _ultBip.em = 0; ultimo('🔁 A mesma etiqueta foi lida 2× em menos de 2 segundos — <b>ignorei a repetição</b>. Se for outra embalagem igual, bipe de novo.', 'av'); bipe('av'); return false; }
   const id = identificar(bruto, ui.inv.esperado || [], codDoGtin);
   if (forcarCod && id.cands?.length) { const c = id.cands.find(x => x.cod === forcarCod); if (c) Object.assign(id, { codigo: c.cod, produto: c.produto, lote: c.lote, validade: id.validade || c.validade }); }
   else if (id.cands?.length > 1) {   // leitor: mesmo lote em mais de um produto → o que ainda tem saldo a conferir
@@ -892,12 +1158,12 @@ async function registrar(bruto, origem, forcarCod, qtdForcada) {
   }
   // EAN-13 / UPC da caixa (só números, sem lote): não serve para o inventário — pede o código com (01)(17)(10)
   if (!id.codigo && /^\d{8,14}$/.test(bruto)) { if (origem === 'camera') return false;
-    ultimo(`⚠ Esse é o código <b>EAN</b> da embalagem (<span class="mono">${esc(bruto)}</span>) — ele não tem o lote. Bipe o <b>outro código de barras</b>, o comprido que tem (01)…(17)…(10)… embaixo, ou digite o lote.`, 'av'); bipe(false); return;
+    ultimo(`⚠ Esse é o código <b>EAN</b> da embalagem (<span class="mono">${esc(bruto)}</span>) — ele não tem o lote. Bipe o <b>outro código de barras</b>, o comprido que tem (01)…(17)…(10)… embaixo, ou digite o lote.`, 'av'); bipe('av'); return;
   }
   const sg = !id.codigo && soGtin(bruto);
   if (sg) {
     _gtinPend = { gtin: sg, em: Date.now() }; const n = await nomeDoGtin(sg);
-    ultimo(`📦 Lido só o código do <b>produto</b> (${n ? esc(n.codigo + ' · ' + n.produto) : 'GTIN <span class="mono">' + esc(sg) + '</span>'}). Falta o <b>lote</b>: bipe agora o outro código da etiqueta, o que tem (17) validade e (10) lote.`, 'av'); bipe(false);
+    ultimo(`📦 Lido só o código do <b>produto</b> (${n ? esc(n.codigo + ' · ' + n.produto) : 'GTIN <span class="mono">' + esc(sg) + '</span>'}). Falta o <b>lote</b>: bipe agora o outro código da etiqueta, o que tem (17) validade e (10) lote.`, 'av'); bipe('av');
     return false;
   }
   if (!id.gtin && _gtinPend && Date.now() - _gtinPend.em < 60000) id.gtin = _gtinPend.gtin;
@@ -907,19 +1173,23 @@ async function registrar(bruto, origem, forcarCod, qtdForcada) {
     ultimo(`✔ Código lido, mas ❌ <b>não incluído</b>: esse lote não está no relatório deste cliente (${esc(ui.inv.fornecedor || '')})${id.lote ? ' (lote <b class="mono">' + esc(id.lote) + '</b>)' : ''}. Confira se bipou o código com o <b>lote</b> da etiqueta certa.`, 'er'); bipe(false);
     return false;
   }
+  if (origem === 'leitor') _ultBip = { txt: bruto, em: Date.now() };
   const reg = { inventario_id: ui.inv.id, bruto: bruto.slice(0, 300), gtin: id.gtin, lote: id.lote, validade: id.validade, serie: id.serie, codigo: id.codigo, produto: id.produto, qtd: qtdForcada || qtdDoCodigo(bruto) || (ehEstoque(ui.inv) && origem === 'leitor' ? qtdAtual() : 1), origem, usuario: quemSou() };
+  const loc = ehEstoque(ui.inv) ? $('local-bip').value.trim() : ''; if (loc) reg.local = loc.slice(0, 60);
   if (reg.qtd > 1) toast(`📦 ${reg.qtd} unidades de uma vez (caixa fechada)`, 'info');
   const tmp = { ...reg, id: 'tmp' + Math.random().toString(36).slice(2), _tmp: true, criado_em: new Date().toISOString() };
   ui.leit.push(tmp);
   const a = apurar(), r = id.codigo ? a.linhas.find(x => norm(x.cod) === norm(id.codigo) && norm(x.lote) === norm(id.lote)) : null;
   const vtxt = id.validade ? ` · val. ${dataVal(id.validade)}${diasAte(id.validade) < 0 ? ' ⛔ VENCIDO' : diasAte(id.validade) <= 90 ? ' ⌛' : ''}` : '';
   if (reg.qtd > 1 && origem === 'leitor') zerarQtd();
-  if (r && r.bip <= r.saldo) { ultimo(`✅ <b class="mono">${esc(r.cod)}</b> ${esc(r.produto)} · lote <b class="mono">${esc(r.lote)}</b>${vtxt}`, 'ok', `${qtd(r.bip)}/${qtd(r.saldo)}`); bipe(true); }
-  else if (r) { ultimo(`⚠ <b class="mono">${esc(r.cod)}</b> lote <b class="mono">${esc(r.lote)}</b>: já bipou <b>${qtd(r.bip)}</b> e o relatório tem só ${qtd(r.saldo)}. É outra embalagem? Se bipou a mesma etiqueta 2×, desfaça abaixo.`, 'av', `${qtd(r.bip)}/${qtd(r.saldo)}`); bipe(false); }
+  if (cega() && r) { ultimo(`✅ <b class="mono">${esc(r.cod)}</b> ${esc(r.produto)} · lote <b class="mono">${esc(r.lote)}</b>${vtxt}`, 'ok', `${qtd(r.bip)} contado${r.bip === 1 ? '' : 's'}`); bipe(true); }
+  else if (r && r.bip <= r.saldo) { ultimo(`✅ <b class="mono">${esc(r.cod)}</b> ${esc(r.produto)} · lote <b class="mono">${esc(r.lote)}</b>${vtxt}`, 'ok', `${qtd(r.bip)}/${qtd(r.saldo)}`); bipe(true); }
+  else if (r) { ultimo(`⚠ <b class="mono">${esc(r.cod)}</b> lote <b class="mono">${esc(r.lote)}</b>: já bipou <b>${qtd(r.bip)}</b> e o relatório tem só ${qtd(r.saldo)}. É outra embalagem? Se bipou a mesma etiqueta 2×, desfaça abaixo.`, 'av', `${qtd(r.bip)}/${qtd(r.saldo)}`); bipe('av'); }
   else { ultimo(`➕ <b>Não está no saldo do relatório</b> · ${id.produto ? esc((id.produtoCod ? id.produtoCod + ' ' : '') + id.produto) + ' · ' : ''}${id.gtin ? 'GTIN <span class="mono">' + esc(id.gtin) + '</span> · ' : ''}lote <b class="mono">${esc(id.lote || '—')}</b>${vtxt}`, 'er'); bipe(false); }
   if (r && id.validade && diasAte(id.validade) < 0) {
     $('ultimo').className = 'er'; $('ultimo').insertAdjacentHTML('beforeend', alertaVenc()); bipeVencido();
     // leitor/teclado: janela por cima da tela, só fecha confirmando que separou (na câmera o painel já pede isso)
+    _vencK = kL(r.cod, r.lote);
     if (origem === 'leitor' || origem === 'manual') {
       $('venc-desc').innerHTML = `<b class="mono">${esc(r.cod)}</b> · ${esc(r.produto)}<br>Lote <b class="mono">${esc(r.lote)}</b> · validade <b>${dataVal(id.validade)}</b> (vencido há ${-diasAte(id.validade)} dias)`;
       $('venc-acao').innerHTML = ehEstoque(ui.inv) ? 'Separe esta embalagem na <u>área de vencidos</u>.<br>Não pode sair para cirurgia.' : 'Separe esta embalagem para <u>devolver ao estoque da GF Medical</u>.<br>Não deixe no cliente.';
@@ -927,13 +1197,20 @@ async function registrar(bruto, origem, forcarCod, qtdForcada) {
     }
   }
   desenharInv();
-  const { data, error } = await supabase.from('inventario_leituras').insert(reg).select('*').single();
+  const { data, error } = navigator.onLine ? await inserirLeitura(reg) : { error: { message: 'offline' } };
   const i = ui.leit.indexOf(tmp);
+  if (error && erroRede(error)) {   // sem internet: guarda no aparelho e envia depois
+    tmp._fila = true; gravarFila([...lerFila(), { tid: tmp.id, reg, em: tmp.criado_em }]); avisoFila(); desenharInv();
+    $('ultimo').insertAdjacentHTML('beforeend', '<span class="bdg rc" style="flex-basis:100%;font-size:.75rem">📶 Sem internet: guardei neste aparelho — envia sozinho quando a conexão voltar.</span>');
+    return true;
+  }
   if (error) { if (i >= 0) ui.leit.splice(i, 1); desenharInv(); ultimo('❌ Não gravou a leitura: ' + esc(error.message) + ' — bipe de novo.', 'er'); bipe(false); if (semTabela(error)) pedirSql(); return false; }
   if (i >= 0) ui.leit[i] = data; if (ui.leit.filter(x => x.id === data.id).length > 1) ui.leit.splice(ui.leit.lastIndexOf(data), 1);
-  desenharInv(); return true;
+  desenharInv(); guardarCache(); return true;
 }
 $('venc-fechar').onclick = () => { fecharModal('m-venc'); focarBip(); };
+$('venc-foto').onclick = () => { if (_vencK) anexarFoto(_vencK); };
+$('local-bip').oninput = () => { try { sessionStorage.setItem('gf_inv_local_' + ui.inv?.id, $('local-bip').value.trim()); } catch (e) {} };
 // quantidade por bipe (estoque): caixa fechada com várias unidades
 const qtdAtual = () => Math.max(1, Math.floor(Number($('qtd-bip')?.value) || 1));
 const marcarQtd = () => $('qtd-box').classList.toggle('mais', qtdAtual() > 1);
@@ -959,6 +1236,7 @@ document.addEventListener('keydown', e => {
 // leitor com sufixo Tab em vez de Enter
 $('bip').addEventListener('keydown', e => { if (e.key === 'Tab' && $('bip').value.trim()) { e.preventDefault(); $('f-bip').requestSubmit(); } });
 window.desfazer = async id => {
+  if (lerFila().some(x => x.tid === id)) { gravarFila(lerFila().filter(x => x.tid !== id)); ui.leit = ui.leit.filter(l => l.id !== id); avisoFila(); desenharInv(); return toast('Leitura guardada removida', 'info'); }
   const { error } = await supabase.from('inventario_leituras').delete().eq('id', id);
   if (error) return toast('Não foi possível desfazer: ' + error.message, 'err');
   ui.leit = ui.leit.filter(l => l.id !== id); desenharInv(); toast('Leitura desfeita', 'info'); focarBip();
@@ -1009,7 +1287,7 @@ async function detectorNativo() {
 // Enquanto a pergunta está na tela, a câmera não lê outro; a mesma etiqueta só é perguntada de novo 4 s depois.
 let _pend = null, _feitoTimer = null;
 const lidoCamera = txt => { const agora = Date.now(); if (!txt || _pend || (txt === _ultCam && agora - _ultCamEm < 4000)) return; _ultCam = txt; _ultCamEm = agora; confirmarLeitura(txt); };
-function contadorCam() { if (!ui.inv) return; const a = apurar(); $('cam-cont').textContent = `✅ ${qtd(a.conf)}/${qtd(a.esp)} · 🔫 ${qtd(a.bip)}`; }
+function contadorCam() { if (!ui.inv) return; const a = apurar(); $('cam-cont').textContent = cega() ? `🔫 ${qtd(a.bip)} contados` : `✅ ${qtd(a.conf)}/${qtd(a.esp)} · 🔫 ${qtd(a.bip)}`; }
 function descreverLeitura(txt) {
   const id = identificar(txt, ui.inv?.esperado || [], codDoGtin), a = apurar();
   if (!id.gtin && _gtinPend && Date.now() - _gtinPend.em < 60000) id.gtin = _gtinPend.gtin;
@@ -1021,18 +1299,19 @@ function descreverLeitura(txt) {
   const corpo = `<div class="ct">${r ? `<span class="mono">${esc(r.cod)}</span> · ${esc(r.produto)}` : id.produto ? esc((id.produtoCod ? id.produtoCod + ' · ' : '') + id.produto) : 'Produto fora do relatório'}</div>
     <div>Lote <b class="mono">${esc(id.lote || '—')}</b>${val ? ' · ' + val : ''}${id.gtin ? `<br><span class="mono" style="font-size:.72rem;color:var(--text3)">GTIN ${esc(id.gtin)}</span>` : ''}</div>`;
   if (!r) return { ean: true, html: `<div class="ct">✔ Código lido — mas ❌ não está no relatório</div><div>Lote <b class="mono">${esc(id.lote || '—')}</b>${id.gtin ? ' · <span class="mono">GTIN ' + esc(id.gtin) + '</span>' : ''}</div><div class="cs er">Não foi incluído. Mire no código com o <b>lote</b> de uma embalagem deste cliente.</div>` };
-  const st = r && r.bip < r.saldo ? `<div class="cs ok">Vai contar ${qtd(r.bip + 1)} de ${qtd(r.saldo)} deste lote.</div>`
+  const st = cega() && r ? `<div class="cs ok">Vai somar na contagem deste lote (já contados: ${qtd(r.bip)}).</div>` : r && r.bip < r.saldo ? `<div class="cs ok">Vai contar ${qtd(r.bip + 1)} de ${qtd(r.saldo)} deste lote.</div>`
     : r ? `<div class="cs av">⚠ Já foram bipados ${qtd(r.bip)} de ${qtd(r.saldo)} deste lote. É outra embalagem?</div>`
     : `<div class="cs er">➕ Não está no saldo do relatório — vai entrar como "fora do relatório".</div>`;
   const venc = id.validade && diasAte(id.validade) < 0;
-  return { html: corpo + st + (venc ? alertaVenc() : ''), id, r, venc };
+  return { html: corpo + st + (venc ? alertaVenc() : ''), id, r, venc, som: venc ? 'er' : cega() || r.bip < r.saldo ? 'ok' : 'av' };
 }
 function confirmarLeitura(txt, origem = 'camera') {
   if (!ui.inv || ui.inv.status !== 'aberto') return;
   clearTimeout(_feitoTimer);
   const d = descreverLeitura(txt), c = $('cam-conf');
-  _pend = txt; c.className = 'on'; bipe(true);
+  _pend = txt; c.className = 'on'; bipe(d.som || 'av');
   const fim = () => { _pend = null; _ultCamEm = Date.now(); c.className = ''; c.innerHTML = ''; };
+  if (d.ean && !d.som) d.som = /não está no relatório/.test(d.html) ? 'er' : 'av';
   if (d.ean) { if (d.gtin) _gtinPend = { gtin: d.gtin, em: Date.now() }; c.innerHTML = d.html + `<div class="cb"><button class="nao" type="button">OK</button></div>`; c.querySelector('.nao').onclick = fim; _feitoTimer = setTimeout(fim, 3000); return; }
   const varios = (d.id.cands || []).length > 1, q0 = qtdDoCodigo(txt) || qtdAtual();
   const campoQ = ehEstoque(ui.inv) ? `<div class="cq">📦 Quantidade: <button type="button" data-dq="-1">−</button><input id="conf-q" type="number" min="1" value="${q0}" inputmode="numeric"><button type="button" data-dq="1">+</button><span style="font-weight:400;font-size:.72rem;color:var(--text3)">(caixa fechada)</span></div>` : '';
@@ -1121,7 +1400,10 @@ $('cam-foto-bt').onclick = async () => {
   try { if (window.ImageCapture) img = await createImageBitmap(await new ImageCapture(tr).takePhoto()); } catch (e) {}
   const fontes = [img, recorteCentro(v), recorteCentro(v, 0.4), recorteMira(v), v].filter(Boolean), dets = [await detectorNativo(), await detectorZx()].filter((d, i, a) => d && a.findIndex(x => x && x.constructor === d.constructor) === i);
   for (const f of fontes) for (const d of dets) { try { const r = await d.detect(f); if (r && r.length) { $('cam-diag').textContent = ''; _ultCam = ''; return lidoCamera(melhorCodigo(r)); } } catch (e) {} }
-  $('cam-diag').textContent = '📸 nenhum código na foto — chegue a ~15 cm, etiqueta reta e com luz';
+  $('cam-diag').textContent = '🔤 sem código de barras — lendo o texto LOT…';
+  const lt = await lerTextoEtiqueta(img || (() => { const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d').drawImage(v, 0, 0); return c; })());
+  if (lt) { $('cam-diag').textContent = ''; _ultCam = ''; return lidoCamera(lt); }
+  $('cam-diag').textContent = _ultOCR?.lido ? `🔤 li LOT ${_ultOCR.lido}, mas não está no relatório` : '📸 nada lido — chegue a ~15 cm, etiqueta reta e com luz';
   bipe(false);
 };
 $('cam-luz').onclick = async () => { const tr = _stream?.getVideoTracks()[0]; if (!tr) return; _luz = !_luz; try { await tr.applyConstraints({ advanced: [{ torch: _luz }] }); } catch (e) {} };
@@ -1140,33 +1422,57 @@ async function lerFoto(file) {
   try {
     const det = await detectorNativo();
     if (det) { const r = await det.detect(await createImageBitmap(file)); if (r && r.length) return fotoLida(melhorCodigo(r)); }
-    if (window.Html5Qrcode) { const h5 = new Html5Qrcode('cam-foto', { verbose: false }); try { return fotoLida(await h5.scanFile(file, false)); } finally { try { h5.clear(); } catch (e) {} } }
+    if (window.Html5Qrcode) { const h5 = new Html5Qrcode('cam-foto', { verbose: false }); try { return fotoLida(await h5.scanFile(file, false)); } catch (e) {} finally { try { h5.clear(); } catch (e) {} } }
   } catch (e) {}
-  ultimo('⚠ Não achei o código de barras na foto. Tire de novo com a etiqueta reta, inteira e bem iluminada — ou digite o lote.', 'er'); bipe(false);
+  ultimo('🔤 Sem código de barras na foto — lendo o texto da etiqueta (LOT)…', 'av');
+  const lt = await lerTextoEtiqueta(file); if (lt) return fotoLida(lt);
+  ultimo('⚠ Não achei código de barras na foto.' + msgOCR() + ' Tire de novo com o "LOT" reto, de perto e bem iluminado — ou digite o lote.', 'er'); bipe(false);
 }
+// 🔤 etiqueta sem código de barras (só "REF … LOT …" impresso): lê o texto da foto e procura o lote no relatório
+let _tess = null, _ultOCR = null;
+async function ocr(fonte) {
+  if (!window.Tesseract) await new Promise((ok, ko) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js'; s.onload = ok; s.onerror = () => ko(new Error('sem internet para carregar o leitor de texto')); document.head.appendChild(s); });
+  _tess = _tess || await Tesseract.createWorker('eng');
+  if (fonte instanceof ImageBitmap) { const c = document.createElement('canvas'); c.width = fonte.width; c.height = fonte.height; c.getContext('2d').drawImage(fonte, 0, 0); fonte = c; }
+  const { data } = await _tess.recognize(fonte); return data.text || '';
+}
+// letras que o OCR confunde com números (O/0, I/L/1, S/5, B/8, Z/2): compara os dois lados do mesmo jeito
+const confOCR = s => norm(s).replace(/[^A-Z0-9]/g, '').replace(/O|Q|D/g, '0').replace(/[IL|]/g, '1').replace(/S/g, '5').replace(/B/g, '8').replace(/Z/g, '2').replace(/G/g, '6');
+function loteNoTexto(txt, esperado) {
+  const lido = ((txt.match(/L[O0]T\s*[:#.]?\s*([A-Z0-9][A-Z0-9\-\/]{2,24})/i) || [])[1] || '').trim(), T = confOCR(txt), Ld = confOCR(lido);
+  const cands = esperado.filter(x => { const L = confOCR(x.lote); return L && ((L.length >= 5 && T.includes(L)) || (Ld && L === Ld)); })
+    .sort((a, b) => (confOCR(b.lote) === Ld) - (confOCR(a.lote) === Ld) || confOCR(b.lote).length - confOCR(a.lote).length);
+  return { lote: cands[0]?.lote || null, lido, ref: ((txt.match(/REF\s*[:#.]?\s*([A-Z0-9][A-Z0-9\-\/.]{2,30})/i) || [])[1] || '').trim() };
+}
+async function lerTextoEtiqueta(fonte) {
+  _ultOCR = null;
+  try { _ultOCR = loteNoTexto(await ocr(fonte), ui.inv?.esperado || []); } catch (e) { _ultOCR = { erro: e.message }; return null; }
+  return _ultOCR.lote;
+}
+const msgOCR = () => _ultOCR?.erro ? ` (leitor de texto: ${esc(_ultOCR.erro)})` : _ultOCR?.lido ? ` Li no texto <b class="mono">LOT ${esc(_ultOCR.lido)}</b>${_ultOCR.ref ? ' · REF ' + esc(_ultOCR.ref) : ''}, mas <b>esse lote não está no relatório</b> deste ${ehEstoque(ui.inv) ? 'estoque' : 'cliente'}.` : ' Também não achei o "LOT" escrito.';
 // várias fotos: lê o código de cada uma (foto inteira e recortes do centro, com os dois leitores) e mostra a lista para confirmar
-let _cvF = null;
+let _cvF = null, _ocrLote = [];
 function recorteImg(img, frac) {
   const w = img.width, hh = img.height, lado = Math.min(w, hh) * frac, k = Math.min(2.5, 1400 / lado);
   const c = _cvF || (_cvF = document.createElement('canvas')); c.width = c.height = Math.round(lado * k);
   c.getContext('2d').drawImage(img, (w - lado) / 2, (hh - lado) / 2, lado, lado, 0, 0, c.width, c.height); return c;
 }
 async function lerCodigoFoto(file) {
-  const dets = [await detectorNativo(), await detectorZx()].filter((d, i, a) => d && a.findIndex(x => x && x.constructor === d.constructor) === i); if (!dets.length) return null;
+  const dets = [await detectorNativo(), await detectorZx()].filter((d, i, a) => d && a.findIndex(x => x && x.constructor === d.constructor) === i);
   let img; try { img = await createImageBitmap(file); } catch (e) { return null; }
   for (const f of [img, () => recorteImg(img, 0.6), () => recorteImg(img, 0.35)]) for (const d of dets) {
     try { const r = await d.detect(typeof f === 'function' ? f() : f); if (r && r.length) return melhorCodigo(r); } catch (e) {}
   }
-  return null;
+  return await lerTextoEtiqueta(file);   // sem código de barras: o "LOT" impresso
 }
 $('f-fotos').onchange = async e => {
   const files = [...e.target.files]; e.target.value = ''; if (!files.length || !ui.inv) return;
   if (ui.inv.status !== 'aberto') return toast('Inventário encerrado — reabra para incluir.', 'err');
   $('fotos-ok').disabled = true; $('fotos-tb').innerHTML = ''; $('m-fotos').classList.add('open');
-  const res = [], conta = new Map();
+  const res = [], conta = new Map(); _ocrLote = [];
   for (let i = 0; i < files.length; i++) {
     $('fotos-prog').textContent = `📷 Lendo foto ${i + 1} de ${files.length}…`;
-    const txt = await lerCodigoFoto(files[i]), id = txt ? identificar(txt, ui.inv.esperado || [], codDoGtin) : null;
+    const txt = await lerCodigoFoto(files[i]); _ocrLote[i] = _ultOCR; _ultOCR = null; const id = txt ? identificar(txt, ui.inv.esperado || [], codDoGtin) : null;
     let r = null;
     if (id?.codigo) {
       const a0 = apurar(), cand = (id.cands || []).find(x => { const r0 = a0.linhas.find(y => y.cod === x.cod && y.lote === x.lote); return r0 && r0.bip + (conta.get(x.cod + '|' + x.lote) || 0) < r0.saldo; }) || id.cands[0];
@@ -1178,7 +1484,8 @@ $('f-fotos').onchange = async e => {
   $('fotos-prog').textContent = `${files.length} foto(s) · ✅ ${ok.length} no relatório · ❌ ${res.length - ok.length} sem código ou fora do relatório`;
   $('fotos-tb').innerHTML = `<thead><tr><th></th><th>Foto</th><th>Resultado</th></tr></thead><tbody>${res.map((x, i) => `<tr>
     <td>${x.r ? `<input type="checkbox" data-foto="${i}" checked>${ehEstoque(ui.inv) ? `<br><input type="number" min="1" value="${qtdDoCodigo(x.txt) || 1}" data-fq="${i}" title="Quantidade (caixa fechada)" style="width:54px;margin-top:4px;padding:3px;border:1px solid #8b5cf6;border-radius:6px;text-align:center">` : ''}` : ''}</td><td class="mono" style="font-size:.66rem;word-break:break-all">${esc(x.nome)}</td>
-    <td>${x.r ? `✅ <b class="mono">${esc(x.r.cod)}</b> ${esc(x.r.produto)}<br>Lote <b class="mono">${esc(x.r.lote || '—')}</b> · val. ${dataVal(x.id.validade || x.r.validade)}${diasAte(x.id.validade || x.r.validade) < 0 ? ' <span class="venc">⛔ VENCIDO — separar</span>' : ''} · fica <b>${qtd(x.n)}/${qtd(x.r.saldo)}</b>${x.n > x.r.saldo ? ' <span class="venc">a mais que o saldo</span>' : ''}${(x.id.cands || []).length > 1 ? ' <span style="color:var(--warn-c)">⚠ lote também em outro produto — confira</span>' : ''}`
+    <td>${x.r ? `✅ <b class="mono">${esc(x.r.cod)}</b> ${esc(x.r.produto)}<br>Lote <b class="mono">${esc(x.r.lote || '—')}</b> · val. ${dataVal(x.id.validade || x.r.validade)}${diasAte(x.id.validade || x.r.validade) < 0 ? ' <span class="venc">⛔ VENCIDO — separar</span>' : ''}${cega() ? '' : ` · fica <b>${qtd(x.n)}/${qtd(x.r.saldo)}</b>${x.n > x.r.saldo ? ' <span class="venc">a mais que o saldo</span>' : ''}`}${(x.id.cands || []).length > 1 ? ' <span style="color:var(--warn-c)">⚠ lote também em outro produto — confira</span>' : ''}`
+      : !x.txt && _ocrLote[i]?.lido ? `❌ Li no texto <b class="mono">LOT ${esc(_ocrLote[i].lido)}</b>, mas esse lote não está no relatório`
       : x.txt ? `❌ Código lido, mas não está no relatório <span class="mono" style="font-size:.66rem">${esc(String(x.txt).slice(0, 60))}</span>` : '⚠ Nenhum código encontrado na foto'}</td></tr>`).join('')}</tbody>`;
   const marcadas = () => [...$('fotos-tb').querySelectorAll('[data-foto]:checked')].map(c => res[+c.dataset.foto]);
   const rot = () => { const n = marcadas().length; $('fotos-ok').textContent = `Incluir ${n} embalage${n === 1 ? 'm' : 'ns'}`; $('fotos-ok').disabled = !n; };
@@ -1205,7 +1512,13 @@ window.abrirCelular = () => {
 let _canal = null, _poll = null;
 function iniciarTempoReal() {
   pararTempoReal();
-  const id = ui.inv.id, atualizar = async () => { if (!ui.inv || ui.inv.id !== id || document.hidden) return; const antes = ui.leit.length; await carregarLeituras(); if (ui.leit.length !== antes) desenharInv(); };
+  const id = ui.inv.id, atualizar = async () => {
+    if (!ui.inv || ui.inv.id !== id || document.hidden || !navigator.onLine) return;
+    const antes = ui.leit.length; await carregarLeituras(); let mud = ui.leit.length !== antes;
+    const { data: x } = await supabase.from('inventarios').select('cega:extra->cega,recont:extra->recont,just:extra->just').eq('id', id).maybeSingle();
+    if (x && 'cega' in x && ui.inv?.id === id) { const ex = EX(), n = JSON.stringify([x.cega || false, x.recont || {}, x.just || {}]); if (n !== JSON.stringify([ex.cega || false, ex.recont || {}, ex.just || {}])) { ui.inv.extra = { ...ex, cega: x.cega || false, recont: x.recont || {}, just: x.just || {} }; mud = true; } }
+    if (mud) desenharInv();
+  };
   _canal = supabase.channel('inv-' + id).on('postgres_changes', { event: '*', schema: 'public', table: 'inventario_leituras', filter: 'inventario_id=eq.' + id }, () => atualizar()).subscribe();
   _poll = setInterval(atualizar, 8000);
 }
@@ -1213,12 +1526,114 @@ function pararTempoReal() { if (_canal) { try { supabase.removeChannel(_canal); 
 
 // ───────── Encerrar / reabrir / excluir ─────────
 window.encerrar = async () => {
+  if (cega()) { if (!confirm('A contagem cega está ligada. Para encerrar, o resultado será revelado. Continuar?')) return; if (!(await salvarExtra(ex => { ex.cega = false; }))) return; desenharInv(); }
+  const a = apurar();
+  if (a.falta > 0 && a.linhas.some(r => r.st === 'falta' && !justDe(r))) return abrirJustificativas(fecharDeVez);
+  fecharDeVez();
+};
+async function fecharDeVez() {
   const a = apurar();
   if (!confirm(`Encerrar o inventário de ${ui.inv.cliente}?\n\n✅ Conferido: ${qtd(a.conf)} de ${qtd(a.esp)} un.\n⚠ Faltando: ${qtd(a.falta)} un. (${brl(a.faltaVal)})\n➕ A mais / fora do relatório: ${qtd(a.exc)} un.\n\nDepois de encerrar não dá para bipar (dá para reabrir).`)) return;
   const up = { status: 'fechado', fechado_por: quemSou(), fechado_em: new Date().toISOString() };
   const { error } = await supabase.from('inventarios').update(up).eq('id', ui.inv.id);
   if (error) return toast('Erro: ' + error.message, 'err');
-  Object.assign(ui.inv, up); pararCamera(); desenharInv(); toast('✔ Inventário encerrado'); if (confirm('Imprimir o relatório para assinatura agora?')) imprimir();
+  Object.assign(ui.inv, up); pararCamera(); desenharInv(); toast('✔ Inventário encerrado');
+  salvarExtra(ex => { ex.resumo = resumir(ui.inv, ui.leit); }, true); if (confirm('Imprimir o relatório para assinatura agora?')) imprimir();
+}
+// 📝 motivo de cada faltante (os encontrados em cirurgias já vêm sugeridos)
+const MOTIVOS_CONS = ['Usado em cirurgia — faturar', 'Usado em cirurgia — já faturado', 'Devolvido à GF Medical', 'Transferido para outro cliente', 'Em outro setor / local do cliente', 'Não localizado (extravio)', 'Outro'];
+const MOTIVOS_EST = ['Saiu para cirurgia sem baixa', 'Remessa / consignado sem baixa', 'Transferência sem baixa', 'Em outro local / filial', 'Avaria / descarte', 'Não localizado (extravio)', 'Outro'];
+window.abrirJustificativas = async aoSalvar => {
+  if (typeof aoSalvar !== 'function') aoSalvar = null;
+  if (semCega()) return;
+  const falt = apurar().linhas.filter(r => r.st === 'falta').sort((x, y) => String(x.cod).localeCompare(String(y.cod)) || String(x.lote).localeCompare(String(y.lote)));
+  if (!falt.length) { if (aoSalvar) return aoSalvar(); return toast('Nenhum item faltando 👍', 'info'); }
+  $('just-pular').style.display = aoSalvar ? '' : 'none'; $('just-ok').textContent = aoSalvar ? 'Salvar e encerrar' : 'Salvar';
+  if (!ehEstoque(ui.inv) && !ui.usos) { $('just-corpo').innerHTML = '<div class="muted">🩺 Procurando os faltantes nas cirurgias…</div>'; $('m-just').classList.add('open'); await cruzarCirurgias(false); }
+  const M = ehEstoque(ui.inv) ? MOTIVOS_EST : MOTIVOS_CONS;
+  $('just-corpo').innerHTML = `<div class="muted" style="margin-bottom:6px">Escolha o motivo de cada item faltando. Vai para o relatório, o Excel e o texto de WhatsApp/e-mail.${ui.usos?.size ? ' Os que aparecem em cirurgias já vêm preenchidos — confira.' : ''}</div>
+    <label style="display:flex;gap:6px;align-items:center;font-size:.78rem;margin-bottom:4px">Aplicar a todos os sem motivo: <select id="just-todos" style="flex:1"><option value="">—</option>${M.map(x => `<option>${esc(x)}</option>`).join('')}</select></label>`
+    + falt.map((r, i) => {
+      const j = justDe(r) || {}, us = ui.usos?.get(kL(r.cod, r.lote)) || [], sug = !j.m && us.length ? (us.some(u => u.faturado) ? M[1] : M[0]) : '';
+      return `<div class="just-l"><b class="mono">${esc(r.cod)}</b> ${esc(r.produto)} · lote <b class="mono">${esc(r.lote || '—')}</b> · falta <b>${qtd(r.saldo - r.bip)}</b>${r.vunit ? ' · ' + brl((r.saldo - r.bip) * r.vunit) : ''}
+        ${us.length ? `<div>${us.map(u => `<span class="bdg cir">🩺 ${esc(usoTxt(u))}${u.faturado ? ' · faturado' : ''}</span>`).join(' ')}</div>` : ''}
+        <select data-jm="${i}"><option value="">— motivo —</option>${M.map(x => `<option ${x === (j.m || sug) ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
+        <input type="text" data-jo="${i}" placeholder="Observação (opcional): paciente, nº do pedido, onde está…" value="${esc(j.o || (sug ? usoTxt(us[0], true) : ''))}"></div>`;
+    }).join('');
+  $('just-todos').onchange = e => { if (e.target.value) $('just-corpo').querySelectorAll('[data-jm]').forEach(s => { if (!s.value) s.value = e.target.value; }); };
+  $('just-pular').onclick = () => { fecharModal('m-just'); aoSalvar && aoSalvar(); };
+  $('just-ok').onclick = async () => {
+    const just = {}; falt.forEach((r, i) => { const m = $('just-corpo').querySelector(`[data-jm="${i}"]`).value, o = $('just-corpo').querySelector(`[data-jo="${i}"]`).value.trim(); if (m || o) just[kL(r.cod, r.lote)] = { m, o, por: nomeCurto(), em: new Date().toISOString() }; });
+    $('just-ok').disabled = true;
+    const ok = await salvarExtra(ex => { ex.just = ex.just || {}; falt.forEach(r => { const k = kL(r.cod, r.lote); if (just[k]) ex.just[k] = just[k]; else delete ex.just[k]; }); });
+    $('just-ok').disabled = false; if (!ok) return;
+    fecharModal('m-just'); toast(`📝 ${Object.keys(just).length} justificativa${Object.keys(just).length === 1 ? '' : 's'} salva${Object.keys(just).length === 1 ? '' : 's'}`); desenharInv(); if (aoSalvar) aoSalvar();
+  };
+  $('m-just').classList.add('open');
+};
+// 🙈 contagem cega e 🔁 recontagem (estoque)
+window.alternarCega = async () => {
+  const on = !EX().cega;
+  if (!on && !confirm('Revelar o resultado? Todos passam a ver o saldo do sistema e as diferenças.')) return;
+  if (await salvarExtra(ex => { ex.cega = on; })) { toast(on ? '🙈 Contagem cega ligada: ninguém vê o saldo até revelar' : '👁 Resultado revelado'); desenharInv(); contadorCam(); }
+};
+window.abrirRecontagem = () => {
+  if (semCega()) return;
+  const div = apurar().linhas.filter(r => r.st !== 'ok').sort((x, y) => String(x.cod).localeCompare(String(y.cod)));
+  if (!div.length) return toast('Nenhum lote com diferença — nada para recontar 👍', 'info');
+  $('recont-corpo').innerHTML = `<div class="muted" style="margin-bottom:8px">Marque os lotes para contar de novo. A 1ª contagem fica guardada, mas <b>vale a recontagem</b>. Bipe de novo tudo o que achar desses lotes.</div>
+    <label style="display:flex;gap:6px;align-items:center;margin-bottom:8px;font-weight:700;font-size:.82rem"><input type="checkbox" id="recont-cega" checked> Recontar às cegas (esconde o saldo)</label>
+    <div class="tw"><table class="mini"><thead><tr><th><input type="checkbox" id="recont-todos" checked></th><th>Código / produto</th><th>Lote</th><th class="n">Sistema</th><th class="n">Contado</th></tr></thead><tbody>${div.map((r, i) => `<tr><td><input type="checkbox" data-rc="${i}" checked></td><td><b class="mono">${esc(r.cod)}</b><div class="muted">${esc(r.produto)}</div></td><td class="mono">${esc(r.lote || '—')}</td><td class="n">${qtd(r.saldo)}</td><td class="n">${qtd(r.bip)}</td></tr>`).join('')}</tbody></table></div>`;
+  $('recont-todos').onchange = e => $('recont-corpo').querySelectorAll('[data-rc]').forEach(c => c.checked = e.target.checked);
+  $('recont-ok').onclick = async () => {
+    const sel = [...$('recont-corpo').querySelectorAll('[data-rc]:checked')].map(c => div[+c.dataset.rc]); if (!sel.length) return;
+    const agora = new Date().toISOString(), cg = $('recont-cega').checked;
+    if (await salvarExtra(ex => { ex.recont = ex.recont || {}; sel.forEach(r => ex.recont[kL(r.cod, r.lote)] = agora); if (cg) ex.cega = true; })) { fecharModal('m-recont'); ui.filtro = 'rc'; desenharInv(); contadorCam(); toast(`🔁 ${sel.length} lote${sel.length === 1 ? '' : 's'} para recontar — bipe de novo só esses`); }
+  };
+  $('m-recont').classList.add('open');
+};
+// 📎 fotos de evidência (vencido, avaria, divergência…), guardadas no inventário
+let _evK = null;
+window.anexarFoto = k => { _evK = k; $('f-ev').click(); };
+async function comprimir(file, max = 1000) { const img = await createImageBitmap(file), s = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement('canvas'); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); return c.toDataURL('image/jpeg', 0.62); }
+$('f-ev').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f || !_evK || !ui.inv) return; const k = _evK;
+  if (Object.values(EX().fotos || {}).reduce((s, l) => s + l.length, 0) >= 30) return toast('Limite de 30 fotos por inventário.', 'err');
+  let img; try { img = await comprimir(f); } catch (er) { return toast('Não consegui ler a foto.', 'err'); }
+  if (await salvarExtra(ex => { ex.fotos = ex.fotos || {}; ex.fotos[k] = [...(ex.fotos[k] || []), { img, por: nomeCurto(), em: new Date().toISOString() }].slice(-4); })) { toast('📎 Foto anexada'); desenharInv(); if ($('m-ev').classList.contains('open')) verFotos(k); }
+};
+window.verFotos = k => {
+  const l = (EX().fotos || {})[k] || [], r = apurar().linhas.find(x => kL(x.cod, x.lote) === k);
+  $('ev-tit').textContent = r ? `${r.cod} · lote ${r.lote}` : k;
+  $('ev-corpo').innerHTML = `<div class="fotos-ev">${l.map((f, i) => `<figure><img src="${f.img}" alt="" onclick="this.classList.toggle('gr')"><figcaption class="muted">${esc(f.por || '')} · ${dataHoraBR(f.em)}</figcaption><button type="button" title="Apagar" onclick="apagarFoto('${esc(k)}',${i})">✕</button></figure>`).join('') || '<div class="muted">Sem fotos.</div>'}</div>`;
+  $('ev-mais').onclick = () => anexarFoto(k);
+  $('m-ev').classList.add('open');
+};
+window.apagarFoto = async (k, i) => { if (!confirm('Apagar esta foto?')) return; if (await salvarExtra(ex => { ex.fotos = ex.fotos || {}; ex.fotos[k] = (ex.fotos[k] || []).filter((_, j) => j !== i); if (!ex.fotos[k].length) delete ex.fotos[k]; })) { verFotos(k); desenharInv(); } };
+// ✍️ assinatura com o dedo, do cliente e da GF Medical
+let _assLado = 'cli', _desenhando = false, _temTraco = false;
+const cvA = $('ass-cv');
+window.limparAss = () => { const r = cvA.getBoundingClientRect(), d = devicePixelRatio || 1; cvA.width = Math.max(300, r.width) * d; cvA.height = 200 * d; const g = cvA.getContext('2d'); g.scale(d, d); g.lineWidth = 2.6; g.lineCap = g.lineJoin = 'round'; g.strokeStyle = '#0a2a18'; _temTraco = false; };
+function montarAss() {
+  const s = (EX().ass || {})[_assLado] || {};
+  document.querySelectorAll('#m-ass [data-lado]').forEach(b => b.classList.toggle('p', b.dataset.lado === _assLado));
+  $('ass-nome').value = s.nome || (_assLado === 'gf' ? nomeCurto() : ''); $('ass-doc').value = s.doc || '';
+  $('ass-atual').innerHTML = s.img ? `Já assinado por <b>${esc(s.nome)}</b> em ${dataHoraBR(s.em)} — assine de novo para trocar.<br><img src="${s.img}" alt="" style="max-width:220px;background:#fff;border-radius:8px;margin-top:4px;border:1px solid var(--border)">` : '';
+  limparAss();
+}
+window.abrirAssinatura = () => { if (semCega()) return; _assLado = (EX().ass || {}).cli ? 'gf' : 'cli'; $('m-ass').classList.add('open'); montarAss(); };
+document.querySelectorAll('#m-ass [data-lado]').forEach(b => b.onclick = () => { _assLado = b.dataset.lado; montarAss(); });
+const posA = e => { const r = cvA.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+cvA.onpointerdown = e => { _desenhando = true; try { cvA.setPointerCapture(e.pointerId); } catch (er) {} const g = cvA.getContext('2d'), [x, y] = posA(e); g.beginPath(); g.moveTo(x, y); g.lineTo(x + .1, y + .1); g.stroke(); _temTraco = true; };
+cvA.onpointermove = e => { if (!_desenhando) return; const g = cvA.getContext('2d'), [x, y] = posA(e); g.lineTo(x, y); g.stroke(); };
+cvA.onpointerup = cvA.onpointercancel = () => { _desenhando = false; };
+$('ass-salvar').onclick = async () => {
+  const nome = $('ass-nome').value.trim(); if (!nome) return toast('Digite o nome de quem assina.', 'err'); if (!_temTraco) return toast('Assine no quadro branco.', 'err');
+  const o = document.createElement('canvas'); o.width = 500; o.height = Math.round(500 * cvA.height / cvA.width); o.getContext('2d').drawImage(cvA, 0, 0, o.width, o.height);
+  const s = { nome, doc: $('ass-doc').value.trim(), img: o.toDataURL('image/png'), em: new Date().toISOString(), por: nomeCurto() }, lado = _assLado;
+  if (!(await salvarExtra(ex => { ex.ass = { ...(ex.ass || {}), [lado]: s }; }))) return;
+  toast('✍️ Assinatura salva — sai no relatório para assinatura'); desenharInv();
+  if (lado === 'cli' && !(EX().ass || {}).gf) { _assLado = 'gf'; montarAss(); } else fecharModal('m-ass');
 };
 window.reabrir = async () => {
   const { error } = await supabase.from('inventarios').update({ status: 'aberto', fechado_por: null, fechado_em: null }).eq('id', ui.inv.id);
@@ -1243,6 +1658,7 @@ async function docCliente(nome) {
   return c && c.doc && /\d{2}\.?\d{3}\.?\d{3}/.test(c.doc) ? `${String(c.doc).replace(/\D/g, '').length === 11 ? 'CPF' : 'CNPJ'} ${c.doc}` : '';
 }
 window.imprimir = async () => {
+  if (semCega()) return;
   const inv = ui.inv, a = apurar(), w = window.open('', '_blank'); if (!w) return toast('Libere as janelas pop-up para imprimir.', 'err');
   w.document.write('<p style="font-family:Arial;padding:20px">Montando o relatório…</p>');
   let docCli = ''; try { if (!ehEstoque(inv)) docCli = await docCliente(inv.cliente); } catch (e) {}
@@ -1258,17 +1674,19 @@ window.imprimir = async () => {
     .cab{display:flex;justify-content:space-between;gap:16px;border-bottom:2px solid #1a7a4a;padding-bottom:8px;margin-bottom:10px}.cab img{width:44px;height:44px;border-radius:8px}
     .res{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.res div{border:1px solid #bbb;border-radius:6px;padding:5px 9px}.res b{display:block;font-size:13px}
     table{width:100%;border-collapse:collapse}tr.tot td{font-weight:bold;background:#eef5f0;border-top:2px solid #1a7a4a}th,td{border:1px solid #ccc;padding:3px 5px;text-align:left}th{background:#eef5f0;font-size:9.5px}.n{text-align:right;white-space:nowrap}
-    .ass{display:flex;gap:40px;margin-top:46px}.ass div{flex:1;border-top:1px solid #000;padding-top:4px;text-align:center;line-height:1.45}
+    .ass{display:flex;gap:40px;margin-top:30px;page-break-inside:avoid}.ass>div{flex:1;text-align:center}.ass .im{height:70px;display:flex;align-items:flex-end;justify-content:center}.ass .im img{max-height:70px;max-width:100%}.ass .li{border-top:1px solid #000;padding-top:4px;line-height:1.45}
+    .fev{display:flex;flex-wrap:wrap;gap:10px}.fev figure{margin:0;width:200px;font-size:9px;page-break-inside:avoid}.fev img{width:200px;height:200px;object-fit:contain;border:1px solid #ccc}
     @media print{body{margin:8mm}h3{page-break-after:avoid}tr{page-break-inside:avoid}}</style></head><body>
     <div class="cab"><div><h1>${ehEstoque(inv) ? 'Inventário do estoque' : 'Inventário de material consignado'}</h1><div><b>${esc(inv.cliente)}</b></div><div>${esc(inv.fornecedor || 'Todos os fornecedores')} · relatório ${relNome(inv)} de ${dataBR(inv.relatorio_data)}</div>
     <div>Iniciado em ${dataHoraBR(inv.criado_em)} por ${esc(inv.criado_por || '—')}${inv.fechado_em ? ` · encerrado em ${dataHoraBR(inv.fechado_em)} por ${esc(inv.fechado_por || '—')}` : ' · <b>em andamento</b>'}</div></div><img src="${location.origin + location.pathname.replace(/[^/]*$/, '')}logo.jpg" alt=""></div>
     <div class="res"><div>No relatório<b>${qtd(a.esp)} un. · ${brl(a.espVal)}</b></div><div>Fisicamente no local<b>${qtd(a.fis)} un. · ${brl(a.fisVal)}</b></div><div>Faltando<b>${qtd(a.falta)} un. · ${brl(a.faltaVal)}</b></div><div>A mais / fora do relatório<b>${qtd(a.exc)} un.</b></div><div>Validade ≤ 90 dias<b>${a.venc} lotes</b></div></div>
-    ${tab('⚠ Faltando (no relatório e não encontrado)', ord(a.linhas.filter(r => r.st === 'falta')), [...base, ['NF', r => esc(r.nfs.map(n => n.nf).join(', '))], ['Saldo', r => qtd(r.saldo), 1, soma(r => r.saldo)], ['Encontrado', r => qtd(r.bip), 1, soma(r => r.bip)], ['Falta', r => qtd(r.saldo - r.bip), 1, soma(r => r.saldo - r.bip)], ['Valor', r => brl((r.saldo - r.bip) * r.vunit), 1, somaR(r => (r.saldo - r.bip) * r.vunit)]])}
+    ${tab('⚠ Faltando (no relatório e não encontrado)', ord(a.linhas.filter(r => r.st === 'falta')), [...base, ['NF', r => esc(r.nfs.map(n => n.nf).join(', '))], ['Motivo / observação', r => esc(motivoTxt(r))], ['Saldo', r => qtd(r.saldo), 1, soma(r => r.saldo)], ['Encontrado', r => qtd(r.bip), 1, soma(r => r.bip)], ['Falta', r => qtd(r.saldo - r.bip), 1, soma(r => r.saldo - r.bip)], ['Valor', r => brl((r.saldo - r.bip) * r.vunit), 1, somaR(r => (r.saldo - r.bip) * r.vunit)]])}
     ${tab('➕ Encontrado a mais / fora do relatório', ord([...a.linhas.filter(r => r.st === 'exc'), ...a.sobras]), [...base, ['Saldo', r => r.tipo === 'esp' ? qtd(r.saldo) : '—', 1, soma(r => r.tipo === 'esp' ? r.saldo : 0)], ['Encontrado', r => qtd(r.bip), 1, soma(r => r.bip)], ['A mais', r => qtd(r.bip - (r.tipo === 'esp' ? r.saldo : 0)), 1, soma(r => r.bip - (r.tipo === 'esp' ? r.saldo : 0))], ['Valor', r => r.vunit ? brl((r.bip - r.saldo) * r.vunit) : '—', 1, somaR(r => r.vunit ? (r.bip - r.saldo) * r.vunit : 0)]])}
     ${tab('⌛ Validade vencida ou em até 90 dias', a.linhas.filter(r => r.venc != null && r.venc <= 90).sort((x, y) => x.venc - y.venc), [...base, ['Dias', r => r.venc < 0 ? 'vencido' : r.venc, 1], ['Saldo', r => qtd(r.saldo), 1, soma(r => r.saldo)], ['Encontrado', r => qtd(r.bip), 1, soma(r => r.bip)], ['Valor', r => brl(r.saldo * r.vunit), 1, somaR(r => r.saldo * r.vunit)]], (() => { const l = a.linhas.filter(r => r.venc != null && r.venc <= 90), v = l.filter(r => r.venc < 0).length; return `${v} vencido${v === 1 ? '' : 's'} · ${l.length - v} a vencer`; })())}
     ${tab(ehEstoque(inv) ? '⛔ Vencidos encontrados no estoque — separar na área de vencidos' : '⛔ Vencidos encontrados no local — separar e devolver ao estoque da GF Medical', ord(a.linhas.filter(r => r.bip > 0 && r.venc != null && r.venc < 0)), [...base, ['Encontrado', r => qtd(r.bip), 1, soma(r => r.bip)], ['Valor', r => brl(r.bip * r.vunit), 1, somaR(r => r.bip * r.vunit)]])}
     ${tab('✅ Conferido', ord(a.linhas.filter(r => r.st === 'ok')), [...base, ['NF', r => esc(r.nfs.map(n => n.nf).join(', '))], ['Qtd', r => qtd(r.saldo), 1, soma(r => r.saldo)], ['Valor', r => brl(r.saldo * r.vunit), 1, somaR(r => r.saldo * r.vunit)]])}
-    <div class="ass"><div><b>${esc(inv.cliente)}</b><br>${docCli ? esc(docCli) + '<br>' : ''}<small>${ehEstoque(inv) ? 'Responsável pelo estoque' : 'Responsável pelo cliente'} · nome / assinatura / data</small></div><div><b>${esc(gf.razao)}</b><br>CNPJ ${gf.cnpj} · ${gf.cidade}<br><small>${esc(nomeCurto())}</small></div></div>
+    ${(() => { const F = EX().fotos || {}, ks = Object.keys(F).filter(k => F[k].length); if (!ks.length) return ''; const nomeK = k => { const r = a.linhas.find(x => kL(x.cod, x.lote) === k); return r ? `${esc(r.cod)} · lote ${esc(r.lote)}` : esc(k); }; return `<h3>📎 Fotos de evidência</h3><div class="fev">${ks.map(k => F[k].map(f => `<figure><img src="${f.img}" alt=""><figcaption>${nomeK(k)} · ${dataHoraBR(f.em)}</figcaption></figure>`).join('')).join('')}</div>`; })()}
+    ${(() => { const A = EX().ass || {}, im = s => s?.img ? `<img src="${s.img}" alt="">` : '', quem = s => s ? `<br><small>Assinado na tela por ${esc(s.nome)}${s.doc ? ' · ' + esc(s.doc) : ''} em ${dataHoraBR(s.em)}</small>` : ''; return `<div class="ass"><div><div class="im">${im(A.cli)}</div><div class="li"><b>${esc(inv.cliente)}</b><br>${docCli ? esc(docCli) + '<br>' : ''}<small>${ehEstoque(inv) ? 'Responsável pelo estoque' : 'Responsável pelo cliente'} · nome / assinatura / data</small>${quem(A.cli)}</div></div><div><div class="im">${im(A.gf)}</div><div class="li"><b>${esc(gf.razao)}</b><br>CNPJ ${gf.cnpj} · ${gf.cidade}<br><small>${esc(A.gf?.nome || nomeCurto())}</small>${quem(A.gf)}</div></div></div>`; })()}
     <script>window.onload=()=>setTimeout(()=>print(),300)<\/script></body></html>`);
   w.document.close();
 };
@@ -1281,13 +1699,16 @@ function textoFaltantes(comValor, fmt) {
   const vencFalt = falt.filter(r => r.venc != null && r.venc < 0), unF = r => r.saldo - r.bip;
   // agrupa por produto: código · descrição → lotes
   const grupos = []; falt.forEach(r => { const g = grupos[grupos.length - 1]; if (g && g.cod === r.cod) g.l.push(r); else grupos.push({ cod: r.cod, produto: r.produto, l: [r] }); });
-  const loteTxt = r => `Lote ${r.lote} · val. ${dataVal(r.validade)}${r.venc != null && r.venc < 0 ? (wa ? ' ⛔ VENCIDO' : ' (VENCIDO)') : r.venc != null && r.venc <= 90 ? (wa ? ' ⌛ vence em ' + r.venc + ' dias' : ' (vence em ' + r.venc + ' dias)') : ''} · ${qtd(unF(r))} un.${r.bip ? ` (de ${qtd(r.saldo)})` : ''}${comValor && r.vunit ? ' · ' + brl(unF(r) * r.vunit) : ''}${r.nfs?.length ? ' · NF ' + r.nfs.map(n => n.nf).join(', ') : ''}`;
+  const loteTxt = r => `Lote ${r.lote} · val. ${dataVal(r.validade)}${r.venc != null && r.venc < 0 ? (wa ? ' ⛔ VENCIDO' : ' (VENCIDO)') : r.venc != null && r.venc <= 90 ? (wa ? ' ⌛ vence em ' + r.venc + ' dias' : ' (vence em ' + r.venc + ' dias)') : ''} · ${qtd(unF(r))} un.${r.bip ? ` (de ${qtd(r.saldo)})` : ''}${comValor && r.vunit ? ' · ' + brl(unF(r) * r.vunit) : ''}${r.nfs?.length ? ' · NF ' + r.nfs.map(n => n.nf).join(', ') : ''}${motivoTxt(r) ? (wa ? '\n      ↳ ' : '\n      Motivo: ') + motivoTxt(r) : ''}`;
+  const usados = falt.filter(r => { const j = justDe(r); return j ? /cirurgia/i.test(j.m) && !/faturado/i.test(j.m) : ui.usos?.has(kL(r.cod, r.lote)); });
+  const usUn = usados.reduce((s, r) => s + unF(r), 0), usVal = usados.reduce((s, r) => s + unF(r) * r.vunit, 0);
   const L = [];
   if (wa) {
     L.push(`Olá! Segue o resultado do inventário ${ehEstoque(inv) ? 'do estoque' : 'de material consignado'}:`, '', `${ehEstoque(inv) ? '🏬' : '🏥'} ${b(inv.cliente)}`, `🏷 ${inv.fornecedor || 'Todos os fornecedores'}`, `📅 Inventário em ${quando} · relatório ${relNome(inv)} de ${dataBR(inv.relatorio_data)}`, '',
       b('RESUMO'), `📋 Saldo no relatório: ${qtd(a.esp)} un.${comValor ? ' · ' + R(a.espVal) : ''}`, `✅ Encontrado no local: ${qtd(a.fis)} un.${comValor ? ' · ' + R(a.fisVal) : ''} (${pct}%)`,
       `⚠ ${b(`Faltando: ${qtd(a.falta)} un.${comValor ? ' · ' + R(a.faltaVal) : ''}`)}`);
     if (vencFalt.length) L.push(`⛔ Entre os faltantes, ${vencFalt.length} lote${vencFalt.length === 1 ? ' está vencido' : 's estão vencidos'}`);
+    if (usados.length && !ehEstoque(inv)) L.push(`🩺 Usados em cirurgia (a faturar): ${qtd(usUn)} un.${comValor ? ' · ' + R(usVal) : ''}`);
     L.push('', b(`ITENS FALTANDO (${falt.length} lote${falt.length === 1 ? '' : 's'})`));
     grupos.forEach(g => { L.push('', `▪ ${b(g.cod)} — ${g.produto}`); g.l.forEach(r => L.push(`   • ${loteTxt(r)}`)); });
   } else {
@@ -1297,6 +1718,7 @@ function textoFaltantes(comValor, fmt) {
       `Encontrado no local ........ ${qtd(a.fis)} un.${comValor ? '   ' + R(a.fisVal) : ''}  (${pct}% conferido)`,
       `Faltando ................... ${qtd(a.falta)} un.${comValor ? '   ' + R(a.faltaVal) : ''}  (${falt.length} lotes)`);
     if (vencFalt.length) L.push(`Vencidos entre os faltantes . ${vencFalt.length} lote(s)`);
+    if (usados.length && !ehEstoque(inv)) L.push(`Usados em cirurgia ......... ${qtd(usUn)} un.${comValor ? '   ' + R(usVal) : ''}  (a faturar)`);
     L.push('', `ITENS FALTANDO`, '-'.repeat(40));
     let n = 0; grupos.forEach(g => { L.push('', `${g.cod} — ${g.produto}`); g.l.forEach(r => L.push(`   ${++n}. ${loteTxt(r)}`)); });
   }
@@ -1316,6 +1738,7 @@ function textoFaltantes(comValor, fmt) {
   return L.join('\n').replace(/ /g, ' ');
 }
 window.abrirFaltantes = () => {
+  if (semCega()) return;
   let fmt = 'wa';
   const montar = () => { $('falta-txt').value = textoFaltantes($('falta-valor').checked, fmt); document.querySelectorAll('#m-falta [data-fmt]').forEach(x => x.classList.toggle('p', x.dataset.fmt === fmt)); };
   document.querySelectorAll('#m-falta [data-fmt]').forEach(x => x.onclick = () => { fmt = x.dataset.fmt; montar(); });
@@ -1335,15 +1758,17 @@ window.abrirFaltantes = () => {
 };
 // planilha: Resumo · Faltando · No local (encontrado) · Vencidos · Conferência completa · Leituras — cada aba com linha de TOTAL
 window.baixarExcel = () => {
+  if (semCega()) return;
   const inv = ui.inv, a = apurar(), gf = GF[FILIAL] || GF.CGR;
+  const jc = r => { const us = ui.usos?.get(kL(r.cod, r.lote)) || [], j = justDe(r); return { 'Motivo / justificativa': j ? [j.m, j.o].filter(Boolean).join(' — ') : '', 'Encontrado em cirurgia': us.map(u => usoTxt(u, true) + (u.faturado ? ' (faturado)' : '')).join(' | ') }; };
   const ord = l => [...l].sort((x, y) => String(x.cod).localeCompare(String(y.cod)) || String(x.lote).localeCompare(String(y.lote)));
   const base = r => ({ 'Código': r.cod || '', 'Produto': r.produto || (r.gtin ? 'GTIN ' + r.gtin : ''), 'Lote': r.lote || '', 'Validade': dataVal(r.validade), 'Situação validade': r.venc == null ? '' : r.venc < 0 ? 'VENCIDO' : r.venc <= 90 ? `vence em ${r.venc} dias` : '', 'NF': (r.nfs || []).map(n => n.nf).join(', ') });
   const comTotal = (linhas, campos) => { if (!linhas.length) return [{ 'Código': 'Nenhum item' }]; const t = { 'Código': 'TOTAL', 'Produto': `${linhas.length} lote(s)` }; campos.forEach(c => t[c] = Math.round(linhas.reduce((s, r) => s + (Number(r[c]) || 0), 0) * 100) / 100); return [...linhas, {}, t]; };
-  const falta = ord(a.linhas.filter(r => r.saldo - r.bip > 0)).map(r => ({ ...base(r), 'Saldo relatório': r.saldo, 'Encontrado': r.bip, 'Faltando': r.saldo - r.bip, 'Valor unitário': r.vunit, 'Valor faltando': (r.saldo - r.bip) * r.vunit }));
+  const falta = ord(a.linhas.filter(r => r.saldo - r.bip > 0)).map(r => ({ ...base(r), 'Saldo relatório': r.saldo, 'Encontrado': r.bip, 'Faltando': r.saldo - r.bip, 'Valor unitário': r.vunit, 'Valor faltando': (r.saldo - r.bip) * r.vunit, ...jc(r) }));
   const local = ord([...a.linhas.filter(r => r.bip > 0), ...a.sobras]).map(r => ({ ...base(r), 'Saldo relatório': r.tipo === 'esp' ? r.saldo : 0, 'Fisicamente no local': r.bip, 'A mais que o saldo': Math.max(0, r.bip - (r.tipo === 'esp' ? r.saldo : 0)), 'Valor unitário': r.vunit || 0, 'Valor no local': r.bip * (r.vunit || 0) }));
   const venc = a.linhas.filter(r => r.venc != null && r.venc <= 90).sort((x, y) => x.venc - y.venc).map(r => ({ ...base(r), 'Dias': r.venc, 'Saldo relatório': r.saldo, 'Encontrado (separar p/ devolução se vencido)': r.bip, 'Valor saldo': r.saldo * r.vunit }));
   const tudo = ord([...a.linhas, ...a.sobras]).map(r => ({ 'Situação': ST_TXT[r.st].replace(/^\S+\s/, ''), ...base(r), 'GTIN': r.gtin || '', 'Saldo relatório': r.tipo === 'esp' ? r.saldo : 0, 'Bipado': r.bip, 'Diferença': r.bip - (r.tipo === 'esp' ? r.saldo : 0), 'Valor unitário': r.vunit || 0, 'Valor da diferença': (r.bip - (r.tipo === 'esp' ? r.saldo : 0)) * (r.vunit || 0) }));
-  const leit = ui.leit.filter(l => !l._tmp).map(l => ({ 'Quando': dataHoraBR(l.criado_em), 'Quem': l.usuario || '', 'Como': l.origem === 'camera' ? 'Câmera' : 'Leitor', 'Código': l.codigo || '', 'Produto': l.produto || '', 'GTIN': l.gtin || '', 'Lote': l.lote || '', 'Validade': dataVal(l.validade), 'Lido': l.bruto }));
+  const leit = ui.leit.filter(l => !l._tmp).map(l => ({ 'Quando': dataHoraBR(l.criado_em), 'Quem': l.usuario || '', 'Como': { camera: 'Câmera', manual: 'Manual (+1)', foto: 'Foto' }[l.origem] || 'Leitor', 'Qtd': Number(l.qtd || 1), 'Local': l.local || '', 'Código': l.codigo || '', 'Produto': l.produto || '', 'GTIN': l.gtin || '', 'Lote': l.lote || '', 'Validade': dataVal(l.validade), 'Lido': l.bruto }));
   const vencLocal = a.linhas.filter(r => r.bip > 0 && r.venc != null && r.venc < 0);
   const resumo = [
     [ehEstoque(inv) ? 'Inventário do estoque' : 'Inventário de material consignado'], [], [ehEstoque(inv) ? 'Estoque' : 'Cliente', inv.cliente], ['Fornecedor', inv.fornecedor || 'Todos'], [`Relatório ${relNome(inv)} de`, dataBR(inv.relatorio_data)],
@@ -1365,11 +1790,30 @@ window.baixarExcel = () => {
   XLSX.utils.book_append_sheet(wb, aba(comTotal(local, ['Saldo relatório', 'Fisicamente no local', 'A mais que o saldo', 'Valor no local']), L), 'No local');
   XLSX.utils.book_append_sheet(wb, aba(comTotal(venc, ['Saldo relatório', 'Encontrado (separar p/ devolução se vencido)', 'Valor saldo']), L), 'Vencidos e a vencer');
   XLSX.utils.book_append_sheet(wb, aba(comTotal(tudo, ['Saldo relatório', 'Bipado', 'Diferença', 'Valor da diferença']), [14, ...L]), 'Conferência completa');
-  XLSX.utils.book_append_sheet(wb, aba(leit.length ? leit : [{ Quando: 'Nenhuma leitura' }], [17, 30, 9, 12, 40, 16, 14, 13, 50]), 'Leituras');
+  if (ehEstoque(inv)) { const aj = linhasAjuste(a); XLSX.utils.book_append_sheet(wb, aba(aj.length ? comTotalAj(aj) : [{ 'Código': 'Sem diferenças' }], [12, 42, 14, 13, 14, 10, 9, 17, 13, 14, 40]), 'Ajuste de estoque'); }
+  XLSX.utils.book_append_sheet(wb, aba(leit.length ? leit : [{ Quando: 'Nenhuma leitura' }], [17, 30, 12, 6, 18, 12, 40, 16, 14, 13, 50]), 'Leituras');
   XLSX.writeFile(wb, `Inventário ${inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
 };
+// 🧾 ajuste de estoque: diferença de cada lote (contado − sistema), pronto para lançar no ERP
+function linhasAjuste(a) {
+  return [...a.linhas.filter(r => r.bip !== r.saldo), ...a.sobras.filter(s => s.cod)].sort((x, y) => String(x.cod).localeCompare(String(y.cod)) || String(x.lote).localeCompare(String(y.lote))).map(r => {
+    const s = r.tipo === 'esp' ? r.saldo : 0, d = r.bip - s, j = justDe(r);
+    return { 'Código': r.cod, 'Produto': r.produto || '', 'Lote': r.lote || '', 'Validade': dataVal(r.validade), 'Saldo sistema (S013)': s, 'Contado': r.bip, 'Ajuste': d, 'Movimento': d > 0 ? 'ENTRADA (sobra)' : 'SAÍDA (falta)', 'Valor unitário': r.vunit || 0, 'Valor do ajuste': Math.round(d * (r.vunit || 0) * 100) / 100, 'Justificativa': j ? [j.m, j.o].filter(Boolean).join(' — ') : '' };
+  });
+}
+const comTotalAj = l => [...l, {}, { 'Código': 'TOTAL', 'Produto': `${l.length} lote(s) · ${l.filter(r => r['Ajuste'] > 0).length} entrada(s) · ${l.filter(r => r['Ajuste'] < 0).length} saída(s)`, 'Ajuste': l.reduce((s, r) => s + r['Ajuste'], 0), 'Valor do ajuste': Math.round(l.reduce((s, r) => s + r['Valor do ajuste'], 0) * 100) / 100 }];
+window.baixarAjuste = () => {
+  if (semCega()) return;
+  const l = linhasAjuste(apurar()); if (!l.length) return toast('Sem diferenças entre o contado e o sistema — nada para ajustar 👍', 'info');
+  const wb = XLSX.utils.book_new(), larg = [12, 42, 14, 13, 14, 10, 9, 17, 13, 14, 40].map(w => ({ wch: w })), aba = rows => { const ws = XLSX.utils.json_to_sheet(rows); ws['!cols'] = larg; return ws; };
+  const sai = l.filter(r => r['Ajuste'] < 0), ent = l.filter(r => r['Ajuste'] > 0);
+  XLSX.utils.book_append_sheet(wb, aba(comTotalAj(l)), 'Ajuste');
+  if (sai.length) XLSX.utils.book_append_sheet(wb, aba(comTotalAj(sai)), 'Saídas (faltas)');
+  if (ent.length) XLSX.utils.book_append_sheet(wb, aba(comTotalAj(ent)), 'Entradas (sobras)');
+  XLSX.writeFile(wb, `Ajuste de estoque ${ui.inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
+};
 document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.inv) carregarLeituras().then(desenharInv); });
-const VERSAO = '2026-11-04.135927';
+const VERSAO = '2026-11-04.160651';
 async function conferirVersao() {
   try {
     const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];
