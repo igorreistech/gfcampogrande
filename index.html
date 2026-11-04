@@ -295,7 +295,7 @@
           if (window._resumoPendente) { window._resumoPendente = false; mostrarResumoInicial(); }
           return;
         }
-        location.href = destino === 'opme' ? 'fichas-opme.html' : destino === 'compras' ? 'compras.html' : destino === 'transf' ? 'transferencias.html' : 'fretes.html';
+        location.href = destino === 'opme' ? 'fichas-opme.html' : destino === 'compras' ? 'compras.html' : destino === 'transf' ? 'transferencias.html' : destino === 'inv' ? 'inventario.html' : 'fretes.html';
       };
 
       window.doLogin = async function() {
@@ -4852,6 +4852,7 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
             <button type="button" class="login-btn" onclick="window._irPara('opme')" style="background:linear-gradient(135deg,#d4920a,#f59e0b);">📋 Fichas OPME</button>
             <button type="button" class="login-btn" id="destinoFretesBtn" onclick="window._irPara('fretes')" style="background:linear-gradient(135deg,#1f7f9c,#2a9fbf);">🚚 Controle de Fretes</button>
             <button type="button" class="login-btn" id="destinoComprasBtn" onclick="window._irPara('compras')" style="background:linear-gradient(135deg,#6d28d9,#8b5cf6);">🛒 Programação de Compras</button>
+            <button type="button" class="login-btn" id="destinoInvBtn" onclick="window._irPara('inv')" style="background:linear-gradient(135deg,#0f766e,#14b8a6);">📋 Inventário consignado</button>
         </div>
     </div>
 </div>
