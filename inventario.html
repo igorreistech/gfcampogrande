@@ -56,7 +56,7 @@ html.embed .top .so-solto{display:none}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);padding:16px}
 .muted{color:var(--text3);font-size:.74rem}
 .mono{font-family:var(--mono)}
-.lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin-top:14px}
+.lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr));gap:12px;margin-top:14px}
 .inv{cursor:pointer;transition:border-color .13s}
 .inv:hover{border-color:var(--accent)}
 .inv h3{font-family:var(--display);font-size:.92rem;margin-bottom:3px}
@@ -123,12 +123,59 @@ tr.st-ok td:first-child{box-shadow:inset 3px 0 var(--ok-c)}tr.st-falta td:first-
 html.embed .rodape{display:none}
 body.fechado .so-aberto{display:none!important}
 body:not(.fechado) .so-fechado{display:none!important}
+.bts-bip{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.dica-bip{align-self:center}
+.c-q,.so-cel{display:none}
+.top .user{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media (max-width:640px){
-  .wrap{padding:12px}
-  .top{padding:8px 12px}
+  body{padding-bottom:0}
+  .rodape,.so-pc{display:none!important}
+  .so-cel{display:inline}
+  .wrap{padding:10px}
+  .top{padding:7px 10px;gap:6px;flex-wrap:nowrap}
+  .top img{width:26px;height:26px}
+  .top .tit{font-size:.82rem;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .top .tit small{font-size:.52rem}
+  .top .user{max-width:34vw;font-size:.68rem;padding:5px 7px}
   .top a.so-solto{display:none}
-  .kpi b{font-size:1.05rem}
-  th.mob-x,td.mob-x{display:none}
+  .card{padding:12px;border-radius:12px}
+  .cab h2{font-size:.98rem}
+  .bip input{font-size:16px;padding:12px}
+  .bts-bip{display:grid;grid-template-columns:1fr 1fr}
+  .bts-bip .btn{justify-content:center;padding:13px 8px;font-size:.84rem}
+  #b-cam{grid-column:1/-1;padding:15px;font-size:.95rem}
+  .bts-bip label[for=f-foto]{grid-column:1/-1}
+  .dica-bip{grid-column:1/-1;font-size:.7rem}
+  #cam{max-width:none;margin-left:-12px;margin-right:-12px;border-radius:0}
+  #ultimo{font-size:.84rem;padding:11px 12px}
+  .kpis{grid-template-columns:repeat(3,1fr);gap:6px}
+  .kpi{padding:8px}
+  .kpi b{font-size:1rem}
+  .kpi span{font-size:.52rem}
+  .kpi small{font-size:.6rem}
+  .filtros input{min-width:0}
+  /* tabela vira cartões */
+  .tw{border:0;background:none;overflow:visible}
+  #tb,#tb tbody{display:block}
+  #tb thead{display:none}
+  #tb tr{display:grid;grid-template-columns:1fr auto;gap:3px 10px;background:var(--surface);border:1px solid var(--border);border-left-width:4px;border-radius:12px;padding:10px 12px;margin-bottom:8px}
+  #tb tr.st-ok{border-left-color:var(--ok-c)}#tb tr.st-falta{border-left-color:var(--warn-c)}#tb tr.st-exc,#tb tr.st-sobra{border-left-color:var(--crit-c)}
+  #tb td{display:block;border:0;padding:0;box-shadow:none!important}
+  #tb td.c-st{grid-column:1;font-size:.8rem}
+  #tb td.c-q{grid-column:2;grid-row:1;text-align:right;font-family:var(--mono);font-weight:700;font-size:1.05rem}
+  #tb td.c-q small{font-size:.75rem;color:var(--text3);font-weight:400}
+  #tb td.c-cod{grid-column:1/-1;font-weight:700;font-size:.8rem}
+  #tb td.c-prod{grid-column:1/-1;font-size:.78rem;color:var(--text2)}
+  #tb td.c-lote{grid-column:1;font-size:.72rem}#tb td.c-lote::before{content:'Lote ';font-family:var(--sans);color:var(--text3)}
+  #tb td.c-val{grid-column:2;text-align:right;font-size:.72rem}#tb td.c-val::before{content:'Val. ';font-family:var(--sans);color:var(--text3)}
+  #tb td.c-nf{grid-column:1/-1;font-size:.66rem;color:var(--text3)}#tb td.c-nf::before{content:'NF ';font-family:var(--sans)}
+  #tb td.c-x{display:none}
+  #tb td[colspan]{grid-column:1/-1}
+  .acoes{display:grid;grid-template-columns:1fr 1fr}
+  .acoes .btn{justify-content:center;padding:12px 8px;white-space:normal;text-align:center}
+  .leit div.l{flex-wrap:wrap;gap:4px 8px}
+  .leit div.l span.h{margin-left:0;width:100%;order:3}
+  .mod .mf .btn{flex:1;justify-content:center}
 }
 </style>
 <script>if (/[?&]embed=1/.test(location.search)) document.documentElement.classList.add('embed');</script>
@@ -150,10 +197,10 @@ body:not(.fechado) .so-fechado{display:none!important}
 <div class="top">
   <img src="logo.jpg" alt="GF Medical">
   <div class="tit">📋 Inventário consignado<small id="filial-lbl">—</small></div>
-  <span class="lk" id="user-nm" onclick="pedirOperador()" title="Quem está fazendo o inventário">—</span>
+  <span class="lk user" id="user-nm" onclick="pedirOperador()" title="Quem está fazendo o inventário">—</span>
   <a class="so-solto" href="index.html">⬅ Monitor</a>
   <a class="so-solto" href="index.html?hub=1">🏠 GF Hub</a>
-  <span class="lk" onclick="doLogout()">Sair</span>
+  <span class="lk" onclick="doLogout()" title="Sair"><span class="so-pc">Sair</span><span class="so-cel">⏻</span></span>
 </div>
 
 <div class="wrap" id="v-lista" style="display:none">
@@ -181,11 +228,11 @@ body:not(.fechado) .so-fechado{display:none!important}
     </div>
     <div class="so-aberto">
       <form class="bip" id="f-bip" autocomplete="off"><input id="bip" placeholder="🔫 Bipe aqui a etiqueta (ou digite o lote)" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="send"><button class="btn p">OK</button></form>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+      <div class="bts-bip">
         <button class="btn b" id="b-cam" type="button" onclick="alternarCamera()">📷 Câmera deste aparelho</button>
         <label class="btn" for="f-foto" title="Tira uma foto da etiqueta e lê o código (bom quando a câmera ao vivo não pega)">📸 Foto da etiqueta</label><input type="file" id="f-foto" accept="image/*" capture="environment" style="display:none">
-        <button class="btn" type="button" onclick="abrirCelular()">📱 Bipar com outro celular</button>
-        <span class="muted" style="align-self:center">Bipe <b>uma etiqueta por embalagem</b> (as caixas têm várias etiquetas iguais).</span>
+        <button class="btn so-pc" type="button" onclick="abrirCelular()">📱 Bipar com outro celular</button>
+        <span class="muted dica-bip">Bipe <b>uma etiqueta por embalagem</b> (as caixas têm várias etiquetas iguais).</span>
       </div>
       <div id="cam"><video id="cam-v" playsinline muted autoplay></video><div class="mira"></div><div class="cam-dica">Encaixe o código de barras inteiro na faixa verde · se não focar, afaste um pouco e use 🔍</div><div id="cam-h5"></div>
         <div class="cam-bts"><button type="button" id="cam-zoom" style="display:none">🔍 1×</button><button type="button" id="cam-luz" style="display:none">🔦</button></div></div>
@@ -199,7 +246,7 @@ body:not(.fechado) .so-fechado{display:none!important}
   <div class="filtros"><input id="busca" placeholder="🔍 Buscar código, produto, lote, NF…"></div>
   <div class="tw"><table id="tb"></table></div>
 
-  <div class="acoes">
+  <div class="acoes" id="acoes">
     <button class="btn" onclick="imprimir()">🖨 Relatório para assinatura</button>
     <button class="btn" onclick="baixarExcel()">📊 Excel</button>
     <button class="btn p so-aberto" onclick="encerrar()">✔ Encerrar inventário</button>
@@ -592,11 +639,11 @@ function desenharInv() {
   if (b) l = l.filter(r => norm([r.cod, r.produto, r.lote, r.gtin, ...(r.nfs || []).map(n => n.nf)].join(' ')).includes(b));
   const ordem = { falta: 0, exc: 1, sobra: 2, ok: 3 };
   l.sort((x, y) => ordem[x.st] - ordem[y.st] || String(x.cod).localeCompare(String(y.cod)) || String(x.lote).localeCompare(String(y.lote)));
-  $('tb').innerHTML = `<thead><tr><th>Situação</th><th>Código</th><th>Produto</th><th>Lote</th><th>Validade</th><th class="mob-x">NF</th><th class="n">Saldo</th><th class="n">Bipado</th><th class="n mob-x">Valor un.</th></tr></thead><tbody>${l.map(r => `<tr class="st-${r.st}">
-    <td class="st ${r.st}">${ST_TXT[r.st]}${r.st === 'falta' && r.bip ? ` (${qtd(r.saldo - r.bip)})` : r.st === 'exc' ? ` (+${qtd(r.bip - r.saldo)})` : ''}</td>
-    <td class="mono">${esc(r.cod || '—')}</td><td>${esc(r.produto || (r.gtin ? 'GTIN ' + r.gtin : 'Não identificado'))}</td><td class="mono">${esc(r.lote || '—')}</td>
-    <td class="mono ${r.venc != null && r.venc <= 90 ? 'venc' : ''}" title="${r.venc != null ? (r.venc < 0 ? 'vencido há ' + -r.venc + ' dias' : 'vence em ' + r.venc + ' dias') : ''}">${dataBR(r.validade)}${r.venc != null && r.venc < 0 ? ' ⛔' : r.venc != null && r.venc <= 90 ? ' ⌛' : ''}</td>
-    <td class="mono mob-x">${esc((r.nfs || []).map(n => n.nf).join(', ') || '—')}</td><td class="n">${r.tipo === 'esp' ? qtd(r.saldo) : '—'}</td><td class="n"><b>${qtd(r.bip)}</b></td><td class="n mob-x">${r.vunit ? brl(r.vunit) : '—'}</td></tr>`).join('') || '<tr><td colspan="9" class="muted" style="padding:16px">Nada neste filtro.</td></tr>'}</tbody>`;
+  $('tb').innerHTML = `<thead><tr><th>Situação</th><th class="c-q"></th><th>Código</th><th>Produto</th><th>Lote</th><th>Validade</th><th>NF</th><th class="n">Saldo</th><th class="n">Bipado</th><th class="n">Valor un.</th></tr></thead><tbody>${l.map(r => `<tr class="st-${r.st}">
+    <td class="st c-st ${r.st}">${ST_TXT[r.st]}${r.st === 'falta' && r.bip ? ` (${qtd(r.saldo - r.bip)})` : r.st === 'exc' ? ` (+${qtd(r.bip - r.saldo)})` : ''}</td>
+    <td class="c-q">${qtd(r.bip)}<small>/${r.tipo === 'esp' ? qtd(r.saldo) : '—'}</small></td><td class="mono c-cod">${esc(r.cod || '—')}</td><td class="c-prod">${esc(r.produto || (r.gtin ? 'GTIN ' + r.gtin : 'Não identificado'))}</td><td class="mono c-lote">${esc(r.lote || '—')}</td>
+    <td class="mono c-val ${r.venc != null && r.venc <= 90 ? 'venc' : ''}" title="${r.venc != null ? (r.venc < 0 ? 'vencido há ' + -r.venc + ' dias' : 'vence em ' + r.venc + ' dias') : ''}">${dataBR(r.validade)}${r.venc != null && r.venc < 0 ? ' ⛔' : r.venc != null && r.venc <= 90 ? ' ⌛' : ''}</td>
+    <td class="mono c-nf">${esc((r.nfs || []).map(n => n.nf).join(', ') || '—')}</td><td class="n c-x">${r.tipo === 'esp' ? qtd(r.saldo) : '—'}</td><td class="n c-x"><b>${qtd(r.bip)}</b></td><td class="n c-x">${r.vunit ? brl(r.vunit) : '—'}</td></tr>`).join('') || '<tr><td colspan="9" class="muted" style="padding:16px">Nada neste filtro.</td></tr>'}</tbody>`;
   const ult = [...ui.leit].reverse().slice(0, 60);
   $('n-leit').textContent = ui.leit.length ? `· ${ui.leit.length} (últimas ${ult.length})` : '';
   $('leituras').innerHTML = ult.map(x => `<div class="l"><span>${x.codigo ? '✅' : '➕'}</span><span><b class="mono">${esc(x.codigo || x.gtin || '—')}</b> · lote <span class="mono">${esc(x.lote || '—')}</span> ${x.produto ? '· ' + esc(x.produto) : ''}</span>
