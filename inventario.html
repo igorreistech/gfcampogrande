@@ -240,7 +240,7 @@ body:not(.fechado) .so-fechado{display:none!important}
     <div class="drop" id="drop" onclick="document.getElementById('f-pdf').click()">
       <div style="font-size:1.6rem">📥</div>
       <b>Novo inventário</b>
-      <div class="muted" style="margin-top:4px">Clique ou arraste aqui o PDF do relatório <b>C457 - Itens Consignados</b>. Pode soltar <b>vários de uma vez</b>, de clientes diferentes: cria um inventário por cliente (os fornecedores do mesmo cliente se juntam).</div>
+      <div class="muted" style="margin-top:4px">Clique ou arraste aqui o PDF do <b>C457 - Itens Consignados</b> (consignado no cliente) ou do <b>S013 - Estoque</b> (estoque da GF Medical). Pode soltar <b>vários de uma vez</b>, de clientes diferentes: cria um inventário por cliente (os fornecedores do mesmo cliente se juntam).</div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:10px">
       <button class="btn" type="button" onclick="document.getElementById('f-pdf').click()">📄 Escolher PDFs (vários)</button>
@@ -267,6 +267,7 @@ body:not(.fechado) .so-fechado{display:none!important}
       <form class="bip" id="f-bip" autocomplete="off"><input id="bip" placeholder="🔫 Bipe aqui a etiqueta (ou digite o lote)" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="send"><button class="btn p">OK</button></form>
       <div class="bts-bip">
         <button class="btn b" id="b-cam" type="button" onclick="alternarCamera()">📷 Câmera deste aparelho</button>
+        <label class="btn" for="f-fotos" title="Escolha várias fotos de etiquetas de uma vez: cada foto conta 1 embalagem">🖼 Fotos em lote</label><input type="file" id="f-fotos" accept="image/*" multiple style="display:none">
         <label class="btn" for="f-foto" title="Tira uma foto da etiqueta e lê o código (bom quando a câmera ao vivo não pega)">📸 Foto da etiqueta</label><input type="file" id="f-foto" accept="image/*" capture="environment" style="display:none">
         <button class="btn so-pc" type="button" onclick="abrirCelular()">📱 Bipar com outro celular</button>
         <span class="muted dica-bip">Bipe <b>uma etiqueta por embalagem</b> (as caixas têm várias etiquetas iguais).</span>
@@ -303,6 +304,13 @@ body:not(.fechado) .so-fechado{display:none!important}
   <div class="mh"><span>📥 Novo inventário</span><button class="x" onclick="fecharModal('m-novo')">✕</button></div>
   <div class="mb" id="novo-corpo"></div>
   <div class="mf"><button class="btn" onclick="fecharModal('m-novo')">Cancelar</button><button class="btn p" id="novo-ok">Iniciar inventário</button></div>
+</div></div>
+
+<div class="ov" id="m-fotos"><div class="mod" style="max-width:720px">
+  <div class="mh"><span>🖼 Fotos das etiquetas em lote</span><button class="x" onclick="fecharModal('m-fotos')">✕</button></div>
+  <div class="mb"><div id="fotos-prog" class="muted" style="margin-bottom:8px"></div><div class="tw"><table id="fotos-tb"></table></div>
+    <div class="muted" style="margin-top:8px">Cada foto conta <b>1 embalagem</b>. Só entram as marcadas (as que estão no relatório).</div></div>
+  <div class="mf"><button class="btn" onclick="fecharModal('m-fotos')">Cancelar</button><button class="btn p" id="fotos-ok" disabled>Incluir</button></div>
 </div></div>
 
 <div class="ov" id="m-falta"><div class="mod" style="max-width:640px">
@@ -352,7 +360,7 @@ body:not(.fechado) .so-fechado{display:none!important}
     <div style="font-size:3rem;line-height:1">⛔</div>
     <div style="font-family:var(--display);font-weight:800;font-size:1.25rem;color:#b91c1c;margin:6px 0 4px">PRODUTO VENCIDO</div>
     <div id="venc-desc" style="font-size:.88rem;margin-bottom:12px"></div>
-    <div style="background:#fee2e2;color:#7f1d1d;border-radius:12px;padding:12px;font-weight:700;font-size:.95rem">Separe esta embalagem para <u>devolver ao estoque da GF Medical</u>.<br>Não deixe no cliente.</div>
+    <div id="venc-acao" style="background:#fee2e2;color:#7f1d1d;border-radius:12px;padding:12px;font-weight:700;font-size:.95rem">Separe esta embalagem para <u>devolver ao estoque da GF Medical</u>.<br>Não deixe no cliente.</div>
   </div>
   <div class="mf" style="justify-content:center"><button class="btn p" id="venc-fechar" style="background:#dc2626;border-color:#dc2626;padding:13px 18px;font-size:.95rem">📦 Separei para devolução</button></div>
 </div></div>
@@ -420,6 +428,32 @@ function lerC457(linhas) {
   return { cliente, fornecedor, data, esperado: [...mapa.values()] };
 }
 
+// ───────── Leitura do relatório S013 - Estoque (estoque da própria GF Medical) ─────────
+// linha: Local · Cód.Alt · Descrição · Id.Lote · Lote | Nº Série · Validade · Estoque · Disp. · Unid · Localização · Mín · Repos. · Último preço
+// (a descrição às vezes continua na linha de baixo; lote "|" = item sem lote)
+const RE_S013 = /^(Estoque [^\d]*?) (\S+) (.+) (\d+) (.+?) (\d\d\/\d\d\/\d{4}|N\/A) ([\d.]+,\d+) ([\d.]+,\d+) (\S+) (\S+) ([\d.]+,\d+) ([\d.]+,\d+) ([\d.]+,\d+)$/;
+const RE_S013_CAB = /^(S013|Filial:|Classe:|Todos os|Data da impress|Fornecedores\.|Controle de|Exibir|Ordem:|Agrupar|Estoque Dispon|Local C.d|TOTAIS:)/;
+function lerS013(linhas) {
+  if (!linhas.some(l => /^S013 - Estoque/i.test(l))) throw new Error('não parece o relatório "C457 - Itens Consignados" nem o "S013 - Estoque"');
+  const ach = re => { for (const l of linhas) { const m = re.exec(l); if (m) return m[1].trim(); } return ''; };
+  const filial = ach(/Filial:\s*(.+?)\.Todos/) || ach(/Filial:\s*(.+?)\./), data = dISO(ach(/Data da impress.o:\s*(\S+)/)), local = ach(/Local:\s*(.+?)\.Todos/) || 'Estoque Fisico';
+  const mapa = new Map(); let ult = null, n = 0;
+  for (const l of linhas) {
+    const m = RE_S013.exec(l);
+    if (m) {
+      n++; const qtd = numBR(m[7]); if (qtd <= 0) { ult = null; continue; }
+      const [lote, serie] = m[5].split('|').map(s => s.trim()), k = norm(m[2]) + '|' + norm(lote || '');
+      const e = mapa.get(k) || { cod: m[2], produto: m[3].trim(), lote: lote || '', serie: serie || '', validade: m[6] === 'N/A' ? null : dISO(m[6]), saldo: 0, vunit: numBR(m[13]), nfs: [] };
+      e.saldo += qtd; mapa.set(k, e); ult = e; continue;
+    }
+    if (RE_S013_CAB.test(l)) { ult = null; continue; }
+    if (ult && l.trim() && !/^\d/.test(l) && ult.produto.length < 120) ult.produto += ' ' + l.trim();   // continuação da descrição
+  }
+  if (!n) throw new Error('não encontrei as linhas de produto do S013');
+  return { cliente: 'ESTOQUE · ' + (filial || 'GF MEDICAL'), fornecedor: 'S013 - Estoque · ' + local, data, esperado: [...mapa.values()], tipo: 'estoque' };
+}
+const lerRelatorio = linhas => linhas.some(l => /Itens Consignados/i.test(l)) ? lerC457(linhas) : lerS013(linhas);
+
 // ───────── Etiqueta GS1 (GS1-128 / DataMatrix): (01) GTIN · (17) validade · (10) lote · (21) série ─────────
 const AI_FIXO = { '00': 18, '01': 14, '02': 14, '11': 6, '12': 6, '13': 6, '15': 6, '16': 6, '17': 6, '20': 2 };
 const AI_VAR = ['10', '21', '22', '30', '37', '240', '241', '250', '251', '90', '91', '92', '93', '94', '95', '96', '97', '98', '99'];
@@ -443,19 +477,27 @@ function gs1(bruto) {
 // (17) AAMMDD → ISO; dia 00 = último dia do mês
 const validade17 = v => { if (!/^\d{6}$/.test(v || '')) return null; const a = 2000 + +v.slice(0, 2), m = +v.slice(2, 4), d = +v.slice(4, 6) || new Date(a, m, 0).getDate(); return `${a}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`; };
 // casa a leitura com uma linha do relatório pelo lote (a etiqueta não tem o código do ERP)
-function identificar(bruto, esperado) {
+// casa a leitura com o relatório pelo lote (a etiqueta não tem o código do ERP). Devolve também os candidatos
+// quando o mesmo lote existe em mais de um produto; codDoGtin (opcional) = código já aprendido para aquele GTIN.
+function identificar(bruto, esperado, codDoGtin) {
   const semEsp = s => norm(s).replace(/[\s\x1d]+/g, '');
   let g = gs1(bruto);
   // sem o (01), um texto que começa com 10/17 pode ser só o lote digitado: se bate com um lote do relatório, vale como lote
   if (g && !g['01'] && esperado.some(x => semEsp(x.lote) === semEsp(bruto))) g = null;
   const loteLido = g ? semEsp(g['10'] || '') : '', onde = g ? semEsp((g['10'] || '') + ' ' + (g['21'] || '')) : semEsp(bruto);
-  let e = loteLido ? esperado.find(x => semEsp(x.lote) === loteLido) : null;
-  if (!e) e = esperado.find(x => { const L = semEsp(x.lote); return L.length >= 5 && (onde.includes(L) || (loteLido && loteLido.startsWith(L))); });
-  if (!e && !g) e = esperado.find(x => semEsp(x.serie) && semEsp(x.serie) === onde);
+  const exato = v => v ? esperado.filter(x => semEsp(x.lote) === v) : [];
+  let cands = exato(loteLido);
+  if (!cands.length && !g) cands = exato(onde);
+  if (!cands.length) { const e = esperado.find(x => { const L = semEsp(x.lote); return L.length >= 5 && (onde.includes(L) || (loteLido && loteLido.startsWith(L))); }); if (e) cands = [e]; }
+  if (!cands.length && !g) { const e = esperado.find(x => semEsp(x.serie) && semEsp(x.serie) === onde); if (e) cands = [e]; }
+  if (!cands.length && !g) cands = esperado.filter(x => !semEsp(x.lote) && semEsp(x.cod) === onde);   // item sem lote: pelo código
+  const dica = g?.['01'] && codDoGtin ? codDoGtin(g['01']) : null;
+  if (cands.length > 1 && dica) { const c = cands.filter(x => x.cod === dica); if (c.length) cands = c; }
+  const e = cands[0];
   return {
     gtin: g?.['01'] || null, lote: e ? e.lote : (g ? (g['10'] || null) : String(bruto).trim().slice(0, 60)),
     validade: g?.['17'] ? validade17(g['17']) : (e?.validade || null), serie: g?.['21'] || null,
-    codigo: e?.cod || null, produto: e?.produto || null,
+    codigo: e?.cod || null, produto: e?.produto || null, cands,
   };
 }
 
@@ -580,7 +622,7 @@ async function iniciar() {
 async function carregarLista() {
   ui.inv = null; pararTempoReal(); pararCamera();
   $('v-inv').style.display = 'none'; $('v-lista').style.display = '';
-  const { data, error } = await supabase.from('inventarios').select('id,cliente,fornecedor,relatorio_data,status,criado_por,criado_em,fechado_em,esperado').eq('filial', FILIAL).order('criado_em', { ascending: false }).limit(200);
+  const { data, error } = await supabase.from('inventarios').select('id,cliente,fornecedor,relatorio_data,status,criado_por,criado_em,fechado_em,esperado,obs').eq('filial', FILIAL).order('criado_em', { ascending: false }).limit(200);
   if (error) { if (semTabela(error)) pedirSql(); else toast('Erro ao carregar: ' + error.message, 'err'); ui.invs = []; desenharLista(); return; }
   ui.invs = data || [];
   const abertos = ui.invs.filter(i => i.status === 'aberto').map(i => i.id);
@@ -598,11 +640,11 @@ function desenharLista() {
   $('lista').innerHTML = l.length ? l.map(i => {
     const esp = (i.esperado || []).reduce((s, e) => s + Number(e.saldo || 0), 0), bip = Math.min(ui.contagem.get(i.id) || 0, esp), pct = esp ? Math.round(bip / esp * 100) : 0;
     return `<div class="card inv" onclick="abrirInv('${i.id}')">
-      <div style="display:flex;gap:8px;align-items:flex-start"><h3 style="flex:1">${esc(i.cliente)}</h3><span class="tag ${i.status === 'aberto' ? 'ab' : 'fe'}">${i.status === 'aberto' ? 'em andamento' : 'encerrado'}</span></div>
+      <div style="display:flex;gap:8px;align-items:flex-start"><h3 style="flex:1">${esc(i.cliente)}</h3>${ehEstoque(i) ? '<span class="tag" style="background:#ede9fe;color:#6d28d9">🏬 estoque</span> ' : ''}<span class="tag ${i.status === 'aberto' ? 'ab' : 'fe'}">${i.status === 'aberto' ? 'em andamento' : 'encerrado'}</span></div>
       <div class="muted">${esc(i.fornecedor || 'Todos os fornecedores')} · relatório de ${dataBR(i.relatorio_data)}</div>
       ${i.status === 'aberto' ? `<div class="barra"><i style="width:${pct}%"></i></div><div class="muted">${qtd(bip)} de ${qtd(esp)} un. conferidas (${pct}%)</div>` : `<div class="muted" style="margin-top:8px">${qtd(esp)} un. no relatório · encerrado em ${dataHoraBR(i.fechado_em)}</div>`}
       <div class="muted" style="margin-top:4px">Iniciado por ${esc(i.criado_por || '—')} · ${dataHoraBR(i.criado_em)}</div></div>`;
-  }).join('') : `<div class="muted" style="padding:20px">${ui.invs.length ? 'Nenhum inventário neste filtro.' : 'Nenhum inventário ainda. Importe o relatório C457 do cliente para começar.'}</div>`;
+  }).join('') : `<div class="muted" style="padding:20px">${ui.invs.length ? 'Nenhum inventário neste filtro.' : 'Nenhum inventário ainda. Importe o relatório C457 (consignado) ou S013 (estoque) do cliente para começar.'}</div>`;
 }
 document.querySelectorAll('[data-fl]').forEach(b => b.onclick = () => { ui.fl = b.dataset.fl; desenharLista(); });
 $('busca-inv').oninput = e => { ui.buscaInv = e.target.value; desenharLista(); };
@@ -623,7 +665,7 @@ function montarNovo(lidos) {
   const mapa = new Map();
   lidos.forEach(r => r.esperado.forEach(e => { const k = norm(e.cod) + '|' + norm(e.lote), a = mapa.get(k); if (a) { a.saldo += e.saldo; e.nfs.forEach(n => { if (!a.nfs.some(x => x.nf === n.nf)) a.nfs.push(n); }); } else mapa.set(k, { ...e, nfs: [...e.nfs] }); }));
   const esperado = [...mapa.values()].sort((a, b) => a.cod.localeCompare(b.cod) || a.lote.localeCompare(b.lote));
-  return { filial: FILIAL, cliente: lidos[0].cliente, fornecedor: [...new Set(lidos.map(r => r.fornecedor).filter(Boolean))].join(' · '), relatorio_data: lidos.map(r => r.data).filter(Boolean).sort().pop() || null, arquivos: lidos.map(r => r.arquivo).join(', '), esperado };
+  return { filial: FILIAL, obs: lidos[0].tipo === 'estoque' ? 'estoque' : null, cliente: lidos[0].cliente, fornecedor: [...new Set(lidos.map(r => r.fornecedor).filter(Boolean))].join(' · '), relatorio_data: lidos.map(r => r.data).filter(Boolean).sort().pop() || null, arquivos: lidos.map(r => r.arquivo).join(', '), esperado };
 }
 const resumoNovo = n => ({ lotes: n.esperado.length, un: n.esperado.reduce((s, e) => s + e.saldo, 0), val: n.esperado.reduce((s, e) => s + e.saldo * e.vunit, 0), venc: n.esperado.filter(e => diasAte(e.validade) != null && diasAte(e.validade) <= 90).length });
 async function importarPdfs(files) {
@@ -631,10 +673,10 @@ async function importarPdfs(files) {
   const lidos = [], erros = [];
   for (let i = 0; i < files.length; i++) {
     const f = files[i]; ultimoLote(`📄 Lendo ${i + 1} de ${files.length}: ${f.name}`);
-    try { lidos.push({ ...lerC457(await linhasPdf(f)), arquivo: f.name }); } catch (e) { erros.push(`${f.name}: ${e.message}`); }
+    try { lidos.push({ ...lerRelatorio(await linhasPdf(f)), arquivo: f.name }); } catch (e) { erros.push(`${f.name}: ${e.message}`); }
   }
   ultimoLote('');
-  if (!lidos.length) { toast('Nenhum PDF era o relatório C457. ' + erros.join(' · '), 'err'); return; }
+  if (!lidos.length) { toast('Nenhum PDF era o relatório C457 ou S013. ' + erros.join(' · '), 'err'); return; }
   // um inventário por cliente
   const grupos = new Map(); lidos.forEach(r => { const k = norm(r.cliente); grupos.set(k, [...(grupos.get(k) || []), r]); });
   const novos = [...grupos.values()].map(montarNovo).sort((x, y) => x.cliente.localeCompare(y.cliente));
@@ -729,12 +771,14 @@ function apurar() {
     venc: linhas.filter(r => r.venc != null && r.venc <= 90 && r.saldo > 0).length,
   };
 }
+const ehEstoque = inv => inv?.obs === 'estoque';
+const relNome = inv => ehEstoque(inv) ? 'S013 - Estoque' : 'C457';
 const ST_TXT = { ok: '✅ Conferido', falta: '⚠ Faltando', exc: '➕ A mais', sobra: '➕ Fora do relatório' };
 function desenharInv() {
   const inv = ui.inv; if (!inv) return;
   document.body.classList.toggle('fechado', inv.status === 'fechado');
   $('i-cli').textContent = inv.cliente;
-  $('i-info').innerHTML = `${esc(inv.fornecedor || 'Todos os fornecedores')} · relatório C457 de ${dataBR(inv.relatorio_data)}<br>Iniciado por ${esc(inv.criado_por || '—')} em ${dataHoraBR(inv.criado_em)}`;
+  $('i-info').innerHTML = `${esc(inv.fornecedor || 'Todos os fornecedores')} · relatório ${relNome(inv)} de ${dataBR(inv.relatorio_data)}<br>Iniciado por ${esc(inv.criado_por || '—')} em ${dataHoraBR(inv.criado_em)}`;
   $('i-status').className = 'tag ' + (inv.status === 'aberto' ? 'ab' : 'fe'); $('i-status').textContent = inv.status === 'aberto' ? 'em andamento' : 'encerrado';
   $('i-fechado-info').textContent = inv.status === 'fechado' ? `✔ Encerrado por ${inv.fechado_por || '—'} em ${dataHoraBR(inv.fechado_em)}. Reabra para bipar de novo.` : '';
   $('b-excluir').style.display = _role === 'admin' ? '' : 'none';
@@ -769,7 +813,7 @@ function desenharInv() {
   const ult = [...ui.leit].reverse().slice(0, 60);
   $('n-leit').textContent = ui.leit.length ? `· ${ui.leit.length} (últimas ${ult.length})` : '';
   $('leituras').innerHTML = ult.map(x => `<div class="l"><span>${x.codigo ? '✅' : '➕'}</span><span><b class="mono">${esc(x.codigo || x.gtin || '—')}</b> · lote <span class="mono">${esc(x.lote || '—')}</span> ${x.produto ? '· ' + esc(x.produto) : ''}</span>
-    <span class="h">${x.origem === 'camera' ? '📷' : x.origem === 'manual' ? '✍️' : '🔫'} ${esc(String(x.usuario || '').replace(/\s*\(.*\)$/, ''))} · ${x._tmp ? 'enviando…' : dataHoraBR(x.criado_em).slice(11)}</span>${inv.status === 'aberto' && !x._tmp ? `<button class="x" title="Desfazer esta leitura" onclick="desfazer('${x.id}')">✕</button>` : ''}</div>`).join('') || '<div class="muted" style="padding:8px 0">Nenhuma leitura ainda.</div>';
+    <span class="h">${x.origem === 'camera' ? '📷' : x.origem === 'manual' ? '✍️' : x.origem === 'foto' ? '🖼' : '🔫'} ${esc(String(x.usuario || '').replace(/\s*\(.*\)$/, ''))} · ${x._tmp ? 'enviando…' : dataHoraBR(x.criado_em).slice(11)}</span>${inv.status === 'aberto' && !x._tmp ? `<button class="x" title="Desfazer esta leitura" onclick="desfazer('${x.id}')">✕</button>` : ''}</div>`).join('') || '<div class="muted" style="padding:8px 0">Nenhuma leitura ainda.</div>';
 }
 $('busca').oninput = e => { ui.busca = e.target.value; desenharInv(); };
 
@@ -781,22 +825,30 @@ function bipe(ok) {
 }
 // produto vencido bipado: separar para devolver ao estoque da GF Medical
 const ALERTA_VENC = `<span class="alerta-venc">⛔ PRODUTO VENCIDO — separe esta embalagem para <u>devolver ao estoque da GF Medical</u>. Não deixe no cliente.</span>`;
+const alertaVenc = () => ehEstoque(ui.inv) ? `<span class="alerta-venc">⛔ PRODUTO VENCIDO — separe esta embalagem na <u>área de vencidos</u> (não pode sair para cirurgia).</span>` : ALERTA_VENC;
 function bipeVencido() { bipe(false); setTimeout(() => bipe(false), 450); if (navigator.vibrate) navigator.vibrate([300, 120, 300, 120, 300]); }
 function ultimo(html, cls, q) { $('ultimo').className = cls || ''; $('ultimo').innerHTML = html + (q ? `<span class="q">${q}</span>` : ''); }
 const _gtinNome = new Map();
 let _gtinPend = null;
 // GS1 só com o produto (01), sem lote nem série
+const _gtinCod = new Map();
+const codDoGtin = g => _gtinCod.get(g) || (ui.leit.find(l => l.gtin === g && l.codigo) || {}).codigo || null;
 const soGtin = txt => { const g = gs1(txt); return g && g['01'] && !g['10'] && !g['21'] ? g['01'] : null; };
 async function nomeDoGtin(gtin) {
   if (!gtin) return null; if (_gtinNome.has(gtin)) return _gtinNome.get(gtin);
   const { data } = await supabase.from('inventario_leituras').select('codigo,produto').eq('gtin', gtin).not('codigo', 'is', null).limit(1);
   const r = data && data[0] ? data[0] : null; _gtinNome.set(gtin, r); return r;
 }
-async function registrar(bruto, origem) {
+async function registrar(bruto, origem, forcarCod) {
   bruto = String(bruto || '').replace(/[\r\n]+/g, '').trim();
   if (!bruto || !ui.inv) return;
   if (ui.inv.status !== 'aberto') { ultimo('🔒 Inventário encerrado — reabra para bipar.', 'er'); return; }
-  const id = identificar(bruto, ui.inv.esperado || []);
+  const id = identificar(bruto, ui.inv.esperado || [], codDoGtin);
+  if (forcarCod && id.cands?.length) { const c = id.cands.find(x => x.cod === forcarCod); if (c) Object.assign(id, { codigo: c.cod, produto: c.produto, lote: c.lote, validade: id.validade || c.validade }); }
+  else if (id.cands?.length > 1) {   // leitor: mesmo lote em mais de um produto → o que ainda tem saldo a conferir
+    const a0 = apurar(), c = id.cands.find(x => { const r0 = a0.linhas.find(y => y.cod === x.cod && y.lote === x.lote); return r0 && r0.bip < r0.saldo; }) || id.cands[0];
+    Object.assign(id, { codigo: c.cod, produto: c.produto, lote: c.lote, validade: id.validade || c.validade });
+  }
   // EAN-13 / UPC da caixa (só números, sem lote): não serve para o inventário — pede o código com (01)(17)(10)
   if (!id.codigo && /^\d{8,14}$/.test(bruto)) { if (origem === 'camera') return false;
     ultimo(`⚠ Esse é o código <b>EAN</b> da embalagem (<span class="mono">${esc(bruto)}</span>) — ele não tem o lote. Bipe o <b>outro código de barras</b>, o comprido que tem (01)…(17)…(10)… embaixo, ou digite o lote.`, 'av'); bipe(false); return;
@@ -823,10 +875,11 @@ async function registrar(bruto, origem) {
   else if (r) { ultimo(`⚠ <b class="mono">${esc(r.cod)}</b> lote <b class="mono">${esc(r.lote)}</b>: já bipou <b>${qtd(r.bip)}</b> e o relatório tem só ${qtd(r.saldo)}. É outra embalagem? Se bipou a mesma etiqueta 2×, desfaça abaixo.`, 'av', `${qtd(r.bip)}/${qtd(r.saldo)}`); bipe(false); }
   else { ultimo(`➕ <b>Não está no saldo do relatório</b> · ${id.produto ? esc((id.produtoCod ? id.produtoCod + ' ' : '') + id.produto) + ' · ' : ''}${id.gtin ? 'GTIN <span class="mono">' + esc(id.gtin) + '</span> · ' : ''}lote <b class="mono">${esc(id.lote || '—')}</b>${vtxt}`, 'er'); bipe(false); }
   if (r && id.validade && diasAte(id.validade) < 0) {
-    $('ultimo').className = 'er'; $('ultimo').insertAdjacentHTML('beforeend', ALERTA_VENC); bipeVencido();
+    $('ultimo').className = 'er'; $('ultimo').insertAdjacentHTML('beforeend', alertaVenc()); bipeVencido();
     // leitor/teclado: janela por cima da tela, só fecha confirmando que separou (na câmera o painel já pede isso)
-    if (origem !== 'camera') {
+    if (origem === 'leitor' || origem === 'manual') {
       $('venc-desc').innerHTML = `<b class="mono">${esc(r.cod)}</b> · ${esc(r.produto)}<br>Lote <b class="mono">${esc(r.lote)}</b> · validade <b>${dataVal(id.validade)}</b> (vencido há ${-diasAte(id.validade)} dias)`;
+      $('venc-acao').innerHTML = ehEstoque(ui.inv) ? 'Separe esta embalagem na <u>área de vencidos</u>.<br>Não pode sair para cirurgia.' : 'Separe esta embalagem para <u>devolver ao estoque da GF Medical</u>.<br>Não deixe no cliente.';
       $('m-venc').classList.add('open'); setTimeout(() => $('venc-fechar').focus(), 50);
     }
   }
@@ -906,7 +959,7 @@ let _pend = null, _feitoTimer = null;
 const lidoCamera = txt => { const agora = Date.now(); if (!txt || _pend || (txt === _ultCam && agora - _ultCamEm < 4000)) return; _ultCam = txt; _ultCamEm = agora; confirmarLeitura(txt); };
 function contadorCam() { if (!ui.inv) return; const a = apurar(); $('cam-cont').textContent = `✅ ${qtd(a.conf)}/${qtd(a.esp)} · 🔫 ${qtd(a.bip)}`; }
 function descreverLeitura(txt) {
-  const id = identificar(txt, ui.inv?.esperado || []), a = apurar();
+  const id = identificar(txt, ui.inv?.esperado || [], codDoGtin), a = apurar();
   if (!id.gtin && _gtinPend && Date.now() - _gtinPend.em < 60000) id.gtin = _gtinPend.gtin;
   const r = id.codigo ? a.linhas.find(x => norm(x.cod) === norm(id.codigo) && norm(x.lote) === norm(id.lote)) : null;
   const val = id.validade ? `Validade <b>${dataVal(id.validade)}</b>${diasAte(id.validade) < 0 ? ' ⛔ VENCIDO' : diasAte(id.validade) <= 90 ? ' ⌛ vence em ' + diasAte(id.validade) + ' dias' : ''}` : '';
@@ -920,7 +973,7 @@ function descreverLeitura(txt) {
     : r ? `<div class="cs av">⚠ Já foram bipados ${qtd(r.bip)} de ${qtd(r.saldo)} deste lote. É outra embalagem?</div>`
     : `<div class="cs er">➕ Não está no saldo do relatório — vai entrar como "fora do relatório".</div>`;
   const venc = id.validade && diasAte(id.validade) < 0;
-  return { html: corpo + st + (venc ? ALERTA_VENC : ''), id, r, venc };
+  return { html: corpo + st + (venc ? alertaVenc() : ''), id, r, venc };
 }
 function confirmarLeitura(txt, origem = 'camera') {
   if (!ui.inv || ui.inv.status !== 'aberto') return;
@@ -929,20 +982,24 @@ function confirmarLeitura(txt, origem = 'camera') {
   _pend = txt; c.className = 'on'; bipe(true);
   const fim = () => { _pend = null; _ultCamEm = Date.now(); c.className = ''; c.innerHTML = ''; };
   if (d.ean) { if (d.gtin) _gtinPend = { gtin: d.gtin, em: Date.now() }; c.innerHTML = d.html + `<div class="cb"><button class="nao" type="button">OK</button></div>`; c.querySelector('.nao').onclick = fim; _feitoTimer = setTimeout(fim, 3000); return; }
-  c.innerHTML = `<div style="font-size:.7rem;color:var(--text3);font-weight:700;letter-spacing:.05em">CÓDIGO LIDO — INCLUIR NO INVENTÁRIO?</div>` + d.html + `<div class="cb"><button class="nao" type="button">✖ Ignorar</button><button class="sim" type="button">✅ Incluir</button></div>`;
+  const varios = (d.id.cands || []).length > 1;
+  c.innerHTML = `<div style="font-size:.7rem;color:var(--text3);font-weight:700;letter-spacing:.05em">CÓDIGO LIDO — INCLUIR NO INVENTÁRIO?</div>` + d.html
+    + (varios ? `<div class="cs av">⚠ Este lote existe em ${d.id.cands.length} produtos. Toque no produto certo:</div><div class="cb" style="flex-direction:column">${d.id.cands.map(x => `<button class="sim" type="button" data-cod="${esc(x.cod)}" style="text-align:left">✅ ${esc(x.cod)} · ${esc(x.produto)}</button>`).join('')}<button class="nao" type="button">✖ Ignorar</button></div>`
+      : `<div class="cb"><button class="nao" type="button">✖ Ignorar</button><button class="sim" type="button">✅ Incluir</button></div>`);
   c.querySelector('.nao').onclick = fim;
-  c.querySelector('.sim').onclick = async () => {
-    c.querySelector('.sim').disabled = true;
-    const ok = await registrar(txt, origem);
+  c.querySelectorAll('.sim').forEach(bt => bt.onclick = async () => {
+    c.querySelectorAll('.sim').forEach(x => x.disabled = true);
+    if (bt.dataset.cod) { const x = d.id.cands.find(y => y.cod === bt.dataset.cod); Object.assign(d.id, { codigo: x.cod, produto: x.produto, lote: x.lote }); }
+    const ok = await registrar(txt, origem, bt.dataset.cod);
     const a = apurar(), r = d.id.codigo ? a.linhas.find(x => norm(x.cod) === norm(d.id.codigo) && norm(x.lote) === norm(d.id.lote)) : null;
     const desc = `${r ? esc(r.cod) + ' · ' + esc(r.produto) : esc(d.id.produto || 'Fora do relatório')} · lote ${esc(d.id.lote || '—')}`;
     c.className = 'on feito ' + (!ok ? 'er' : r && r.bip <= r.saldo ? '' : r ? 'av' : 'er');
     if (ok && d.venc) { bipeVencido(); clearTimeout(_feitoTimer); }
-    c.innerHTML = ok ? `<div class="ct">✅ Incluído</div><div>${desc}</div>${d.venc ? ALERTA_VENC + '<div class="cb"><button class="sim" type="button" id="venc-ok">📦 Separei para devolução</button></div>' : ''}<div class="cs">${r ? `${qtd(r.bip)} de ${qtd(r.saldo)} deste lote · ` : ''}${qtd(a.conf)} de ${qtd(a.esp)} un. conferidas</div>` : `<div class="ct">❌ Não gravou</div><div>Mire de novo na etiqueta.</div>`;
+    c.innerHTML = ok ? `<div class="ct">✅ Incluído</div><div>${desc}</div>${d.venc ? alertaVenc() + '<div class="cb"><button class="sim" type="button" id="venc-ok">📦 Separei para devolução</button></div>' : ''}<div class="cs">${r ? `${qtd(r.bip)} de ${qtd(r.saldo)} deste lote · ` : ''}${qtd(a.conf)} de ${qtd(a.esp)} un. conferidas</div>` : `<div class="ct">❌ Não gravou</div><div>Mire de novo na etiqueta.</div>`;
     contadorCam(); _pend = '…';
     if (ok && d.venc) { $('venc-ok').onclick = fim; return; }
     _feitoTimer = setTimeout(fim, 1800);
-  };
+  });
 }
 // a embalagem tem vários códigos (EAN, GS1 com lote…): prefere o GS1 com lote, depois qualquer um que não seja EAN/UPC
 const melhorCodigo = r => {
@@ -972,7 +1029,7 @@ window.alternarCamera = async () => {
       _zoom = 1; _luz = false; $('cam-zoom').textContent = '🔍 1×';
       $('cam-zoom').style.display = cap.zoom && cap.zoom.max >= 2 ? '' : 'none'; $('cam-luz').style.display = cap.torch ? '' : 'none';
       const zx = await detectorZx(), nativo = det !== zx && !(window.BarcodeDetectionAPI && det instanceof BarcodeDetectionAPI.BarcodeDetector);
-      const modos = [[det, 'v'], [det, 'c'], [det, 'q'], ...(zx && zx !== det ? [[zx, 'c'], [zx, 'q'], [zx, 'v']] : [])];
+      const modos = [[det, 'v'], [det, 'c'], [det, 'q'], ...(zx && zx.constructor !== det.constructor ? [[zx, 'c'], [zx, 'q'], [zx, 'v']] : [])];
       _quadros = 0;
       const ciclo = async () => {
         if (!_stream) return;
@@ -980,7 +1037,7 @@ window.alternarCamera = async () => {
           if (v.readyState >= 2 && !_pend) {
             const [d, onde] = modos[_quadros++ % modos.length], fonte = onde === 'c' ? recorteMira(v) || v : onde === 'q' ? recorteCentro(v) || v : v;
             const r = await d.detect(fonte); if (r && r.length) lidoCamera(melhorCodigo(r));
-            if (_quadros % 10 === 0) $('cam-diag').textContent = `leitor: ${nativo ? 'nativo' : 'zxing'}${zx && zx !== det ? ' + zxing' : ''} · ${v.videoWidth}×${v.videoHeight} · ${_quadros} quadros`;
+            if (_quadros % 10 === 0) $('cam-diag').textContent = `leitor: ${nativo ? 'nativo' : 'zxing'}${zx && zx.constructor !== det.constructor ? ' + zxing' : ''} · ${v.videoWidth}×${v.videoHeight} · ${_quadros} quadros`;
           }
         } catch (e) { $('cam-diag').textContent = '⚠ ' + (e?.message || e); }
         _loop = setTimeout(ciclo, 60);
@@ -1007,7 +1064,7 @@ $('cam-foto-bt').onclick = async () => {
   $('cam-diag').textContent = '📸 lendo a foto…';
   let img = null;
   try { if (window.ImageCapture) img = await createImageBitmap(await new ImageCapture(tr).takePhoto()); } catch (e) {}
-  const fontes = [img, recorteCentro(v), recorteCentro(v, 0.4), recorteMira(v), v].filter(Boolean), dets = [await detectorNativo(), await detectorZx()].filter((d, i, a) => d && a.indexOf(d) === i);
+  const fontes = [img, recorteCentro(v), recorteCentro(v, 0.4), recorteMira(v), v].filter(Boolean), dets = [await detectorNativo(), await detectorZx()].filter((d, i, a) => d && a.findIndex(x => x && x.constructor === d.constructor) === i);
   for (const f of fontes) for (const d of dets) { try { const r = await d.detect(f); if (r && r.length) { $('cam-diag').textContent = ''; _ultCam = ''; return lidoCamera(melhorCodigo(r)); } } catch (e) {} }
   $('cam-diag').textContent = '📸 nenhum código na foto — chegue a ~15 cm, etiqueta reta e com luz';
   bipe(false);
@@ -1032,6 +1089,53 @@ async function lerFoto(file) {
   } catch (e) {}
   ultimo('⚠ Não achei o código de barras na foto. Tire de novo com a etiqueta reta, inteira e bem iluminada — ou digite o lote.', 'er'); bipe(false);
 }
+// várias fotos: lê o código de cada uma (foto inteira e recortes do centro, com os dois leitores) e mostra a lista para confirmar
+let _cvF = null;
+function recorteImg(img, frac) {
+  const w = img.width, hh = img.height, lado = Math.min(w, hh) * frac, k = Math.min(2.5, 1400 / lado);
+  const c = _cvF || (_cvF = document.createElement('canvas')); c.width = c.height = Math.round(lado * k);
+  c.getContext('2d').drawImage(img, (w - lado) / 2, (hh - lado) / 2, lado, lado, 0, 0, c.width, c.height); return c;
+}
+async function lerCodigoFoto(file) {
+  const dets = [await detectorNativo(), await detectorZx()].filter((d, i, a) => d && a.findIndex(x => x && x.constructor === d.constructor) === i); if (!dets.length) return null;
+  let img; try { img = await createImageBitmap(file); } catch (e) { return null; }
+  for (const f of [img, () => recorteImg(img, 0.6), () => recorteImg(img, 0.35)]) for (const d of dets) {
+    try { const r = await d.detect(typeof f === 'function' ? f() : f); if (r && r.length) return melhorCodigo(r); } catch (e) {}
+  }
+  return null;
+}
+$('f-fotos').onchange = async e => {
+  const files = [...e.target.files]; e.target.value = ''; if (!files.length || !ui.inv) return;
+  if (ui.inv.status !== 'aberto') return toast('Inventário encerrado — reabra para incluir.', 'err');
+  $('fotos-ok').disabled = true; $('fotos-tb').innerHTML = ''; $('m-fotos').classList.add('open');
+  const res = [], conta = new Map();
+  for (let i = 0; i < files.length; i++) {
+    $('fotos-prog').textContent = `📷 Lendo foto ${i + 1} de ${files.length}…`;
+    const txt = await lerCodigoFoto(files[i]), id = txt ? identificar(txt, ui.inv.esperado || [], codDoGtin) : null;
+    let r = null;
+    if (id?.codigo) {
+      const a0 = apurar(), cand = (id.cands || []).find(x => { const r0 = a0.linhas.find(y => y.cod === x.cod && y.lote === x.lote); return r0 && r0.bip + (conta.get(x.cod + '|' + x.lote) || 0) < r0.saldo; }) || id.cands[0];
+      r = a0.linhas.find(y => y.cod === cand.cod && y.lote === cand.lote); const k = r.cod + '|' + r.lote; conta.set(k, (conta.get(k) || 0) + 1);
+    }
+    res.push({ nome: files[i].name, txt, id, r, n: r ? r.bip + conta.get(r.cod + '|' + r.lote) : 0 });
+  }
+  const ok = res.filter(x => x.r);
+  $('fotos-prog').textContent = `${files.length} foto(s) · ✅ ${ok.length} no relatório · ❌ ${res.length - ok.length} sem código ou fora do relatório`;
+  $('fotos-tb').innerHTML = `<thead><tr><th></th><th>Foto</th><th>Resultado</th></tr></thead><tbody>${res.map((x, i) => `<tr>
+    <td>${x.r ? `<input type="checkbox" data-foto="${i}" checked>` : ''}</td><td class="mono" style="font-size:.66rem;word-break:break-all">${esc(x.nome)}</td>
+    <td>${x.r ? `✅ <b class="mono">${esc(x.r.cod)}</b> ${esc(x.r.produto)}<br>Lote <b class="mono">${esc(x.r.lote || '—')}</b> · val. ${dataVal(x.id.validade || x.r.validade)}${diasAte(x.id.validade || x.r.validade) < 0 ? ' <span class="venc">⛔ VENCIDO — separar</span>' : ''} · fica <b>${qtd(x.n)}/${qtd(x.r.saldo)}</b>${x.n > x.r.saldo ? ' <span class="venc">a mais que o saldo</span>' : ''}${(x.id.cands || []).length > 1 ? ' <span style="color:var(--warn-c)">⚠ lote também em outro produto — confira</span>' : ''}`
+      : x.txt ? `❌ Código lido, mas não está no relatório <span class="mono" style="font-size:.66rem">${esc(String(x.txt).slice(0, 60))}</span>` : '⚠ Nenhum código encontrado na foto'}</td></tr>`).join('')}</tbody>`;
+  const marcadas = () => [...$('fotos-tb').querySelectorAll('[data-foto]:checked')].map(c => res[+c.dataset.foto]);
+  const rot = () => { const n = marcadas().length; $('fotos-ok').textContent = `Incluir ${n} embalage${n === 1 ? 'm' : 'ns'}`; $('fotos-ok').disabled = !n; };
+  $('fotos-tb').querySelectorAll('[data-foto]').forEach(c => c.onchange = rot); rot();
+  $('fotos-ok').onclick = async () => {
+    const sel = marcadas(); $('fotos-ok').disabled = true; let n = 0;
+    for (const x of sel) { $('fotos-ok').textContent = `Incluindo ${++n} de ${sel.length}…`; await registrar(x.txt, 'foto', x.r.cod); }
+    fecharModal('m-fotos'); toast(`✅ ${sel.length} embalage${sel.length === 1 ? 'm incluída' : 'ns incluídas'} pelas fotos`);
+    const venc = sel.filter(x => diasAte(x.id.validade || x.r.validade) < 0);
+    if (venc.length) { $('venc-desc').innerHTML = venc.map(x => `<b class="mono">${esc(x.r.cod)}</b> · lote <b class="mono">${esc(x.r.lote)}</b>`).join('<br>'); $('venc-acao').innerHTML = ehEstoque(ui.inv) ? 'Separe estas embalagens na <u>área de vencidos</u>.' : 'Separe estas embalagens para <u>devolver ao estoque da GF Medical</u>.'; $('m-venc').classList.add('open'); }
+  };
+};
 $('f-foto').onchange = e => { const f = e.target.files[0]; e.target.value = ''; lerFoto(f); };
 window.abrirCelular = () => {
   const url = location.origin + location.pathname + '?inv=' + ui.inv.id + '&cam=1' + (window._filialFixa ? '' : '&filial=' + BRANCH);
@@ -1086,7 +1190,7 @@ async function docCliente(nome) {
 window.imprimir = async () => {
   const inv = ui.inv, a = apurar(), w = window.open('', '_blank'); if (!w) return toast('Libere as janelas pop-up para imprimir.', 'err');
   w.document.write('<p style="font-family:Arial;padding:20px">Montando o relatório…</p>');
-  let docCli = ''; try { docCli = await docCliente(inv.cliente); } catch (e) {}
+  let docCli = ''; try { if (!ehEstoque(inv)) docCli = await docCliente(inv.cliente); } catch (e) {}
   const gf = GF[FILIAL] || GF.CGR;
   const tab = (tit, l, cols, rotTotal) => l.length ? `<h3>${tit} <small>(${l.length})</small></h3><table><thead><tr>${cols.map(c => `<th${c[2] ? ' class="n"' : ''}>${c[0]}</th>`).join('')}</tr></thead><tbody>${l.map(r => `<tr>${cols.map(c => `<td${c[2] ? ' class="n"' : ''}>${c[1](r)}</td>`).join('')}</tr>`).join('')}</tbody>
     <tfoot><tr class="tot">${cols.map((c, i) => `<td${c[2] ? ' class="n"' : ''}>${i === 0 ? `TOTAL${rotTotal ? ' · ' + rotTotal : ''}` : c[3] ? c[3](l) : ''}</td>`).join('')}</tr></tfoot></table>` : '';
@@ -1101,15 +1205,15 @@ window.imprimir = async () => {
     table{width:100%;border-collapse:collapse}tr.tot td{font-weight:bold;background:#eef5f0;border-top:2px solid #1a7a4a}th,td{border:1px solid #ccc;padding:3px 5px;text-align:left}th{background:#eef5f0;font-size:9.5px}.n{text-align:right;white-space:nowrap}
     .ass{display:flex;gap:40px;margin-top:46px}.ass div{flex:1;border-top:1px solid #000;padding-top:4px;text-align:center;line-height:1.45}
     @media print{body{margin:8mm}h3{page-break-after:avoid}tr{page-break-inside:avoid}}</style></head><body>
-    <div class="cab"><div><h1>Inventário de material consignado</h1><div><b>${esc(inv.cliente)}</b></div><div>${esc(inv.fornecedor || 'Todos os fornecedores')} · relatório C457 de ${dataBR(inv.relatorio_data)}</div>
+    <div class="cab"><div><h1>${ehEstoque(inv) ? 'Inventário do estoque' : 'Inventário de material consignado'}</h1><div><b>${esc(inv.cliente)}</b></div><div>${esc(inv.fornecedor || 'Todos os fornecedores')} · relatório ${relNome(inv)} de ${dataBR(inv.relatorio_data)}</div>
     <div>Iniciado em ${dataHoraBR(inv.criado_em)} por ${esc(inv.criado_por || '—')}${inv.fechado_em ? ` · encerrado em ${dataHoraBR(inv.fechado_em)} por ${esc(inv.fechado_por || '—')}` : ' · <b>em andamento</b>'}</div></div><img src="${location.origin + location.pathname.replace(/[^/]*$/, '')}logo.jpg" alt=""></div>
     <div class="res"><div>No relatório<b>${qtd(a.esp)} un. · ${brl(a.espVal)}</b></div><div>Fisicamente no local<b>${qtd(a.fis)} un. · ${brl(a.fisVal)}</b></div><div>Faltando<b>${qtd(a.falta)} un. · ${brl(a.faltaVal)}</b></div><div>A mais / fora do relatório<b>${qtd(a.exc)} un.</b></div><div>Validade ≤ 90 dias<b>${a.venc} lotes</b></div></div>
     ${tab('⚠ Faltando (no relatório e não encontrado)', ord(a.linhas.filter(r => r.st === 'falta')), [...base, ['NF', r => esc(r.nfs.map(n => n.nf).join(', '))], ['Saldo', r => qtd(r.saldo), 1, soma(r => r.saldo)], ['Encontrado', r => qtd(r.bip), 1, soma(r => r.bip)], ['Falta', r => qtd(r.saldo - r.bip), 1, soma(r => r.saldo - r.bip)], ['Valor', r => brl((r.saldo - r.bip) * r.vunit), 1, somaR(r => (r.saldo - r.bip) * r.vunit)]])}
     ${tab('➕ Encontrado a mais / fora do relatório', ord([...a.linhas.filter(r => r.st === 'exc'), ...a.sobras]), [...base, ['Saldo', r => r.tipo === 'esp' ? qtd(r.saldo) : '—', 1, soma(r => r.tipo === 'esp' ? r.saldo : 0)], ['Encontrado', r => qtd(r.bip), 1, soma(r => r.bip)], ['A mais', r => qtd(r.bip - (r.tipo === 'esp' ? r.saldo : 0)), 1, soma(r => r.bip - (r.tipo === 'esp' ? r.saldo : 0))], ['Valor', r => r.vunit ? brl((r.bip - r.saldo) * r.vunit) : '—', 1, somaR(r => r.vunit ? (r.bip - r.saldo) * r.vunit : 0)]])}
     ${tab('⌛ Validade vencida ou em até 90 dias', a.linhas.filter(r => r.venc != null && r.venc <= 90).sort((x, y) => x.venc - y.venc), [...base, ['Dias', r => r.venc < 0 ? 'vencido' : r.venc, 1], ['Saldo', r => qtd(r.saldo), 1, soma(r => r.saldo)], ['Encontrado', r => qtd(r.bip), 1, soma(r => r.bip)], ['Valor', r => brl(r.saldo * r.vunit), 1, somaR(r => r.saldo * r.vunit)]], (() => { const l = a.linhas.filter(r => r.venc != null && r.venc <= 90), v = l.filter(r => r.venc < 0).length; return `${v} vencido${v === 1 ? '' : 's'} · ${l.length - v} a vencer`; })())}
-    ${tab('⛔ Vencidos encontrados no local — separar e devolver ao estoque da GF Medical', ord(a.linhas.filter(r => r.bip > 0 && r.venc != null && r.venc < 0)), [...base, ['Encontrado', r => qtd(r.bip), 1, soma(r => r.bip)], ['Valor', r => brl(r.bip * r.vunit), 1, somaR(r => r.bip * r.vunit)]])}
+    ${tab(ehEstoque(inv) ? '⛔ Vencidos encontrados no estoque — separar na área de vencidos' : '⛔ Vencidos encontrados no local — separar e devolver ao estoque da GF Medical', ord(a.linhas.filter(r => r.bip > 0 && r.venc != null && r.venc < 0)), [...base, ['Encontrado', r => qtd(r.bip), 1, soma(r => r.bip)], ['Valor', r => brl(r.bip * r.vunit), 1, somaR(r => r.bip * r.vunit)]])}
     ${tab('✅ Conferido', ord(a.linhas.filter(r => r.st === 'ok')), [...base, ['NF', r => esc(r.nfs.map(n => n.nf).join(', '))], ['Qtd', r => qtd(r.saldo), 1, soma(r => r.saldo)], ['Valor', r => brl(r.saldo * r.vunit), 1, somaR(r => r.saldo * r.vunit)]])}
-    <div class="ass"><div><b>${esc(inv.cliente)}</b><br>${docCli ? esc(docCli) + '<br>' : ''}<small>Responsável pelo cliente · nome / assinatura / data</small></div><div><b>${esc(gf.razao)}</b><br>CNPJ ${gf.cnpj} · ${gf.cidade}<br><small>${esc(nomeCurto())}</small></div></div>
+    <div class="ass"><div><b>${esc(inv.cliente)}</b><br>${docCli ? esc(docCli) + '<br>' : ''}<small>${ehEstoque(inv) ? 'Responsável pelo estoque' : 'Responsável pelo cliente'} · nome / assinatura / data</small></div><div><b>${esc(gf.razao)}</b><br>CNPJ ${gf.cnpj} · ${gf.cidade}<br><small>${esc(nomeCurto())}</small></div></div>
     <script>window.onload=()=>setTimeout(()=>print(),300)<\/script></body></html>`);
   w.document.close();
 };
@@ -1125,14 +1229,14 @@ function textoFaltantes(comValor, fmt) {
   const loteTxt = r => `Lote ${r.lote} · val. ${dataVal(r.validade)}${r.venc != null && r.venc < 0 ? (wa ? ' ⛔ VENCIDO' : ' (VENCIDO)') : r.venc != null && r.venc <= 90 ? (wa ? ' ⌛ vence em ' + r.venc + ' dias' : ' (vence em ' + r.venc + ' dias)') : ''} · ${qtd(unF(r))} un.${r.bip ? ` (de ${qtd(r.saldo)})` : ''}${comValor && r.vunit ? ' · ' + brl(unF(r) * r.vunit) : ''}${r.nfs?.length ? ' · NF ' + r.nfs.map(n => n.nf).join(', ') : ''}`;
   const L = [];
   if (wa) {
-    L.push(`Olá! Segue o resultado do inventário de material consignado:`, '', `🏥 ${b(inv.cliente)}`, `🏷 ${inv.fornecedor || 'Todos os fornecedores'}`, `📅 Inventário em ${quando} · relatório C457 de ${dataBR(inv.relatorio_data)}`, '',
+    L.push(`Olá! Segue o resultado do inventário ${ehEstoque(inv) ? 'do estoque' : 'de material consignado'}:`, '', `${ehEstoque(inv) ? '🏬' : '🏥'} ${b(inv.cliente)}`, `🏷 ${inv.fornecedor || 'Todos os fornecedores'}`, `📅 Inventário em ${quando} · relatório ${relNome(inv)} de ${dataBR(inv.relatorio_data)}`, '',
       b('RESUMO'), `📋 Saldo no relatório: ${qtd(a.esp)} un.${comValor ? ' · ' + R(a.espVal) : ''}`, `✅ Encontrado no local: ${qtd(a.fis)} un.${comValor ? ' · ' + R(a.fisVal) : ''} (${pct}%)`,
       `⚠ ${b(`Faltando: ${qtd(a.falta)} un.${comValor ? ' · ' + R(a.faltaVal) : ''}`)}`);
     if (vencFalt.length) L.push(`⛔ Entre os faltantes, ${vencFalt.length} lote${vencFalt.length === 1 ? ' está vencido' : 's estão vencidos'}`);
     L.push('', b(`ITENS FALTANDO (${falt.length} lote${falt.length === 1 ? '' : 's'})`));
     grupos.forEach(g => { L.push('', `▪ ${b(g.cod)} — ${g.produto}`); g.l.forEach(r => L.push(`   • ${loteTxt(r)}`)); });
   } else {
-    L.push('Prezados(as),', '', `Segue o resultado do inventário do material em consignação no(a) ${inv.cliente}, realizado em ${quando}, conferido contra o relatório C457 (Itens Consignados) de ${dataBR(inv.relatorio_data)} — ${inv.fornecedor || 'todos os fornecedores'}.`, '',
+    L.push('Prezados(as),', '', ehEstoque(inv) ? `Segue o resultado do inventário do ${inv.cliente}, realizado em ${quando}, conferido contra o relatório S013 - Estoque de ${dataBR(inv.relatorio_data)}.` : `Segue o resultado do inventário do material em consignação no(a) ${inv.cliente}, realizado em ${quando}, conferido contra o relatório C457 (Itens Consignados) de ${dataBR(inv.relatorio_data)} — ${inv.fornecedor || 'todos os fornecedores'}.`, '',
       'RESUMO', '-'.repeat(40),
       `Saldo no relatório ......... ${qtd(a.esp)} un.${comValor ? '   ' + R(a.espVal) : ''}`,
       `Encontrado no local ........ ${qtd(a.fis)} un.${comValor ? '   ' + R(a.fisVal) : ''}  (${pct}% conferido)`,
@@ -1145,12 +1249,15 @@ function textoFaltantes(comValor, fmt) {
   const vencAchados = a.linhas.filter(r => r.bip > 0 && r.venc != null && r.venc < 0);
   if (vencAchados.length) {
     L.push('', wa ? b(`⛔ VENCIDOS ENCONTRADOS NO LOCAL (${vencAchados.length}) — separados para devolução ao estoque da GF Medical`) : 'VENCIDOS ENCONTRADOS NO LOCAL — SEPARADOS PARA DEVOLUÇÃO AO ESTOQUE DA GF MEDICAL');
+    if (ehEstoque(inv)) L[L.length - 1] = wa ? b(`⛔ VENCIDOS ENCONTRADOS NO ESTOQUE (${vencAchados.length}) — separados na área de vencidos`) : 'VENCIDOS ENCONTRADOS NO ESTOQUE — SEPARADOS NA ÁREA DE VENCIDOS';
     vencAchados.forEach(r => L.push(`${wa ? '   • ' : '   - '}${r.cod} — ${r.produto} · lote ${r.lote} · val. ${dataVal(r.validade)} · ${qtd(r.bip)} un.`));
   }
   const exc = a.linhas.filter(r => r.st === 'exc');
   if (exc.length) { L.push('', wa ? b(`➕ ENCONTRADO A MAIS QUE O SALDO (${exc.length})`) : 'ENCONTRADO A MAIS QUE O SALDO DO RELATÓRIO'); exc.forEach(r => L.push(`${wa ? '   • ' : '   - '}${r.cod} · lote ${r.lote}: encontrado ${qtd(r.bip)}, saldo ${qtd(r.saldo)}`)); }
-  if (wa) L.push('', '🙏 Por favor, confirme se os itens faltando foram *utilizados* (para faturarmos) ou onde estão.', '', `${nomeCurto()}`, `${gf.razao} · ${gf.cidade}`);
-  else L.push('', 'Pedimos, por gentileza, que nos confirmem se os itens acima foram utilizados em procedimentos (para emissão do faturamento) ou se estão em outro local, para regularizarmos o saldo do consignado.', '', 'Ficamos à disposição para qualquer dúvida.', '', 'Atenciosamente,', '', nomeCurto(), gf.razao, `CNPJ ${gf.cnpj} · ${gf.cidade}`);
+  if (wa && ehEstoque(inv)) L.push('', '🔎 Itens faltando no estoque físico: verificar se saíram sem baixa (cirurgia, transferência, consignado) ou se estão em outro local.', '', `${nomeCurto()}`, `${gf.razao} · ${gf.cidade}`);
+  else if (!wa && ehEstoque(inv)) L.push('', 'Os itens acima constam no sistema (S013) mas não foram encontrados no estoque físico. Verificar saídas sem baixa (cirurgia, transferência, consignado) ou outro local de armazenagem.', '', 'Atenciosamente,', '', nomeCurto(), gf.razao, `CNPJ ${gf.cnpj} · ${gf.cidade}`);
+  else if (wa) L.push('', '🙏 Por favor, confirme se os itens faltando foram *utilizados* (para faturarmos) ou onde estão.', '', `${nomeCurto()}`, `${gf.razao} · ${gf.cidade}`);
+  else if (!ehEstoque(inv)) L.push('', 'Pedimos, por gentileza, que nos confirmem se os itens acima foram utilizados em procedimentos (para emissão do faturamento) ou se estão em outro local, para regularizarmos o saldo do consignado.', '', 'Ficamos à disposição para qualquer dúvida.', '', 'Atenciosamente,', '', nomeCurto(), gf.razao, `CNPJ ${gf.cnpj} · ${gf.cidade}`);
   return L.join('\n').replace(/ /g, ' ');
 }
 window.abrirFaltantes = () => {
@@ -1158,7 +1265,7 @@ window.abrirFaltantes = () => {
   const montar = () => { $('falta-txt').value = textoFaltantes($('falta-valor').checked, fmt); document.querySelectorAll('#m-falta [data-fmt]').forEach(x => x.classList.toggle('p', x.dataset.fmt === fmt)); };
   document.querySelectorAll('#m-falta [data-fmt]').forEach(x => x.onclick = () => { fmt = x.dataset.fmt; montar(); });
   montar(); $('falta-valor').onchange = montar;
-  const assunto = () => `Inventário consignado · ${ui.inv.cliente} · itens faltando (${dataBR(hojeISO())})`;
+  const assunto = () => `${ehEstoque(ui.inv) ? 'Inventário do estoque' : 'Inventário consignado'} · ${ui.inv.cliente} · itens faltando (${dataBR(hojeISO())})`;
   $('falta-copiar').onclick = () => navigator.clipboard.writeText($('falta-txt').value).then(() => toast('📋 Texto copiado — cole no WhatsApp ou no e-mail'));
   // cada botão usa o seu formato (se o texto da tela for do outro, gera o certo)
   const texto = f => fmt === f ? $('falta-txt').value : textoFaltantes($('falta-valor').checked, f);
@@ -1184,7 +1291,7 @@ window.baixarExcel = () => {
   const leit = ui.leit.filter(l => !l._tmp).map(l => ({ 'Quando': dataHoraBR(l.criado_em), 'Quem': l.usuario || '', 'Como': l.origem === 'camera' ? 'Câmera' : 'Leitor', 'Código': l.codigo || '', 'Produto': l.produto || '', 'GTIN': l.gtin || '', 'Lote': l.lote || '', 'Validade': dataVal(l.validade), 'Lido': l.bruto }));
   const vencLocal = a.linhas.filter(r => r.bip > 0 && r.venc != null && r.venc < 0);
   const resumo = [
-    ['Inventário de material consignado'], [], ['Cliente', inv.cliente], ['Fornecedor', inv.fornecedor || 'Todos'], ['Relatório C457 de', dataBR(inv.relatorio_data)],
+    [ehEstoque(inv) ? 'Inventário do estoque' : 'Inventário de material consignado'], [], [ehEstoque(inv) ? 'Estoque' : 'Cliente', inv.cliente], ['Fornecedor', inv.fornecedor || 'Todos'], [`Relatório ${relNome(inv)} de`, dataBR(inv.relatorio_data)],
     ['Inventário iniciado em', dataHoraBR(inv.criado_em) + ' por ' + (inv.criado_por || '—')], ['Situação', inv.status === 'fechado' ? 'Encerrado em ' + dataHoraBR(inv.fechado_em) : 'Em andamento'], [],
     ['', 'Unidades', 'Valor (R$)'],
     ['Saldo no relatório', a.esp, Math.round(a.espVal * 100) / 100],
@@ -1207,7 +1314,7 @@ window.baixarExcel = () => {
   XLSX.writeFile(wb, `Inventário ${inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
 };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.inv) carregarLeituras().then(desenharInv); });
-const VERSAO = '2026-11-04.132814';
+const VERSAO = '2026-11-04.133652';
 async function conferirVersao() {
   try {
     const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];
