@@ -379,7 +379,8 @@ function gs1(bruto) {
   let s = String(bruto || '').replace(/^\][A-Za-z]\d/, '').replace(/[\r\n]/g, '').trim(); const out = {};
   if (/\(\d{2,4}\)/.test(s)) { const re = /\((\d{2,4})\)([^(]*)/g; let m; while ((m = re.exec(s))) out[m[1]] = m[2].replace(/\x1d/g, '').trim(); return out['01'] || out['10'] ? out : null; }
   s = s.replace(/\s+/g, '\x1d').replace(/^\x1d+/, '');           // alguns leitores mandam espaço no lugar do separador GS
-  if (!/^(01|02)\d{14}/.test(s)) return null;
+  // etiqueta com dois códigos: um só do produto (01) e outro só com validade/lote (17)(10)(11)(21)
+  if (!/^(01|02)\d{14}/.test(s) && !/^(1[01]|17)\d{6}|^10\S|^21\S/.test(s)) return null;
   let i = 0, n = 0;
   while (i < s.length && n++ < 15) {
     if (s[i] === '\x1d') { i++; continue; }
@@ -395,7 +396,10 @@ function gs1(bruto) {
 const validade17 = v => { if (!/^\d{6}$/.test(v || '')) return null; const a = 2000 + +v.slice(0, 2), m = +v.slice(2, 4), d = +v.slice(4, 6) || new Date(a, m, 0).getDate(); return `${a}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`; };
 // casa a leitura com uma linha do relatório pelo lote (a etiqueta não tem o código do ERP)
 function identificar(bruto, esperado) {
-  const g = gs1(bruto), semEsp = s => norm(s).replace(/[\s\x1d]+/g, '');
+  const semEsp = s => norm(s).replace(/[\s\x1d]+/g, '');
+  let g = gs1(bruto);
+  // sem o (01), um texto que começa com 10/17 pode ser só o lote digitado: se bate com um lote do relatório, vale como lote
+  if (g && !g['01'] && esperado.some(x => semEsp(x.lote) === semEsp(bruto))) g = null;
   const loteLido = g ? semEsp(g['10'] || '') : '', onde = g ? semEsp((g['10'] || '') + ' ' + (g['21'] || '')) : semEsp(bruto);
   let e = loteLido ? esperado.find(x => semEsp(x.lote) === loteLido) : null;
   if (!e) e = esperado.find(x => { const L = semEsp(x.lote); return L.length >= 5 && (onde.includes(L) || (loteLido && loteLido.startsWith(L))); });
@@ -681,6 +685,9 @@ function bipe(ok) {
 }
 function ultimo(html, cls, q) { $('ultimo').className = cls || ''; $('ultimo').innerHTML = html + (q ? `<span class="q">${q}</span>` : ''); }
 const _gtinNome = new Map();
+let _gtinPend = null;
+// GS1 só com o produto (01), sem lote nem série
+const soGtin = txt => { const g = gs1(txt); return g && g['01'] && !g['10'] && !g['21'] ? g['01'] : null; };
 async function nomeDoGtin(gtin) {
   if (!gtin) return null; if (_gtinNome.has(gtin)) return _gtinNome.get(gtin);
   const { data } = await supabase.from('inventario_leituras').select('codigo,produto').eq('gtin', gtin).not('codigo', 'is', null).limit(1);
@@ -695,7 +702,19 @@ async function registrar(bruto, origem) {
   if (!id.codigo && /^\d{8,14}$/.test(bruto)) { if (origem === 'camera') return false;
     ultimo(`⚠ Esse é o código <b>EAN</b> da embalagem (<span class="mono">${esc(bruto)}</span>) — ele não tem o lote. Bipe o <b>outro código de barras</b>, o comprido que tem (01)…(17)…(10)… embaixo, ou digite o lote.`, 'av'); bipe(false); return;
   }
-  if (!id.codigo && id.gtin) { const n = await nomeDoGtin(id.gtin); if (n) { id.produto = n.produto; id.produtoCod = n.codigo; } }
+  const sg = !id.codigo && soGtin(bruto);
+  if (sg) {
+    _gtinPend = { gtin: sg, em: Date.now() }; const n = await nomeDoGtin(sg);
+    ultimo(`📦 Lido só o código do <b>produto</b> (${n ? esc(n.codigo + ' · ' + n.produto) : 'GTIN <span class="mono">' + esc(sg) + '</span>'}). Falta o <b>lote</b>: bipe agora o outro código da etiqueta, o que tem (17) validade e (10) lote.`, 'av'); bipe(false);
+    return false;
+  }
+  if (!id.gtin && _gtinPend && Date.now() - _gtinPend.em < 60000) id.gtin = _gtinPend.gtin;
+  _gtinPend = null;
+  // só entra o que está no relatório do cliente; o resto só avisa (não grava)
+  if (!id.codigo) {
+    ultimo(`❌ <b>Não incluído</b> — esse código não está no relatório deste cliente${id.lote ? ' (lote <b class="mono">' + esc(id.lote) + '</b>)' : ''}. Confira se bipou o código com o <b>lote</b> da etiqueta certa.`, 'er'); bipe(false);
+    return false;
+  }
   const reg = { inventario_id: ui.inv.id, bruto: bruto.slice(0, 300), gtin: id.gtin, lote: id.lote, validade: id.validade, serie: id.serie, codigo: id.codigo, produto: id.produto, qtd: 1, origem, usuario: quemSou() };
   const tmp = { ...reg, id: 'tmp' + Math.random().toString(36).slice(2), _tmp: true, criado_em: new Date().toISOString() };
   ui.leit.push(tmp);
@@ -746,11 +765,15 @@ const lidoCamera = txt => { const agora = Date.now(); if (!txt || _pend || (txt 
 function contadorCam() { if (!ui.inv) return; const a = apurar(); $('cam-cont').textContent = `✅ ${qtd(a.conf)}/${qtd(a.esp)} · 🔫 ${qtd(a.bip)}`; }
 function descreverLeitura(txt) {
   const id = identificar(txt, ui.inv?.esperado || []), a = apurar();
+  if (!id.gtin && _gtinPend && Date.now() - _gtinPend.em < 60000) id.gtin = _gtinPend.gtin;
   const r = id.codigo ? a.linhas.find(x => norm(x.cod) === norm(id.codigo) && norm(x.lote) === norm(id.lote)) : null;
   const val = id.validade ? `Validade <b>${dataBR(id.validade)}</b>${diasAte(id.validade) < 0 ? ' ⛔ VENCIDO' : diasAte(id.validade) <= 90 ? ' ⌛ vence em ' + diasAte(id.validade) + ' dias' : ''}` : '';
+  const sg = !id.codigo && soGtin(txt);
+  if (sg) return { ean: true, gtin: sg, html: `<div class="ct">📦 Código do produto</div><div class="mono">GTIN ${esc(sg)}</div><div class="cs av">Falta o lote. Mire agora no <b>outro código</b> da etiqueta — o que tem (17) validade e (10) lote.</div>` };
   if (!id.codigo && /^\d{8,14}$/.test(txt)) return { ean: true, html: `<div class="ct">⚠ Código EAN da embalagem</div><div class="mono">${esc(txt)}</div><div class="cs av">Esse código não tem o lote. Mire no outro código de barras — o comprido, com (01)…(17)…(10)… embaixo.</div>` };
   const corpo = `<div class="ct">${r ? `<span class="mono">${esc(r.cod)}</span> · ${esc(r.produto)}` : id.produto ? esc((id.produtoCod ? id.produtoCod + ' · ' : '') + id.produto) : 'Produto fora do relatório'}</div>
     <div>Lote <b class="mono">${esc(id.lote || '—')}</b>${val ? ' · ' + val : ''}${id.gtin ? `<br><span class="mono" style="font-size:.72rem;color:var(--text3)">GTIN ${esc(id.gtin)}</span>` : ''}</div>`;
+  if (!r) return { ean: true, html: `<div class="ct">❌ Não está no relatório</div><div>Lote <b class="mono">${esc(id.lote || '—')}</b>${id.gtin ? ' · <span class="mono">GTIN ' + esc(id.gtin) + '</span>' : ''}</div><div class="cs er">Não foi incluído. Mire no código com o <b>lote</b> de uma embalagem deste cliente.</div>` };
   const st = r && r.bip < r.saldo ? `<div class="cs ok">Vai contar ${qtd(r.bip + 1)} de ${qtd(r.saldo)} deste lote.</div>`
     : r ? `<div class="cs av">⚠ Já foram bipados ${qtd(r.bip)} de ${qtd(r.saldo)} deste lote. É outra embalagem?</div>`
     : `<div class="cs er">➕ Não está no saldo do relatório — vai entrar como "fora do relatório".</div>`;
@@ -762,7 +785,7 @@ function confirmarLeitura(txt, origem = 'camera') {
   const d = descreverLeitura(txt), c = $('cam-conf');
   _pend = txt; c.className = 'on'; bipe(true);
   const fim = () => { _pend = null; _ultCamEm = Date.now(); c.className = ''; c.innerHTML = ''; };
-  if (d.ean) { c.innerHTML = d.html + `<div class="cb"><button class="nao" type="button">OK</button></div>`; c.querySelector('.nao').onclick = fim; return; }
+  if (d.ean) { if (d.gtin) _gtinPend = { gtin: d.gtin, em: Date.now() }; c.innerHTML = d.html + `<div class="cb"><button class="nao" type="button">OK</button></div>`; c.querySelector('.nao').onclick = fim; _feitoTimer = setTimeout(fim, 3000); return; }
   c.innerHTML = `<div style="font-size:.7rem;color:var(--text3);font-weight:700;letter-spacing:.05em">CÓDIGO LIDO — INCLUIR NO INVENTÁRIO?</div>` + d.html + `<div class="cb"><button class="nao" type="button">✖ Ignorar</button><button class="sim" type="button">✅ Incluir</button></div>`;
   c.querySelector('.nao').onclick = fim;
   c.querySelector('.sim').onclick = async () => {
@@ -777,7 +800,11 @@ function confirmarLeitura(txt, origem = 'camera') {
   };
 }
 // a embalagem tem vários códigos (EAN, GS1 com lote…): prefere o GS1 com lote, depois qualquer um que não seja EAN/UPC
-const melhorCodigo = r => (r.find(x => gs1(x.rawValue)?.['10']) || r.find(x => gs1(x.rawValue)) || r.find(x => !/^(ean|upc)/.test(x.format)) || r[0]).rawValue;
+const melhorCodigo = r => {
+  const gs = r.map(x => ({ x, g: gs1(x.rawValue) })), lote = gs.find(o => o.g?.['10']), prod = gs.find(o => o.g?.['01']);
+  if (lote && !lote.g['01'] && prod) { const g = { ...lote.g, '01': prod.g['01'] }; return ['01', '17', '11', '10', '21'].filter(k => g[k]).map(k => `(${k})${g[k]}`).join(''); }   // etiqueta de dois códigos lidos juntos
+  return (lote || gs.find(o => o.g) || gs.find(o => !/^(ean|upc)/.test(o.x.format)) || { x: r[0] }).x.rawValue;
+};
 async function pararCamera() {
   clearTimeout(_loop); _loop = null;
   if (_stream) { _stream.getTracks().forEach(t => t.stop()); _stream = null; }
@@ -916,6 +943,14 @@ window.baixarExcel = () => {
   XLSX.writeFile(wb, `Inventário ${ui.inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
 };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.inv) carregarLeituras().then(desenharInv); });
+const VERSAO = '2026-11-04.115223';
+async function conferirVersao() {
+  try {
+    const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];
+    if (v && v !== VERSAO && !$('nova-versao')) { const d = document.createElement('div'); d.id = 'nova-versao'; d.style.cssText = 'position:fixed;left:10px;right:10px;top:10px;z-index:600;background:#0e7490;color:#fff;padding:12px 14px;border-radius:12px;font-weight:700;box-shadow:0 6px 24px rgba(0,0,0,.3);text-align:center;cursor:pointer'; d.textContent = '🔄 Versão nova do inventário — toque aqui para atualizar'; d.onclick = () => location.reload(); document.body.appendChild(d); }
+  } catch (e) {}
+}
+setInterval(conferirVersao, 120000); document.addEventListener('visibilitychange', () => { if (!document.hidden) conferirVersao(); });
 </script>
 </body>
 </html>
