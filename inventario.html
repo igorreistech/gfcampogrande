@@ -2051,7 +2051,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && ui
 const VERSAO = '2026-11-05.112201';
 async function conferirVersao() {
   try {
-    const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '2026-11-05.112201']+)'/.exec(t) || [])[1];
+    const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];
     if (v && v !== VERSAO && !$('nova-versao')) { const d = document.createElement('div'); d.id = 'nova-versao'; d.style.cssText = 'position:fixed;left:10px;right:10px;top:10px;z-index:600;background:#0e7490;color:#fff;padding:12px 14px;border-radius:12px;font-weight:700;box-shadow:0 6px 24px rgba(0,0,0,.3);text-align:center;cursor:pointer'; d.textContent = '🔄 Versão nova do inventário — toque aqui para atualizar'; d.onclick = () => location.reload(); document.body.appendChild(d); }
   } catch (e) {}
 }
