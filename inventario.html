@@ -345,11 +345,10 @@ body:not(.fechado) .so-fechado{display:none!important}
   <div class="card painel" id="p-hist" style="display:none"></div>
 
   <div class="acoes" id="acoes">
-    <button class="btn" onclick="imprimir()">🖨 Relatório para assinatura</button>
+    <button class="btn" onclick="imprimir()" title="Um relatório só: resumo, faltas e sobras, vencidos e a vencer, conferido, fotos e assinaturas">🖨 Relatório para assinatura</button>
     <button class="btn b" onclick="abrirFaltantes()">📤 Enviar faltantes</button>
     <button class="btn" onclick="baixarExcel()">📊 Excel</button>
     <button class="btn" onclick="imprimir('venc')" title="Duas listas: os vencidos e os que vencem em até 90 dias">⌛ Vencidos e a vencer</button>
-    <button class="btn" onclick="imprimir('sf')" title="Só o que faltou e o que sobrou, com totais e assinaturas">📑 Relatório de sobra e falta</button>
     <button class="btn" onclick="abrirJustificativas()">📝 Justificar faltantes</button>
     <button class="btn" onclick="abrirAssinatura()">✍️ Assinar na tela</button>
     <button class="btn so-aberto" id="b-cega" onclick="alternarCega()">🙈 Contagem cega</button>
@@ -1714,7 +1713,7 @@ async function docCliente(nome) {
 }
 window.imprimir = async modo => {
   if (semCega()) return;
-  const SF = modo === 'sf', VN = modo === 'venc';
+  const VN = modo === 'venc';
   const inv = ui.inv, a = apurar(), w = window.open('', '_blank'); if (!w) return toast('Libere as janelas pop-up para imprimir.', 'err');
   w.document.write('<p style="font-family:Arial;padding:20px">Montando o relatório…</p>');
   let docCli = ''; try { if (!ehEstoque(inv)) docCli = await docCliente(inv.cliente); } catch (e) {}
@@ -1724,6 +1723,12 @@ window.imprimir = async modo => {
   const soma = f => l => qtd(l.reduce((s, r) => s + f(r), 0)), somaR = f => l => brl(l.reduce((s, r) => s + f(r), 0));
   const base = [['Código', r => esc(r.cod || '—')], ['Produto', r => esc(r.produto || (r.gtin ? 'GTIN ' + r.gtin : 'Não identificado'))], ['Lote', r => esc(r.lote || '—')], ['Validade', r => dataVal(r.validade)]];
   const ord = l => [...l].sort((x, y) => String(x.cod).localeCompare(String(y.cod)) || String(x.lote).localeCompare(String(y.lote)));
+  // um relatório só: faltas e sobras na mesma tabela (com o cruzamento consignado × estoque na observação)
+  const est = ehEstoque(inv), rotSobra = est ? 'Sobra no estoque' : 'Sobra no estoque do cliente', rotCruz = est ? 'achado como sobra em cliente' : 'falta no estoque GF Medical';
+  const fQ = r => r.tipo === 'esp' ? Math.max(0, r.saldo - r.bip) : 0, sQ = r => r.tipo === 'esp' ? Math.max(0, r.bip - r.saldo) : r.bip;
+  const divs = [...ord(a.linhas.filter(r => r.st === 'falta')), ...ord([...a.linhas.filter(r => r.st === 'exc'), ...a.sobras])];
+  const sU = divs.reduce((x, r) => x + sQ(r), 0), sV = divs.reduce((x, r) => x + sQ(r) * (r.vunit || 0), 0), sbU = a.sobras.reduce((x, r) => x + r.bip, 0);
+  const obsDiv = r => esc([motivoTxt(r), cruzTxt(r) && `${rotCruz}: ${cruzTxt(r)}`, sQ(r) && quemBipou(r) && `bipado por ${quemBipou(r)}`].filter(Boolean).join(' · '));
   // ⛔ vencidos e ⌛ próximos a vencer em listas separadas (o que está no relatório ou foi encontrado, inclusive sobras)
   const vv = [...a.linhas.filter(r => r.saldo > 0 || r.bip > 0), ...a.sobras].filter(r => r.venc != null && r.venc <= 90).sort((x, y) => x.venc - y.venc);
   const vSit = r => r.tipo !== 'esp' ? 'sobra (fora do relatório)' : r.bip >= r.saldo ? 'encontrado' : r.bip ? `encontrado ${qtd(r.bip)} de ${qtd(r.saldo)}` : 'não encontrado';
@@ -1732,7 +1737,7 @@ window.imprimir = async modo => {
   const listasVenc = () => { const ve = vv.filter(r => r.venc < 0), av = vv.filter(r => r.venc >= 0), f = (x, y) => av.filter(r => r.venc >= x && r.venc <= y).length;
     return (tab(ehEstoque(inv) ? '⛔ Vencidos — separar na área de vencidos' : '⛔ Vencidos — separar e devolver ao estoque da GF Medical', ve, vCols(true)) + tab('⌛ Próximos a vencer (até 90 dias)', av, vCols(false), `${f(0, 30)} em até 30 dias · ${f(31, 60)} em 31 a 60 · ${f(61, 90)} em 61 a 90`)) || (VN ? '<p><b>✅ Nenhum item vencido nem vencendo nos próximos 90 dias.</b></p>' : ''); };
   w.document.open();
-  w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${SF ? 'Sobra e falta' : VN ? 'Vencidos e a vencer' : 'Inventário consignado'} · ${esc(inv.cliente)}</title><style>
+  w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${VN ? 'Vencidos e a vencer' : ehEstoque(inv) ? 'Inventário do estoque' : 'Inventário consignado'} · ${esc(inv.cliente)}</title><style>
     body{font-family:Arial,sans-serif;font-size:10.5px;color:#111;margin:16px}h1{font-size:16px;margin:0 0 2px}h3{font-size:12px;margin:16px 0 5px}h3 small{font-weight:normal;color:#555}
     .cab{display:flex;justify-content:space-between;gap:16px;border-bottom:2px solid #1a7a4a;padding-bottom:8px;margin-bottom:10px}.cab img{width:44px;height:44px;border-radius:8px}
     .res{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.res div{border:1px solid #bbb;border-radius:6px;padding:5px 9px}.res b{display:block;font-size:13px}
@@ -1740,17 +1745,13 @@ window.imprimir = async modo => {
     .ass{display:flex;gap:40px;margin-top:30px;page-break-inside:avoid}.ass>div{flex:1;text-align:center}.ass .im{height:70px;display:flex;align-items:flex-end;justify-content:center}.ass .im img{max-height:70px;max-width:100%}.ass .li{border-top:1px solid #000;padding-top:4px;line-height:1.45}
     .fev{display:flex;flex-wrap:wrap;gap:10px}.fev figure{margin:0;width:200px;font-size:9px;page-break-inside:avoid}.fev img{width:200px;height:200px;object-fit:contain;border:1px solid #ccc}
     @media print{body{margin:8mm}h3{page-break-after:avoid}tr{page-break-inside:avoid}}</style></head><body>
-    <div class="cab"><div><h1>${SF ? 'Relatório de sobra e falta · ' : VN ? 'Vencidos e próximos a vencer · ' : ''}${ehEstoque(inv) ? 'Inventário do estoque' : 'Inventário de material consignado'}</h1><div><b>${esc(inv.cliente)}</b></div><div>${esc(inv.fornecedor || 'Todos os fornecedores')} · relatório ${relNome(inv)} de ${dataBR(inv.relatorio_data)}</div>
+    <div class="cab"><div><h1>${VN ? 'Vencidos e próximos a vencer · ' : ''}${ehEstoque(inv) ? 'Inventário do estoque' : 'Inventário de material consignado'}</h1><div><b>${esc(inv.cliente)}</b></div><div>${esc(inv.fornecedor || 'Todos os fornecedores')} · relatório ${relNome(inv)} de ${dataBR(inv.relatorio_data)}</div>
     <div>Iniciado em ${dataHoraBR(inv.criado_em)} por ${esc(inv.criado_por || '—')}${inv.fechado_em ? ` · encerrado em ${dataHoraBR(inv.fechado_em)} por ${esc(inv.fechado_por || '—')}` : ' · <b>em andamento</b>'}</div></div><img src="${location.origin + location.pathname.replace(/[^/]*$/, '')}logo.jpg" alt=""></div>
-    ${SF ? (() => { const sb = [...a.linhas.filter(r => r.st === 'exc'), ...a.sobras], sU = sb.reduce((s, r) => s + r.bip - (r.tipo === 'esp' ? r.saldo : 0), 0), sV = sb.reduce((s, r) => s + (r.vunit ? (r.bip - r.saldo) * r.vunit : 0), 0);
-      return `<div class="res"><div>No relatório<b>${qtd(a.esp)} un. · ${brl(a.espVal)}</b></div><div>Encontrado<b>${qtd(a.fis + a.sobras.reduce((s, r) => s + r.bip, 0))} un.</b></div><div>⚠ Falta<b>${qtd(a.falta)} un. · ${brl(a.faltaVal)}</b></div><div>➕ Sobra<b>${qtd(sU)} un.${sV ? ' · ' + brl(sV) : ''}</b></div><div>Diferença<b>${sU - a.falta > 0 ? '+' : ''}${qtd(sU - a.falta)} un.</b></div></div>${!a.falta && !sU ? '<p><b>✅ Sem sobra e sem falta: o físico bate com o relatório.</b></p>' : ''}`; })() : ''}
-    <div class="res" style="${SF || VN ? 'display:none' : ''}"><div>No relatório<b>${qtd(a.esp)} un. · ${brl(a.espVal)}</b></div><div>Fisicamente no local<b>${qtd(a.fis)} un. · ${brl(a.fisVal)}</b></div><div>Faltando<b>${qtd(a.falta)} un. · ${brl(a.faltaVal)}</b></div><div>A mais / fora do relatório<b>${qtd(a.exc)} un.</b></div><div>Validade ≤ 90 dias<b>${a.venc} lotes</b></div></div>
-    ${VN ? '' : tab(SF ? '⚠ Falta (no relatório e não encontrado)' : '⚠ Faltando (no relatório e não encontrado)', ord(a.linhas.filter(r => r.st === 'falta')), [...base, ['NF', r => esc(r.nfs.map(n => n.nf).join(', '))], ['Motivo / observação', r => esc(motivoTxt(r))], ...(SF && ehEstoque(inv) ? [['Sobra em cliente', r => esc(cruzTxt(r)) || '—']] : []), ['Saldo', r => qtd(r.saldo), 1, soma(r => r.saldo)], ['Encontrado', r => qtd(r.bip), 1, soma(r => r.bip)], ['Falta', r => qtd(r.saldo - r.bip), 1, soma(r => r.saldo - r.bip)], ['Valor', r => brl((r.saldo - r.bip) * r.vunit), 1, somaR(r => (r.saldo - r.bip) * r.vunit)]])}
-    ${VN ? '' : tab(SF ? '➕ Sobra (a mais que o saldo ou fora do relatório)' : '➕ Encontrado a mais / fora do relatório', ord([...a.linhas.filter(r => r.st === 'exc'), ...a.sobras]), [...base, ...(SF ? [['Situação', r => r.tipo === 'esp' ? 'a mais que o saldo' : 'fora do relatório'], ['Bipado por', r => esc(quemBipou(r))], ...(ehEstoque(inv) ? [] : [['Estoque físico', r => esc(cruzTxt(r)) || '—']])] : []), ['Saldo', r => r.tipo === 'esp' ? qtd(r.saldo) : '—', 1, soma(r => r.tipo === 'esp' ? r.saldo : 0)], ['Encontrado', r => qtd(r.bip), 1, soma(r => r.bip)], ['A mais', r => qtd(r.bip - (r.tipo === 'esp' ? r.saldo : 0)), 1, soma(r => r.bip - (r.tipo === 'esp' ? r.saldo : 0))], ['Valor', r => r.vunit ? brl((r.bip - r.saldo) * r.vunit) : '—', 1, somaR(r => r.vunit ? (r.bip - r.saldo) * r.vunit : 0)]])}
-    ${SF ? '' : listasVenc()}
-    ${SF || VN ? '' : tab(ehEstoque(inv) ? '⛔ Vencidos encontrados no estoque — separar na área de vencidos' : '⛔ Vencidos encontrados no local — separar e devolver ao estoque da GF Medical', ord(a.linhas.filter(r => r.bip > 0 && r.venc != null && r.venc < 0)), [...base, ['Encontrado', r => qtd(r.bip), 1, soma(r => r.bip)], ['Valor', r => brl(r.bip * r.vunit), 1, somaR(r => r.bip * r.vunit)]])}
-    ${SF || VN ? '' : tab('✅ Conferido', ord(a.linhas.filter(r => r.st === 'ok')), [...base, ['NF', r => esc(r.nfs.map(n => n.nf).join(', '))], ['Qtd', r => qtd(r.saldo), 1, soma(r => r.saldo)], ['Valor', r => brl(r.saldo * r.vunit), 1, somaR(r => r.saldo * r.vunit)]])}
-    ${VN ? '' : (() => { const F = EX().fotos || {}, ks = Object.keys(F).filter(k => F[k].length && (!SF || a.linhas.concat(a.sobras).some(r => r.st !== 'ok' && kL(r.cod, r.lote) === k))); if (!ks.length) return ''; const nomeK = k => { const r = a.linhas.find(x => kL(x.cod, x.lote) === k); return r ? `${esc(r.cod)} · lote ${esc(r.lote)}` : esc(k); }; return `<h3>📎 Fotos de evidência</h3><div class="fev">${ks.map(k => F[k].map(f => `<figure><img src="${f.img}" alt=""><figcaption>${nomeK(k)} · ${dataHoraBR(f.em)}</figcaption></figure>`).join('')).join('')}</div>`; })()}
+    <div class="res" style="${VN ? 'display:none' : ''}"><div>No relatório<b>${qtd(a.esp)} un. · ${brl(a.espVal)}</b></div><div>Encontrado no local<b>${qtd(a.fis + sbU)} un. · ${brl(a.fisVal)}</b></div><div>⚠ Falta<b>${qtd(a.falta)} un. · ${brl(a.faltaVal)}</b></div><div>➕ ${rotSobra}<b>${qtd(sU)} un.${sV ? ' · ' + brl(sV) : ''}</b></div><div>Diferença<b>${sU - a.falta > 0 ? '+' : ''}${qtd(sU - a.falta)} un.</b></div><div>⛔ Vencidos · ⌛ a vencer<b>${vv.filter(r => r.venc < 0).length} · ${vv.filter(r => r.venc >= 0).length} lotes</b></div></div>
+    ${VN ? '' : tab(`⚠ Faltas e ➕ ${rotSobra.toLowerCase()}`, divs, [...base, ['NF', r => esc((r.nfs || []).map(n => n.nf).join(', '))], ['Saldo', r => r.tipo === 'esp' ? qtd(r.saldo) : '—', 1, soma(r => r.tipo === 'esp' ? r.saldo : 0)], ['Encontrado', r => qtd(r.bip), 1, soma(r => r.bip)], ['Falta', r => fQ(r) ? qtd(fQ(r)) : '', 1, soma(fQ)], [rotSobra, r => sQ(r) ? qtd(sQ(r)) : '', 1, soma(sQ)], ['Valor', r => r.vunit ? brl((fQ(r) || sQ(r)) * r.vunit) : '—', 1, somaR(r => (fQ(r) || sQ(r)) * (r.vunit || 0))], ['Observação', obsDiv]], `falta ${qtd(a.falta)} un. · ${rotSobra.toLowerCase()} ${qtd(sU)} un.`)}
+    ${listasVenc()}
+    ${VN ? '' : tab('✅ Conferido', ord(a.linhas.filter(r => r.st === 'ok')), [...base, ['NF', r => esc(r.nfs.map(n => n.nf).join(', '))], ['Qtd', r => qtd(r.saldo), 1, soma(r => r.saldo)], ['Valor', r => brl(r.saldo * r.vunit), 1, somaR(r => r.saldo * r.vunit)]])}
+    ${VN ? '' : (() => { const F = EX().fotos || {}, ks = Object.keys(F).filter(k => F[k].length); if (!ks.length) return ''; const nomeK = k => { const r = a.linhas.find(x => kL(x.cod, x.lote) === k); return r ? `${esc(r.cod)} · lote ${esc(r.lote)}` : esc(k); }; return `<h3>📎 Fotos de evidência</h3><div class="fev">${ks.map(k => F[k].map(f => `<figure><img src="${f.img}" alt=""><figcaption>${nomeK(k)} · ${dataHoraBR(f.em)}</figcaption></figure>`).join('')).join('')}</div>`; })()}
     ${(() => { const A = EX().ass || {}, im = s => s?.img ? `<img src="${s.img}" alt="">` : '', quem = s => s ? `<br><small>Assinado na tela por ${esc(s.nome)}${s.doc ? ' · ' + esc(s.doc) : ''} em ${dataHoraBR(s.em)}</small>` : ''; return `<div class="ass"><div><div class="im">${im(A.cli)}</div><div class="li"><b>${esc(inv.cliente)}</b><br>${docCli ? esc(docCli) + '<br>' : ''}<small>${ehEstoque(inv) ? 'Responsável pelo estoque' : 'Responsável pelo cliente'} · nome / assinatura / data</small>${quem(A.cli)}</div></div><div><div class="im">${im(A.gf)}</div><div class="li"><b>${esc(gf.razao)}</b><br>CNPJ ${gf.cnpj} · ${gf.cidade}<br><small>${esc(A.gf?.nome || nomeCurto())}</small>${quem(A.gf)}</div></div></div>`; })()}
     <script>window.onload=()=>setTimeout(()=>print(),300)<\/script></body></html>`);
   w.document.close();
