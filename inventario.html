@@ -1941,7 +1941,7 @@ window.baixarAjuste = () => {
   XLSX.writeFile(wb, `Ajuste de estoque ${ui.inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
 };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.inv) carregarLeituras().then(desenharInv); });
-const VERSAO = '2026-11-04.163833';
+const VERSAO = '2026-11-05.075130';
 async function conferirVersao() {
   try {
     const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];
