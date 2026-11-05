@@ -193,6 +193,8 @@ body:not(.fechado) .so-fechado{display:none!important}
 .bts-bip{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 .equipe{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;font-size:.72rem;align-items:center}.equipe:empty{display:none}
 .equipe span{background:var(--surface2);border-radius:20px;padding:4px 10px}.equipe span.on{background:#dcfce7;color:#14532d;font-weight:700}.equipe span.on::before{content:'● ';color:#16a34a}
+.t-leit td{vertical-align:middle;white-space:nowrap}.t-leit td:nth-child(3){white-space:normal;min-width:180px}.t-leit tr.sob td{background:#fff7ed}
+#leituras{margin-top:8px}
 .quem{font-size:.66rem;color:var(--info-c);margin-top:2px;font-weight:600}
 .dica-bip{align-self:center}
 .c-q,.so-cel{display:none}
@@ -227,6 +229,7 @@ body:not(.fechado) .so-fechado{display:none!important}
   .filtros input{min-width:0}
   /* tabela vira cartões */
   .tw{border:0;background:none;overflow:visible}
+  .leit .tw{overflow-x:auto;-webkit-overflow-scrolling:touch}.t-leit{font-size:.7rem}
   #tb,#tb tbody{display:block}
   #tb thead{display:none}
   #tb tr{display:grid;grid-template-columns:1fr auto;gap:3px 10px;background:var(--surface);border:1px solid var(--border);border-left-width:4px;border-radius:12px;padding:10px 12px;margin-bottom:8px}
@@ -1048,10 +1051,15 @@ function desenharInv() {
     + (ven.length ? cx('er', `⌛ Vencidos / ≤ 90 dias (${ven.filter(r => r.venc < 0).length} vencidos)`, S(r => r.saldo, ven), S(r => r.saldo * r.vunit, ven)) : '') : '';
   [['p-venc', painelVenc(a)], ['p-cruz', C ? '' : painelCruz(a)], ['p-locais', painelLocais()], ['p-hist', C ? '' : painelHist(a)]].forEach(([id, x]) => { $(id).style.display = x ? '' : 'none'; $(id).innerHTML = x; });
   desenharEquipe();
-  const ult = [...ui.leit].reverse().slice(0, 60);
+  const ult = [...ui.leit].reverse().slice(0, 300);
   $('n-leit').textContent = ui.leit.length ? `· ${ui.leit.length} (últimas ${ult.length})` : '';
-  $('leituras').innerHTML = ult.map(x => `<div class="l"><span>${x.codigo ? '✅' : '➕'}</span><span>${Number(x.qtd) > 1 ? `<b style="color:#6d28d9">${qtd(x.qtd)}×</b> ` : ''}<b class="mono">${esc(x.codigo || x.gtin || '—')}</b> · lote <span class="mono">${esc(x.lote || '—')}</span> ${x.produto ? '· ' + esc(x.produto) : ''}</span>
-    <span class="h">${x.local ? '📍 ' + esc(x.local) + ' · ' : ''}${x.origem === 'camera' ? '📷' : x.origem === 'manual' ? '✍️' : x.origem === 'foto' ? '🖼' : '🔫'} ${esc(String(x.usuario || '').replace(/\s*\(.*\)$/, ''))} · ${x._fila ? '📶 guardada, aguardando internet' : x._tmp ? 'enviando…' : dataHoraBR(x.criado_em).slice(11)}</span>${inv.status === 'aberto' && (!x._tmp || x._fila) ? `<button class="x" title="Desfazer esta leitura" onclick="desfazer('${x.id}')">✕</button>` : ''}</div>`).join('') || '<div class="muted" style="padding:8px 0">Nenhuma leitura ainda.</div>';
+  const temLoc = ult.some(x => x.local), podeX = inv.status === 'aberto';
+  $('leituras').innerHTML = ult.length ? `<div class="tw"><table class="t-leit"><thead><tr><th>Hora</th><th>Código</th><th>Produto</th><th>Lote</th><th class="n">Qtd</th><th>Quem bipou</th><th>Como</th>${temLoc ? '<th>Local</th>' : ''}${podeX ? '<th></th>' : ''}</tr></thead><tbody>${ult.map(x => `<tr class="${x.codigo ? '' : 'sob'}">
+    <td class="mono">${x._fila ? '📶 aguardando internet' : x._tmp ? 'enviando…' : (dataHoraBR(x.criado_em).match(/\d{1,2}:\d{2}/) || [''])[0]}</td>
+    <td class="mono"><b>${esc(x.codigo || (x.gtin ? 'GTIN ' + x.gtin : '—'))}</b>${x.codigo ? '' : ' <span class="bdg rep">sobra</span>'}</td>
+    <td>${esc(x.produto || '—')}</td><td class="mono">${esc(x.lote || '—')}</td><td class="n">${Number(x.qtd) > 1 ? `<b style="color:#6d28d9">${qtd(x.qtd)}</b>` : qtd(x.qtd || 1)}</td>
+    <td><b>👤 ${esc(nomeLeit(x))}</b></td><td>${x.origem === 'camera' ? '📷 câmera' : x.origem === 'manual' ? '✍️ manual' : x.origem === 'foto' ? '🖼 foto' : '🔫 leitor'}</td>${temLoc ? `<td>${x.local ? '📍 ' + esc(x.local) : ''}</td>` : ''}
+    ${podeX ? `<td>${!x._tmp || x._fila ? `<button class="x" title="Desfazer esta leitura" onclick="desfazer('${x.id}')">✕</button>` : ''}</td>` : ''}</tr>`).join('')}</tbody></table></div>` : '<div class="muted" style="padding:8px 0">Nenhuma leitura ainda.</div>';
 }
 $('busca').oninput = e => { ui.busca = e.target.value; desenharInv(); };
 // 👤 quem bipou: em cada produto da lista e na faixa "quem está bipando" (bipou nos últimos 3 min = agora)
