@@ -186,17 +186,20 @@ button.bdg{border:0;cursor:pointer;font-family:inherit}
 .login .card{max-width:360px;width:100%;padding:28px 24px}
 .login input,.login select{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;margin-top:6px;margin-bottom:12px;font-size:.85rem;background:#fff}
 .login label{font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text3)}
-.rodape{position:fixed;bottom:0;left:0;right:0;background:rgba(6,10,9,.85);padding:7px 16px;text-align:center;font-family:monospace;font-size:.68rem;color:#8a9e97;z-index:40}
+.rodape{position:fixed;bottom:0;left:0;right:0;background:rgba(6,10,9,.85);backdrop-filter:blur(10px);border-top:1px solid rgba(255,255,255,.06);padding:8px 24px;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:12px;text-align:center;font-family:monospace;font-size:.72rem;color:#8a9e97;z-index:40;letter-spacing:.05em}
 html.embed .rodape{display:none}
 body.fechado .so-aberto{display:none!important}
 body:not(.fechado) .so-fechado{display:none!important}
 .bts-bip{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.sobra-tog{display:flex;align-items:center;gap:6px;margin-top:8px;padding:8px 10px;border-radius:12px;background:#fee2e2;color:#7f1d1d;font-size:.78rem;cursor:pointer}
+.sobra-tog input{width:18px;height:18px}
 .dica-bip{align-self:center}
 .c-q,.so-cel{display:none}
 .top .user{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media (max-width:640px){
   body{padding-bottom:0}
-  .rodape,.so-pc{display:none!important}
+  .so-pc{display:none!important}
+  .rodape{position:static;margin-top:18px;padding:10px 14px;font-size:.62rem;gap:6px}
   .so-cel{display:inline}
   .wrap{padding:10px}
   .top{padding:7px 10px;gap:6px;flex-wrap:nowrap}
@@ -313,6 +316,7 @@ body:not(.fechado) .so-fechado{display:none!important}
         <span>📍 Local que estou contando:</span><input id="local-bip" list="dl-locais" placeholder="ex.: Prateleira A3 · Sala 2 · Gaveta 5" autocomplete="off"><datalist id="dl-locais"></datalist>
         <span class="muted" style="flex-basis:100%;font-weight:400">Cada pessoa escolhe a área que está contando; as leituras ficam marcadas com o local (andamento por local e por pessoa logo abaixo da lista).</span>
       </div>
+      <label class="sobra-tog" title="Ligado: item que não está no relatório entra como sobra sem perguntar (vale para todos que estão contando este inventário)"><input type="checkbox" id="sobra-on" onchange="alternarSobra(this.checked)"> ➕ <b>Contar sobras</b> — incluir os itens bipados que não estão no relatório</label>
       <div class="bts-bip">
         <button class="btn b" id="b-cam" type="button" onclick="alternarCamera()">📷 Câmera deste aparelho</button>
         <label class="btn" for="f-fotos" title="Escolha várias fotos de etiquetas de uma vez: cada foto conta 1 embalagem">🖼 Fotos em lote</label><input type="file" id="f-fotos" accept="image/*" multiple style="display:none">
@@ -334,7 +338,7 @@ body:not(.fechado) .so-fechado{display:none!important}
   <div class="filtros"><input id="busca" placeholder="🔍 Buscar código, produto, lote, NF…"></div>
   <div class="tw"><table id="tb"></table></div>
   <div class="tot-tela" id="tb-tot"></div>
-  <div class="card painel" id="p-cir" style="display:none"></div>
+  <div class="card painel" id="p-cruz" style="display:none"></div>
   <div class="card painel" id="p-locais" style="display:none"></div>
   <div class="card painel" id="p-hist" style="display:none"></div>
 
@@ -342,7 +346,7 @@ body:not(.fechado) .so-fechado{display:none!important}
     <button class="btn" onclick="imprimir()">🖨 Relatório para assinatura</button>
     <button class="btn b" onclick="abrirFaltantes()">📤 Enviar faltantes</button>
     <button class="btn" onclick="baixarExcel()">📊 Excel</button>
-    <button class="btn" id="b-cir" onclick="cruzarCirurgias(true)">🩺 Cruzar com cirurgias</button>
+    <button class="btn" onclick="imprimir('sf')" title="Só o que faltou e o que sobrou, com totais e assinaturas">📑 Relatório de sobra e falta</button>
     <button class="btn" onclick="abrirJustificativas()">📝 Justificar faltantes</button>
     <button class="btn" onclick="abrirAssinatura()">✍️ Assinar na tela</button>
     <button class="btn so-aberto" id="b-cega" onclick="alternarCega()">🙈 Contagem cega</button>
@@ -459,7 +463,7 @@ body:not(.fechado) .so-fechado{display:none!important}
 <div id="fila-aviso">📶 <span><b id="fila-n">0</b> leitura(s) guardada(s) neste aparelho, aguardando internet</span><button type="button" onclick="enviarFila()">Enviar agora</button></div>
 
 <div class="toasts" id="toasts"></div>
-<div class="rodape">© GF Medical · Desenvolvido por Igor Reis</div>
+<div class="rodape"><span style="color:#f5a623;font-weight:700;">⚙ Projeto em andamento &mdash; em constante evolução</span><span>&middot;</span>&copy; 2025 <span style="color:#4db87a;font-weight:700;">GF Medical &middot;</span> Desenvolvido por <a href="https://igorreistech.github.io/portfolio/" target="_blank" style="color:#eef2f0;text-decoration:underline;font-weight:700;">Igor Reis</a> &middot; Todos os direitos reservados</div>
 
 <script type="module">
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
@@ -875,12 +879,12 @@ window.abrirInv = async (id, comCamera) => {
   let { data, error } = await supabase.from('inventarios').select('*').eq('id', id).maybeSingle(), offline = null;
   if (error && erroRede(error)) { try { offline = JSON.parse(localStorage.getItem(cacheK(id)) || 'null'); } catch (e) {} if (offline) { data = offline.inv; error = null; toast('📶 Sem internet: abri a cópia salva neste aparelho. O que bipar fica guardado e sobe quando a conexão voltar.', 'info'); } }
   if (error || !data) { toast(error ? 'Erro: ' + error.message : 'Inventário não encontrado', 'err'); if (error && semTabela(error)) pedirSql(); return carregarLista(); }
-  ui.inv = data; ui.filtro = ''; ui.busca = ''; $('busca').value = ''; ui.leit = offline ? offline.leit || [] : []; ui.usos = null; ui.hist = null;
+  ui.inv = data; ui.filtro = ''; ui.busca = ''; $('busca').value = ''; ui.leit = offline ? offline.leit || [] : []; ui.hist = null; ui.cruz = null;
   try { $('local-bip').value = sessionStorage.getItem('gf_inv_local_' + id) || ''; } catch (e) {}
   const u = new URL(location.href); u.searchParams.set('inv', id); u.searchParams.delete('cam'); history.replaceState(null, '', u.href);
   $('v-lista').style.display = 'none'; $('v-inv').style.display = '';
   await carregarLeituras(); desenharInv(); iniciarTempoReal();
-  if (!offline) { carregarHistorico(); if (!ehEstoque(data)) cruzarCirurgias(false); }
+  if (!offline) { carregarHistorico(); cruzarEstoque(); }
   if (comCamera && data.status === 'aberto') alternarCamera(); else focarBip();
 };
 async function carregarLeituras() {
@@ -981,9 +985,8 @@ const semCega = () => { if (!cega()) return false; toast('🙈 Contagem cega lig
 const iniciais = s => String(s || '').trim().split(/\s+/).filter(Boolean).map(x => x[0].toUpperCase() + '.').join('') || '—';
 const isoDe = s => /^\d{4}-\d{2}-\d{2}/.test(s || '') ? String(s).slice(0, 10) : /^\d{2}\/\d{2}\/\d{4}/.test(s || '') ? s.slice(6, 10) + '-' + s.slice(3, 5) + '-' + s.slice(0, 2) : '';
 // curto: paciente só com as iniciais (texto que sai para fora: WhatsApp, e-mail, relatório)
-const usoTxt = (u, curto) => `${u.fonte} · ${curto ? iniciais(u.paciente) : u.paciente || '—'} · ${dataBR(u.data)}${u.pedido ? ' · PV ' + u.pedido : ''}`;
 const justDe = r => (EX().just || {})[kL(r.cod, r.lote)];
-const motivoTxt = r => { const j = justDe(r), us = ui.usos?.get(kL(r.cod, r.lote)); return j ? [j.m, j.o].filter(Boolean).join(' — ') : us?.length ? 'Encontrado em cirurgia: ' + usoTxt(us[0], true) : ''; };
+const motivoTxt = r => { const j = justDe(r); return j ? [j.m, j.o].filter(Boolean).join(' — ') : ''; };
 const faixa = v => v == null ? null : v < 0 ? 'v0' : v <= 30 ? 'v30' : v <= 60 ? 'v60' : v <= 90 ? 'v90' : null;
 const ROT_FX = { v0: '⛔ Vencidos', v30: '⌛ Vencem em até 30 dias', v60: '⌛ 31 a 60 dias', v90: '⌛ 61 a 90 dias' };
 const relNome = inv => ehEstoque(inv) ? 'S013 - Estoque' : 'C457';
@@ -995,7 +998,8 @@ function desenharInv() {
   const est = ehEstoque(inv), C = cega();
   $('loc-box').style.display = est ? '' : 'none';
   $('cega-aviso').style.display = C ? '' : 'none';
-  $('b-cir').style.display = est ? 'none' : ''; $('b-ajuste').style.display = est ? '' : 'none';
+  $('b-ajuste').style.display = est ? '' : 'none';
+  $('sobra-on').checked = !!EX().sobra;
   $('b-cega').style.display = est ? '' : 'none'; $('b-cega').textContent = C ? '👁 Revelar resultado' : '🙈 Contagem cega';
   $('b-recont').style.display = est && !C ? '' : 'none';
   $('dl-locais').innerHTML = [...new Set(ui.leit.map(l => l.local).filter(Boolean))].map(l => `<option value="${esc(l)}">`).join('');
@@ -1040,53 +1044,64 @@ function desenharInv() {
     + cx('av', '⚠ Faltando', S(r => Math.max(0, r.saldo - r.bip), esp), S(r => Math.max(0, r.saldo - r.bip) * r.vunit, esp), `${fal.length} lote${fal.length === 1 ? '' : 's'}`)
     + (exc.length ? cx('er', '➕ A mais / fora', S(r => r.bip - (r.tipo === 'esp' ? r.saldo : 0), exc), null) : '')
     + (ven.length ? cx('er', `⌛ Vencidos / ≤ 90 dias (${ven.filter(r => r.venc < 0).length} vencidos)`, S(r => r.saldo, ven), S(r => r.saldo * r.vunit, ven)) : '') : '';
-  [['p-cir', C ? '' : painelCir(a)], ['p-locais', painelLocais()], ['p-hist', C ? '' : painelHist(a)]].forEach(([id, x]) => { $(id).style.display = x ? '' : 'none'; $(id).innerHTML = x; });
+  [['p-cruz', C ? '' : painelCruz(a)], ['p-locais', painelLocais()], ['p-hist', C ? '' : painelHist(a)]].forEach(([id, x]) => { $(id).style.display = x ? '' : 'none'; $(id).innerHTML = x; });
   const ult = [...ui.leit].reverse().slice(0, 60);
   $('n-leit').textContent = ui.leit.length ? `· ${ui.leit.length} (últimas ${ult.length})` : '';
   $('leituras').innerHTML = ult.map(x => `<div class="l"><span>${x.codigo ? '✅' : '➕'}</span><span>${Number(x.qtd) > 1 ? `<b style="color:#6d28d9">${qtd(x.qtd)}×</b> ` : ''}<b class="mono">${esc(x.codigo || x.gtin || '—')}</b> · lote <span class="mono">${esc(x.lote || '—')}</span> ${x.produto ? '· ' + esc(x.produto) : ''}</span>
     <span class="h">${x.local ? '📍 ' + esc(x.local) + ' · ' : ''}${x.origem === 'camera' ? '📷' : x.origem === 'manual' ? '✍️' : x.origem === 'foto' ? '🖼' : '🔫'} ${esc(String(x.usuario || '').replace(/\s*\(.*\)$/, ''))} · ${x._fila ? '📶 guardada, aguardando internet' : x._tmp ? 'enviando…' : dataHoraBR(x.criado_em).slice(11)}</span>${inv.status === 'aberto' && (!x._tmp || x._fila) ? `<button class="x" title="Desfazer esta leitura" onclick="desfazer('${x.id}')">✕</button>` : ''}</div>`).join('') || '<div class="muted" style="padding:8px 0">Nenhuma leitura ainda.</div>';
 }
 $('busca').oninput = e => { ui.busca = e.target.value; desenharInv(); };
-// selos de cada lote na tabela: recontagem, cirurgia, faltou antes, justificativa, fotos
+// selos de cada lote na tabela: recontagem, faltou antes, justificativa, fotos
 function extrasLinha(r, C) {
   if (C) return r.recont ? '<br><span class="bdg rc">🔁 recontar este lote</span>' : '';
-  const k = kL(r.cod, r.lote), j = (EX().just || {})[k], us = ui.usos?.get(k), n = ui.vezes?.get(r.cod), f = (EX().fotos || {})[k];
+  const k = kL(r.cod, r.lote), j = (EX().just || {})[k], n = ui.vezes?.get(r.cod), f = (EX().fotos || {})[k];
   return (r.recont ? `<br><span class="bdg rc">🔁 recontagem · 1ª contagem: ${qtd(r.antes)}</span>` : '')
-    + (r.st === 'falta' && us?.length ? `<br><span class="bdg cir">🩺 ${us.some(u => u.faturado) ? 'usado e faturado' : 'usado em cirurgia — faturar'}: ${esc(usoTxt(us[0]))}${us.length > 1 ? ` (+${us.length - 1})` : ''}</span>` : '')
     + (r.st === 'falta' && n ? `<br><span class="bdg rep">🔁 faltou também em ${n} inventário${n > 1 ? 's' : ''} anterior${n > 1 ? 'es' : ''}</span>` : '')
     + (j && r.st === 'falta' ? `<br><span class="bdg jus">📝 ${esc(j.m || 'obs.')}${j.o ? ' · ' + esc(j.o) : ''}</span>` : '')
     + (f?.length ? `<br><button type="button" class="bdg" onclick="verFotos('${esc(k)}')">📎 ${f.length} foto${f.length > 1 ? 's' : ''}</button>` : '');
 }
-// 🩺 faltantes do consignado × cirurgias do Monitor (fichas OPME e itens da cirurgia, pelo lote)
-function painelCir(a) {
-  if (!ui.usos || ehEstoque(ui.inv)) return '';
-  const l = a.linhas.filter(r => r.st === 'falta' && ui.usos.has(kL(r.cod, r.lote)));
-  if (!l.length) return a.falta ? `<h4>🩺 Cruzamento com cirurgias</h4><div class="muted">Nenhum lote faltante apareceu nas fichas OPME nem nas cirurgias do Monitor.</div>` : '';
-  const un = l.reduce((s, r) => s + r.saldo - r.bip, 0), val = l.reduce((s, r) => s + (r.saldo - r.bip) * r.vunit, 0);
-  return `<h4>🩺 Faltantes que aparecem em cirurgias <span class="muted">${l.length} lote${l.length === 1 ? '' : 's'} · ${qtd(un)} un. · ${brl(val)}</span></h4>
-    <div class="muted" style="margin-bottom:4px">Provavelmente foram usados: confira e fature (🧾) — os já faturados aparecem em 🟢.</div>
-    ${l.map(r => `<div style="font-size:.78rem;padding:6px 0;border-top:1px dashed var(--border)"><b class="mono">${esc(r.cod)}</b> ${esc(r.produto)} · lote <b class="mono">${esc(r.lote)}</b> · falta <b>${qtd(r.saldo - r.bip)}</b>${r.vunit ? ' · ' + brl((r.saldo - r.bip) * r.vunit) : ''}<br>${ui.usos.get(kL(r.cod, r.lote)).map(u => `<span class="bdg ${u.faturado ? '' : 'cir'}">${u.faturado ? '🟢 faturado' : '🧾 faturar'} · ${esc(usoTxt(u))}${u.hospital ? ' · ' + esc(u.hospital) : ''}</span>`).join(' ')}</div>`).join('')}`;
-}
-window.cruzarCirurgias = async manual => {
-  const inv = ui.inv; if (!inv || ehEstoque(inv)) return;
-  const falt = apurar().linhas.filter(r => r.st === 'falta' && norm(r.lote).replace(/\s+/g, '').length >= 3);
-  if (!falt.length) { ui.usos = new Map(); if (manual) toast('Nenhum item faltando para procurar.', 'info'); return desenharInv(); }
-  if (manual) $('b-cir').textContent = '🩺 Procurando…';
-  const nl = s => norm(s).replace(/\s+/g, ''), lotes = new Map(); falt.forEach(r => lotes.set(nl(r.lote), [...(lotes.get(nl(r.lote)) || []), r]));
-  const achou = new Map(), add = (lt, u) => (lotes.get(nl(lt)) || []).forEach(r => { const k = kL(r.cod, r.lote), l = achou.get(k) || []; if (!l.some(x => x.fonte === u.fonte && x.id === u.id)) l.push(u); achou.set(k, l); });
+// 🔄 sobra no consignado × falta no estoque físico, pelo lote: o item saiu do estoque sem baixa (sem nota / sem consignar)
+// No consignado: as sobras daqui que faltam no inventário do estoque. No estoque: as faltas daqui que sobraram em algum cliente.
+const nLote = s => norm(s).replace(/\s+/g, '');
+const sobrasDe = a => [...a.linhas.filter(r => r.st === 'exc').map(r => ({ ...r, q: r.bip - r.saldo })), ...a.sobras.map(r => ({ ...r, q: r.bip }))];
+async function cruzarEstoque() {
+  const inv = ui.inv; if (!inv) return; const est = ehEstoque(inv);
   try {
-    const { data } = await supabase.from('fichas_opme').select('*').limit(5000);
-    (data || []).forEach(f => (Array.isArray(f.itens) ? f.itens : []).forEach(it => { if (it?.lote) add(it.lote, { fonte: 'Ficha OPME', id: f.id, paciente: f.paciente, hospital: f.hospital || f.cliente, data: isoDe(f.data_cirurgia) || isoDe(f.criado_em), pedido: f.numero_pedido, faturado: f.status === 'faturado' || f.status === 5 }); }));
-  } catch (e) {}
-  try {
-    const { data } = await supabase.from('procedimentos').select('*').ilike('itens', '%LOTE:%').limit(5000);
-    (data || []).forEach(p => String(p.itens || '').split('\n').forEach(l => { const lt = (l.match(/\[LOTE:([^\]]*)\]/) || [])[1]; if (lt) add(lt, { fonte: 'Cirurgia', id: p.id, paciente: p.paciente, hospital: p.hospital, data: isoDe(p.data) }); }));
-  } catch (e) {}
-  achou.forEach(l => l.sort((x, y) => String(y.data).localeCompare(String(x.data))));
-  ui.usos = achou;
-  if (manual) { $('b-cir').textContent = '🩺 Cruzar com cirurgias'; toast(achou.size ? `🩺 ${achou.size} lote(s) faltante(s) aparecem em cirurgias — veja abaixo da lista` : 'Nenhum faltante apareceu nas cirurgias registradas.', achou.size ? 'ok' : 'info'); }
+    const { data: invs, error } = await supabase.from('inventarios').select('id,cliente,fornecedor,criado_em,fechado_em,status,esperado,extra,obs').eq('filial', FILIAL).neq('id', inv.id).order('criado_em', { ascending: false }).limit(60);
+    if (error) throw error;
+    let outros = (invs || []).filter(x => est ? !ehEstoque(x) : ehEstoque(x)).slice(0, est ? 40 : 4);
+    const lt = []; for (let i = 0; i < outros.length; i += 10) { const { data } = await supabase.from('inventario_leituras').select('inventario_id,codigo,lote,gtin,bruto,qtd,criado_em,produto').in('inventario_id', outros.slice(i, i + 10).map(x => x.id)).limit(50000); lt.push(...(data || [])); }
+    // inventário do estoque ainda sem nenhuma leitura daria "falta" em tudo: fica de fora
+    if (!est) outros = outros.filter(x => x.status === 'fechado' || lt.some(l => l.inventario_id === x.id));
+    const m = new Map();
+    outros.forEach(x => {
+      const a = apurar(x, lt.filter(l => l.inventario_id === x.id));
+      (est ? sobrasDe(a) : a.linhas.filter(r => r.st === 'falta').map(r => ({ ...r, q: r.saldo - r.bip }))).forEach(r => {
+        const k = nLote(r.lote); if (k.length < 3 || !r.q) return;
+        if (!m.has(k)) m.set(k, []); m.get(k).push({ inv: x, cod: r.cod, produto: r.produto || (r.gtin ? 'GTIN ' + r.gtin : ''), lote: r.lote, q: r.q });
+      });
+    });
+    ui.cruz = { m, n: outros.length, ult: outros[0] || null };
+  } catch (e) { ui.cruz = { m: new Map(), n: 0, erro: e.message || String(e) }; }
   if (ui.inv?.id === inv.id) desenharInv();
-};
+}
+const invRot = x => `${ehEstoque(x) ? 'inventário do estoque' : esc(x.cliente)} de ${dataBR(String(x.criado_em).slice(0, 10))}${x.status === 'aberto' ? ' (em andamento)' : ''}`;
+const cruzDe = r => ui.cruz?.m.get(nLote(r.lote)) || [];
+const cruzTxt = r => cruzDe(r).map(c => `${ehEstoque(ui.inv) ? 'sobra' : 'falta'} ${qtd(c.q)} em ${ehEstoque(c.inv) ? 'estoque' : c.inv.cliente} (${dataBR(String(c.inv.criado_em).slice(0, 10))})`).join('; ');
+function painelCruz(a) {
+  const X = ui.cruz; if (!X) return '';
+  const est = ehEstoque(ui.inv), tit = est ? '🔄 Faltas do estoque × sobras no consignado' : '🔄 Sobras × inventário do estoque físico';
+  const meus = est ? a.linhas.filter(r => r.st === 'falta').map(r => ({ ...r, q: r.saldo - r.bip })) : sobrasDe(a);
+  if (!meus.length) return '';
+  if (X.erro) return `<h4>${tit}</h4><div class="muted">Não deu para comparar: ${esc(X.erro)}</div>`;
+  if (!X.n) return `<h4>${tit}</h4><div class="muted">${est ? 'Nenhum inventário de consignado desta filial para comparar.' : 'Nenhum inventário do estoque físico (S013) com leituras para comparar — faça o do estoque e as sobras daqui são conferidas lá.'}</div>`;
+  const ach = meus.filter(r => cruzDe(r).length);
+  if (!ach.length) return `<h4>${tit}</h4><div class="muted">${est ? `Nenhuma falta daqui apareceu como sobra nos ${X.n} inventário(s) de consignado.` : `Nenhuma sobra daqui está faltando no ${invRot(X.ult)}.`}</div>`;
+  const un = ach.reduce((s, r) => s + r.q, 0);
+  return `<h4>${tit} <span class="muted">${ach.length} lote${ach.length === 1 ? '' : 's'} · ${qtd(un)} un.</span></h4>
+    <div class="muted" style="margin-bottom:4px">${est ? 'Estes lotes faltam no estoque e foram encontrados a mais em clientes: provavelmente saíram sem nota de consignação. Regularize a remessa.' : 'Estes lotes sobraram aqui e estão faltando no estoque da GF Medical: provavelmente saíram do estoque sem nota de consignação. Regularize a remessa.'}</div>
+    ${ach.map(r => `<div style="font-size:.78rem;padding:6px 0;border-top:1px dashed var(--border)"><b class="mono">${esc(r.cod || (r.gtin ? 'GTIN ' + r.gtin : '—'))}</b> ${esc(r.produto || '')} · lote <b class="mono">${esc(r.lote)}</b> · ${est ? 'falta' : 'sobra'} <b>${qtd(r.q)}</b> aqui<br>${cruzDe(r).map(c => `<span class="bdg rep">${est ? '➕ sobra' : '⚠ falta'} ${qtd(c.q)} · ${invRot(c.inv)}${c.cod && c.cod !== r.cod ? ' · ' + esc(c.cod) + ' ' + esc(c.produto) : ''}</span>`).join(' ')}</div>`).join('')}`;
+}
 // 📍 andamento por local (estoque) e por pessoa
 function painelLocais() {
   const lt = ui.leit; if (!lt.length) return '';
@@ -1146,7 +1161,8 @@ async function nomeDoGtin(gtin) {
   const r = data && data[0] ? data[0] : null; _gtinNome.set(gtin, r); return r;
 }
 let _ultBip = { txt: '', em: 0 }, _vencK = null;
-async function registrar(bruto, origem, forcarCod, qtdForcada) {
+let _ultSobra = null;
+async function registrar(bruto, origem, forcarCod, qtdForcada, sobra) {
   bruto = String(bruto || '').replace(/[\r\n]+/g, '').trim();
   if (!bruto || !ui.inv) return;
   if (ui.inv.status !== 'aberto') { ultimo('🔒 Inventário encerrado — reabra para bipar.', 'er'); return; }
@@ -1170,10 +1186,15 @@ async function registrar(bruto, origem, forcarCod, qtdForcada) {
   }
   if (!id.gtin && _gtinPend && Date.now() - _gtinPend.em < 60000) id.gtin = _gtinPend.gtin;
   _gtinPend = null;
-  // só entra o que está no relatório do cliente; o resto só avisa (não grava)
+  // fora do relatório: só entra como sobra (pelo botão, ou com "Contar sobras" ligado); senão só avisa (não grava)
   if (!id.codigo) {
-    ultimo(`✔ Código lido, mas ❌ <b>não incluído</b>: esse lote não está no relatório deste cliente (${esc(ui.inv.fornecedor || '')})${id.lote ? ' (lote <b class="mono">' + esc(id.lote) + '</b>)' : ''}. Confira se bipou o código com o <b>lote</b> da etiqueta certa.`, 'er'); bipe(false);
-    return false;
+    const temLote = !!(id.lote || id.gtin);
+    if (!temLote || !(sobra || EX().sobra)) {
+      _ultSobra = temLote ? { bruto, origem } : null;
+      ultimo(`✔ Código lido, mas ❌ <b>não incluído</b>: esse lote não está no relatório ${ehEstoque(ui.inv) ? 'do estoque' : 'deste cliente'} (${esc(ui.inv.fornecedor || '')})${id.lote ? ' (lote <b class="mono">' + esc(id.lote) + '</b>)' : ''}. Confira se bipou o código com o <b>lote</b> da etiqueta certa.${temLote ? ' <button type="button" class="btn r" style="padding:5px 10px" onclick="contarSobra()">➕ Contar como sobra</button>' : ''}`, 'er'); bipe(false);
+      return false;
+    }
+    if (id.gtin && !id.produto) { const n = await nomeDoGtin(id.gtin); if (n) id.produto = [n.codigo, n.produto].filter(Boolean).join(' · '); }
   }
   if (origem === 'leitor') _ultBip = { txt: bruto, em: Date.now() };
   const reg = { inventario_id: ui.inv.id, bruto: bruto.slice(0, 300), gtin: id.gtin, lote: id.lote, validade: id.validade, serie: id.serie, codigo: id.codigo, produto: id.produto, qtd: qtdForcada || qtdDoCodigo(bruto) || (ehEstoque(ui.inv) && origem === 'leitor' ? qtdAtual() : 1), origem, usuario: quemSou() };
@@ -1187,7 +1208,7 @@ async function registrar(bruto, origem, forcarCod, qtdForcada) {
   if (cega() && r) { ultimo(`✅ <b class="mono">${esc(r.cod)}</b> ${esc(r.produto)} · lote <b class="mono">${esc(r.lote)}</b>${vtxt}`, 'ok', `${qtd(r.bip)} contado${r.bip === 1 ? '' : 's'}`); bipe(true); }
   else if (r && r.bip <= r.saldo) { ultimo(`✅ <b class="mono">${esc(r.cod)}</b> ${esc(r.produto)} · lote <b class="mono">${esc(r.lote)}</b>${vtxt}`, 'ok', `${qtd(r.bip)}/${qtd(r.saldo)}`); bipe(true); }
   else if (r) { ultimo(`⚠ <b class="mono">${esc(r.cod)}</b> lote <b class="mono">${esc(r.lote)}</b>: já bipou <b>${qtd(r.bip)}</b> e o relatório tem só ${qtd(r.saldo)}. É outra embalagem? Se bipou a mesma etiqueta 2×, desfaça abaixo.`, 'av', `${qtd(r.bip)}/${qtd(r.saldo)}`); bipe('av'); }
-  else { ultimo(`➕ <b>Não está no saldo do relatório</b> · ${id.produto ? esc((id.produtoCod ? id.produtoCod + ' ' : '') + id.produto) + ' · ' : ''}${id.gtin ? 'GTIN <span class="mono">' + esc(id.gtin) + '</span> · ' : ''}lote <b class="mono">${esc(id.lote || '—')}</b>${vtxt}`, 'er'); bipe(false); }
+  else { ultimo(`➕ <b>Sobra registrada</b> (não está no relatório) · ${id.produto ? esc((id.produtoCod ? id.produtoCod + ' ' : '') + id.produto) + ' · ' : ''}${id.gtin ? 'GTIN <span class="mono">' + esc(id.gtin) + '</span> · ' : ''}lote <b class="mono">${esc(id.lote || '—')}</b>${vtxt}`, 'er'); bipe(false); }
   if (r && id.validade && diasAte(id.validade) < 0) {
     $('ultimo').className = 'er'; $('ultimo').insertAdjacentHTML('beforeend', alertaVenc()); bipeVencido();
     // leitor/teclado: janela por cima da tela, só fecha confirmando que separou (na câmera o painel já pede isso)
@@ -1210,6 +1231,8 @@ async function registrar(bruto, origem, forcarCod, qtdForcada) {
   if (i >= 0) ui.leit[i] = data; if (ui.leit.filter(x => x.id === data.id).length > 1) ui.leit.splice(ui.leit.lastIndexOf(data), 1);
   desenharInv(); guardarCache(); return true;
 }
+window.contarSobra = () => { const x = _ultSobra; _ultSobra = null; if (x) registrar(x.bruto, x.origem, null, null, true).then(focarBip); };
+window.alternarSobra = async on => { if (!(await salvarExtra(ex => { ex.sobra = !!on; }))) { $('sobra-on').checked = !on; return; } toast(on ? '➕ Contar sobras ligado: item fora do relatório entra como sobra' : 'Contar sobras desligado: item fora do relatório só avisa', 'info'); focarBip(); };
 $('venc-fechar').onclick = () => { fecharModal('m-venc'); focarBip(); };
 $('venc-foto').onclick = () => { if (_vencK) anexarFoto(_vencK); };
 $('local-bip').oninput = () => { try { sessionStorage.setItem('gf_inv_local_' + ui.inv?.id, $('local-bip').value.trim()); } catch (e) {} };
@@ -1300,6 +1323,7 @@ function descreverLeitura(txt) {
   if (!id.codigo && /^\d{8,14}$/.test(txt)) return { ean: true, html: `<div class="ct">⚠ Código EAN da embalagem</div><div class="mono">${esc(txt)}</div><div class="cs av">Esse código não tem o lote. Mire no outro código de barras — o comprido, com (01)…(17)…(10)… embaixo.</div>` };
   const corpo = `<div class="ct">${r ? `<span class="mono">${esc(r.cod)}</span> · ${esc(r.produto)}` : id.produto ? esc((id.produtoCod ? id.produtoCod + ' · ' : '') + id.produto) : 'Produto fora do relatório'}</div>
     <div>Lote <b class="mono">${esc(id.lote || '—')}</b>${val ? ' · ' + val : ''}${id.gtin ? `<br><span class="mono" style="font-size:.72rem;color:var(--text3)">GTIN ${esc(id.gtin)}</span>` : ''}</div>`;
+  if (!r && !id.codigo && (id.lote || id.gtin)) return { html: corpo + `<div class="cs er">❌ Não está no relatório. Se for uma <b>sobra</b> (item a mais no local), toque em ➕ Contar como sobra.</div>`, id, r: null, venc: false, som: 'er', sobra: true };
   if (!r) return { ean: true, html: `<div class="ct">✔ Código lido — mas ❌ não está no relatório</div><div>Lote <b class="mono">${esc(id.lote || '—')}</b>${id.gtin ? ' · <span class="mono">GTIN ' + esc(id.gtin) + '</span>' : ''}</div><div class="cs er">Não foi incluído. Mire no código com o <b>lote</b> de uma embalagem deste cliente.</div>` };
   const st = cega() && r ? `<div class="cs ok">Vai somar na contagem deste lote (já contados: ${qtd(r.bip)}).</div>` : r && r.bip < r.saldo ? `<div class="cs ok">Vai contar ${qtd(r.bip + 1)} de ${qtd(r.saldo)} deste lote.</div>`
     : r ? `<div class="cs av">⚠ Já foram bipados ${qtd(r.bip)} de ${qtd(r.saldo)} deste lote. É outra embalagem?</div>`
@@ -1319,14 +1343,14 @@ function confirmarLeitura(txt, origem = 'camera') {
   const campoQ = ehEstoque(ui.inv) ? `<div class="cq">📦 Quantidade: <button type="button" data-dq="-1">−</button><input id="conf-q" type="number" min="1" value="${q0}" inputmode="numeric"><button type="button" data-dq="1">+</button><span style="font-weight:400;font-size:.72rem;color:var(--text3)">(caixa fechada)</span></div>` : '';
   c.innerHTML = `<div style="font-size:.7rem;color:var(--text3);font-weight:700;letter-spacing:.05em">CÓDIGO LIDO — INCLUIR NO INVENTÁRIO?</div>` + d.html
     + campoQ + (varios ? `<div class="cs av">⚠ Este lote existe em ${d.id.cands.length} produtos. Toque no produto certo:</div><div class="cb" style="flex-direction:column">${d.id.cands.map(x => `<button class="sim" type="button" data-cod="${esc(x.cod)}" style="text-align:left">✅ ${esc(x.cod)} · ${esc(x.produto)}</button>`).join('')}<button class="nao" type="button">✖ Ignorar</button></div>`
-      : `<div class="cb"><button class="nao" type="button">✖ Ignorar</button><button class="sim" type="button">✅ Incluir</button></div>`);
+      : `<div class="cb"><button class="nao" type="button">✖ Ignorar</button><button class="sim" type="button">${d.sobra ? '➕ Contar como sobra' : '✅ Incluir'}</button></div>`);
   c.querySelector('.nao').onclick = fim;
   c.querySelectorAll('[data-dq]').forEach(b => b.onclick = () => { const i = $('conf-q'); i.value = Math.max(1, (Math.floor(Number(i.value)) || 1) + Number(b.dataset.dq)); });
   c.querySelectorAll('.sim').forEach(bt => bt.onclick = async () => {
     const qConf = $('conf-q') ? Math.max(1, Math.floor(Number($('conf-q').value)) || 1) : 0;
     c.querySelectorAll('.sim').forEach(x => x.disabled = true);
     if (bt.dataset.cod) { const x = d.id.cands.find(y => y.cod === bt.dataset.cod); Object.assign(d.id, { codigo: x.cod, produto: x.produto, lote: x.lote }); }
-    const ok = await registrar(txt, origem, bt.dataset.cod || d.id.codigo, qConf || undefined);
+    const ok = await registrar(txt, origem, bt.dataset.cod || d.id.codigo, qConf || undefined, d.sobra);
     const a = apurar(), r = d.id.codigo ? a.linhas.find(x => norm(x.cod) === norm(d.id.codigo) && norm(x.lote) === norm(d.id.lote)) : null;
     const desc = `${r ? esc(r.cod) + ' · ' + esc(r.produto) : esc(d.id.produto || 'Fora do relatório')} · lote ${esc(d.id.lote || '—')}`;
     c.className = 'on feito ' + (!ok ? 'er' : r && r.bip <= r.saldo ? '' : r ? 'av' : 'er');
@@ -1550,8 +1574,8 @@ async function fecharDeVez() {
   Object.assign(ui.inv, up); pararCamera(); desenharInv(); toast('✔ Inventário encerrado');
   salvarExtra(ex => { ex.resumo = resumir(ui.inv, ui.leit); }, true); if (confirm('Imprimir o relatório para assinatura agora?')) imprimir();
 }
-// 📝 motivo de cada faltante (os encontrados em cirurgias já vêm sugeridos)
-const MOTIVOS_CONS = ['Usado em cirurgia — faturar', 'Usado em cirurgia — já faturado', 'Devolvido à GF Medical', 'Transferido para outro cliente', 'Em outro setor / local do cliente', 'Não localizado (extravio)', 'Outro'];
+// 📝 motivo de cada faltante
+const MOTIVOS_CONS = ['Devolvido à GF Medical', 'Transferido para outro cliente', 'Em outro setor / local do cliente', 'Não localizado (extravio)', 'Outro'];
 const MOTIVOS_EST = ['Saiu para cirurgia sem baixa', 'Remessa / consignado sem baixa', 'Transferência sem baixa', 'Em outro local / filial', 'Avaria / descarte', 'Não localizado (extravio)', 'Outro'];
 window.abrirJustificativas = async aoSalvar => {
   if (typeof aoSalvar !== 'function') aoSalvar = null;
@@ -1559,16 +1583,14 @@ window.abrirJustificativas = async aoSalvar => {
   const falt = apurar().linhas.filter(r => r.st === 'falta').sort((x, y) => String(x.cod).localeCompare(String(y.cod)) || String(x.lote).localeCompare(String(y.lote)));
   if (!falt.length) { if (aoSalvar) return aoSalvar(); return toast('Nenhum item faltando 👍', 'info'); }
   $('just-pular').style.display = aoSalvar ? '' : 'none'; $('just-ok').textContent = aoSalvar ? 'Salvar e encerrar' : 'Salvar';
-  if (!ehEstoque(ui.inv) && !ui.usos) { $('just-corpo').innerHTML = '<div class="muted">🩺 Procurando os faltantes nas cirurgias…</div>'; $('m-just').classList.add('open'); await cruzarCirurgias(false); }
   const M = ehEstoque(ui.inv) ? MOTIVOS_EST : MOTIVOS_CONS;
-  $('just-corpo').innerHTML = `<div class="muted" style="margin-bottom:6px">Escolha o motivo de cada item faltando. Vai para o relatório, o Excel e o texto de WhatsApp/e-mail.${ui.usos?.size ? ' Os que aparecem em cirurgias já vêm preenchidos — confira.' : ''}</div>
+  $('just-corpo').innerHTML = `<div class="muted" style="margin-bottom:6px">Escolha o motivo de cada item faltando. Vai para o relatório, o Excel e o texto de WhatsApp/e-mail.</div>
     <label style="display:flex;gap:6px;align-items:center;font-size:.78rem;margin-bottom:4px">Aplicar a todos os sem motivo: <select id="just-todos" style="flex:1"><option value="">—</option>${M.map(x => `<option>${esc(x)}</option>`).join('')}</select></label>`
     + falt.map((r, i) => {
-      const j = justDe(r) || {}, us = ui.usos?.get(kL(r.cod, r.lote)) || [], sug = !j.m && us.length ? (us.some(u => u.faturado) ? M[1] : M[0]) : '';
+      const j = justDe(r) || {};
       return `<div class="just-l"><b class="mono">${esc(r.cod)}</b> ${esc(r.produto)} · lote <b class="mono">${esc(r.lote || '—')}</b> · falta <b>${qtd(r.saldo - r.bip)}</b>${r.vunit ? ' · ' + brl((r.saldo - r.bip) * r.vunit) : ''}
-        ${us.length ? `<div>${us.map(u => `<span class="bdg cir">🩺 ${esc(usoTxt(u))}${u.faturado ? ' · faturado' : ''}</span>`).join(' ')}</div>` : ''}
-        <select data-jm="${i}"><option value="">— motivo —</option>${M.map(x => `<option ${x === (j.m || sug) ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
-        <input type="text" data-jo="${i}" placeholder="Observação (opcional): paciente, nº do pedido, onde está…" value="${esc(j.o || (sug ? usoTxt(us[0], true) : ''))}"></div>`;
+        <select data-jm="${i}"><option value="">— motivo —</option>${M.map(x => `<option ${x === j.m ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>
+        <input type="text" data-jo="${i}" placeholder="Observação (opcional): paciente, nº do pedido, onde está…" value="${esc(j.o || '')}"></div>`;
     }).join('');
   $('just-todos').onchange = e => { if (e.target.value) $('just-corpo').querySelectorAll('[data-jm]').forEach(s => { if (!s.value) s.value = e.target.value; }); };
   $('just-pular').onclick = () => { fecharModal('m-just'); aoSalvar && aoSalvar(); };
@@ -1667,8 +1689,9 @@ async function docCliente(nome) {
   const c = _clientes.get(chave(nome));
   return c && c.doc && /\d{2}\.?\d{3}\.?\d{3}/.test(c.doc) ? `${String(c.doc).replace(/\D/g, '').length === 11 ? 'CPF' : 'CNPJ'} ${c.doc}` : '';
 }
-window.imprimir = async () => {
+window.imprimir = async modo => {
   if (semCega()) return;
+  const SF = modo === 'sf';
   const inv = ui.inv, a = apurar(), w = window.open('', '_blank'); if (!w) return toast('Libere as janelas pop-up para imprimir.', 'err');
   w.document.write('<p style="font-family:Arial;padding:20px">Montando o relatório…</p>');
   let docCli = ''; try { if (!ehEstoque(inv)) docCli = await docCliente(inv.cliente); } catch (e) {}
@@ -1679,7 +1702,7 @@ window.imprimir = async () => {
   const base = [['Código', r => esc(r.cod || '—')], ['Produto', r => esc(r.produto || (r.gtin ? 'GTIN ' + r.gtin : 'Não identificado'))], ['Lote', r => esc(r.lote || '—')], ['Validade', r => dataVal(r.validade)]];
   const ord = l => [...l].sort((x, y) => String(x.cod).localeCompare(String(y.cod)) || String(x.lote).localeCompare(String(y.lote)));
   w.document.open();
-  w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Inventário consignado · ${esc(inv.cliente)}</title><style>
+  w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${SF ? 'Sobra e falta' : 'Inventário consignado'} · ${esc(inv.cliente)}</title><style>
     body{font-family:Arial,sans-serif;font-size:10.5px;color:#111;margin:16px}h1{font-size:16px;margin:0 0 2px}h3{font-size:12px;margin:16px 0 5px}h3 small{font-weight:normal;color:#555}
     .cab{display:flex;justify-content:space-between;gap:16px;border-bottom:2px solid #1a7a4a;padding-bottom:8px;margin-bottom:10px}.cab img{width:44px;height:44px;border-radius:8px}
     .res{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.res div{border:1px solid #bbb;border-radius:6px;padding:5px 9px}.res b{display:block;font-size:13px}
@@ -1687,19 +1710,23 @@ window.imprimir = async () => {
     .ass{display:flex;gap:40px;margin-top:30px;page-break-inside:avoid}.ass>div{flex:1;text-align:center}.ass .im{height:70px;display:flex;align-items:flex-end;justify-content:center}.ass .im img{max-height:70px;max-width:100%}.ass .li{border-top:1px solid #000;padding-top:4px;line-height:1.45}
     .fev{display:flex;flex-wrap:wrap;gap:10px}.fev figure{margin:0;width:200px;font-size:9px;page-break-inside:avoid}.fev img{width:200px;height:200px;object-fit:contain;border:1px solid #ccc}
     @media print{body{margin:8mm}h3{page-break-after:avoid}tr{page-break-inside:avoid}}</style></head><body>
-    <div class="cab"><div><h1>${ehEstoque(inv) ? 'Inventário do estoque' : 'Inventário de material consignado'}</h1><div><b>${esc(inv.cliente)}</b></div><div>${esc(inv.fornecedor || 'Todos os fornecedores')} · relatório ${relNome(inv)} de ${dataBR(inv.relatorio_data)}</div>
+    <div class="cab"><div><h1>${SF ? 'Relatório de sobra e falta · ' : ''}${ehEstoque(inv) ? 'Inventário do estoque' : 'Inventário de material consignado'}</h1><div><b>${esc(inv.cliente)}</b></div><div>${esc(inv.fornecedor || 'Todos os fornecedores')} · relatório ${relNome(inv)} de ${dataBR(inv.relatorio_data)}</div>
     <div>Iniciado em ${dataHoraBR(inv.criado_em)} por ${esc(inv.criado_por || '—')}${inv.fechado_em ? ` · encerrado em ${dataHoraBR(inv.fechado_em)} por ${esc(inv.fechado_por || '—')}` : ' · <b>em andamento</b>'}</div></div><img src="${location.origin + location.pathname.replace(/[^/]*$/, '')}logo.jpg" alt=""></div>
-    <div class="res"><div>No relatório<b>${qtd(a.esp)} un. · ${brl(a.espVal)}</b></div><div>Fisicamente no local<b>${qtd(a.fis)} un. · ${brl(a.fisVal)}</b></div><div>Faltando<b>${qtd(a.falta)} un. · ${brl(a.faltaVal)}</b></div><div>A mais / fora do relatório<b>${qtd(a.exc)} un.</b></div><div>Validade ≤ 90 dias<b>${a.venc} lotes</b></div></div>
-    ${tab('⚠ Faltando (no relatório e não encontrado)', ord(a.linhas.filter(r => r.st === 'falta')), [...base, ['NF', r => esc(r.nfs.map(n => n.nf).join(', '))], ['Motivo / observação', r => esc(motivoTxt(r))], ['Saldo', r => qtd(r.saldo), 1, soma(r => r.saldo)], ['Encontrado', r => qtd(r.bip), 1, soma(r => r.bip)], ['Falta', r => qtd(r.saldo - r.bip), 1, soma(r => r.saldo - r.bip)], ['Valor', r => brl((r.saldo - r.bip) * r.vunit), 1, somaR(r => (r.saldo - r.bip) * r.vunit)]])}
-    ${tab('➕ Encontrado a mais / fora do relatório', ord([...a.linhas.filter(r => r.st === 'exc'), ...a.sobras]), [...base, ['Saldo', r => r.tipo === 'esp' ? qtd(r.saldo) : '—', 1, soma(r => r.tipo === 'esp' ? r.saldo : 0)], ['Encontrado', r => qtd(r.bip), 1, soma(r => r.bip)], ['A mais', r => qtd(r.bip - (r.tipo === 'esp' ? r.saldo : 0)), 1, soma(r => r.bip - (r.tipo === 'esp' ? r.saldo : 0))], ['Valor', r => r.vunit ? brl((r.bip - r.saldo) * r.vunit) : '—', 1, somaR(r => r.vunit ? (r.bip - r.saldo) * r.vunit : 0)]])}
-    ${tab('⌛ Validade vencida ou em até 90 dias', a.linhas.filter(r => r.venc != null && r.venc <= 90).sort((x, y) => x.venc - y.venc), [...base, ['Dias', r => r.venc < 0 ? 'vencido' : r.venc, 1], ['Saldo', r => qtd(r.saldo), 1, soma(r => r.saldo)], ['Encontrado', r => qtd(r.bip), 1, soma(r => r.bip)], ['Valor', r => brl(r.saldo * r.vunit), 1, somaR(r => r.saldo * r.vunit)]], (() => { const l = a.linhas.filter(r => r.venc != null && r.venc <= 90), v = l.filter(r => r.venc < 0).length; return `${v} vencido${v === 1 ? '' : 's'} · ${l.length - v} a vencer`; })())}
-    ${tab(ehEstoque(inv) ? '⛔ Vencidos encontrados no estoque — separar na área de vencidos' : '⛔ Vencidos encontrados no local — separar e devolver ao estoque da GF Medical', ord(a.linhas.filter(r => r.bip > 0 && r.venc != null && r.venc < 0)), [...base, ['Encontrado', r => qtd(r.bip), 1, soma(r => r.bip)], ['Valor', r => brl(r.bip * r.vunit), 1, somaR(r => r.bip * r.vunit)]])}
-    ${tab('✅ Conferido', ord(a.linhas.filter(r => r.st === 'ok')), [...base, ['NF', r => esc(r.nfs.map(n => n.nf).join(', '))], ['Qtd', r => qtd(r.saldo), 1, soma(r => r.saldo)], ['Valor', r => brl(r.saldo * r.vunit), 1, somaR(r => r.saldo * r.vunit)]])}
-    ${(() => { const F = EX().fotos || {}, ks = Object.keys(F).filter(k => F[k].length); if (!ks.length) return ''; const nomeK = k => { const r = a.linhas.find(x => kL(x.cod, x.lote) === k); return r ? `${esc(r.cod)} · lote ${esc(r.lote)}` : esc(k); }; return `<h3>📎 Fotos de evidência</h3><div class="fev">${ks.map(k => F[k].map(f => `<figure><img src="${f.img}" alt=""><figcaption>${nomeK(k)} · ${dataHoraBR(f.em)}</figcaption></figure>`).join('')).join('')}</div>`; })()}
+    ${SF ? (() => { const sb = [...a.linhas.filter(r => r.st === 'exc'), ...a.sobras], sU = sb.reduce((s, r) => s + r.bip - (r.tipo === 'esp' ? r.saldo : 0), 0), sV = sb.reduce((s, r) => s + (r.vunit ? (r.bip - r.saldo) * r.vunit : 0), 0);
+      return `<div class="res"><div>No relatório<b>${qtd(a.esp)} un. · ${brl(a.espVal)}</b></div><div>Encontrado<b>${qtd(a.fis + a.sobras.reduce((s, r) => s + r.bip, 0))} un.</b></div><div>⚠ Falta<b>${qtd(a.falta)} un. · ${brl(a.faltaVal)}</b></div><div>➕ Sobra<b>${qtd(sU)} un.${sV ? ' · ' + brl(sV) : ''}</b></div><div>Diferença<b>${sU - a.falta > 0 ? '+' : ''}${qtd(sU - a.falta)} un.</b></div></div>${!a.falta && !sU ? '<p><b>✅ Sem sobra e sem falta: o físico bate com o relatório.</b></p>' : ''}`; })() : ''}
+    <div class="res" style="${SF ? 'display:none' : ''}"><div>No relatório<b>${qtd(a.esp)} un. · ${brl(a.espVal)}</b></div><div>Fisicamente no local<b>${qtd(a.fis)} un. · ${brl(a.fisVal)}</b></div><div>Faltando<b>${qtd(a.falta)} un. · ${brl(a.faltaVal)}</b></div><div>A mais / fora do relatório<b>${qtd(a.exc)} un.</b></div><div>Validade ≤ 90 dias<b>${a.venc} lotes</b></div></div>
+    ${tab(SF ? '⚠ Falta (no relatório e não encontrado)' : '⚠ Faltando (no relatório e não encontrado)', ord(a.linhas.filter(r => r.st === 'falta')), [...base, ['NF', r => esc(r.nfs.map(n => n.nf).join(', '))], ['Motivo / observação', r => esc(motivoTxt(r))], ...(SF && ehEstoque(inv) ? [['Sobra em cliente', r => esc(cruzTxt(r)) || '—']] : []), ['Saldo', r => qtd(r.saldo), 1, soma(r => r.saldo)], ['Encontrado', r => qtd(r.bip), 1, soma(r => r.bip)], ['Falta', r => qtd(r.saldo - r.bip), 1, soma(r => r.saldo - r.bip)], ['Valor', r => brl((r.saldo - r.bip) * r.vunit), 1, somaR(r => (r.saldo - r.bip) * r.vunit)]])}
+    ${tab(SF ? '➕ Sobra (a mais que o saldo ou fora do relatório)' : '➕ Encontrado a mais / fora do relatório', ord([...a.linhas.filter(r => r.st === 'exc'), ...a.sobras]), [...base, ...(SF ? [['Situação', r => r.tipo === 'esp' ? 'a mais que o saldo' : 'fora do relatório'], ['Bipado por', r => esc(quemBipou(r))], ...(ehEstoque(inv) ? [] : [['Estoque físico', r => esc(cruzTxt(r)) || '—']])] : []), ['Saldo', r => r.tipo === 'esp' ? qtd(r.saldo) : '—', 1, soma(r => r.tipo === 'esp' ? r.saldo : 0)], ['Encontrado', r => qtd(r.bip), 1, soma(r => r.bip)], ['A mais', r => qtd(r.bip - (r.tipo === 'esp' ? r.saldo : 0)), 1, soma(r => r.bip - (r.tipo === 'esp' ? r.saldo : 0))], ['Valor', r => r.vunit ? brl((r.bip - r.saldo) * r.vunit) : '—', 1, somaR(r => r.vunit ? (r.bip - r.saldo) * r.vunit : 0)]])}
+    ${SF ? '' : tab('⌛ Validade vencida ou em até 90 dias', a.linhas.filter(r => r.venc != null && r.venc <= 90).sort((x, y) => x.venc - y.venc), [...base, ['Dias', r => r.venc < 0 ? 'vencido' : r.venc, 1], ['Saldo', r => qtd(r.saldo), 1, soma(r => r.saldo)], ['Encontrado', r => qtd(r.bip), 1, soma(r => r.bip)], ['Valor', r => brl(r.saldo * r.vunit), 1, somaR(r => r.saldo * r.vunit)]], (() => { const l = a.linhas.filter(r => r.venc != null && r.venc <= 90), v = l.filter(r => r.venc < 0).length; return `${v} vencido${v === 1 ? '' : 's'} · ${l.length - v} a vencer`; })())}
+    ${SF ? '' : tab(ehEstoque(inv) ? '⛔ Vencidos encontrados no estoque — separar na área de vencidos' : '⛔ Vencidos encontrados no local — separar e devolver ao estoque da GF Medical', ord(a.linhas.filter(r => r.bip > 0 && r.venc != null && r.venc < 0)), [...base, ['Encontrado', r => qtd(r.bip), 1, soma(r => r.bip)], ['Valor', r => brl(r.bip * r.vunit), 1, somaR(r => r.bip * r.vunit)]])}
+    ${SF ? '' : tab('✅ Conferido', ord(a.linhas.filter(r => r.st === 'ok')), [...base, ['NF', r => esc(r.nfs.map(n => n.nf).join(', '))], ['Qtd', r => qtd(r.saldo), 1, soma(r => r.saldo)], ['Valor', r => brl(r.saldo * r.vunit), 1, somaR(r => r.saldo * r.vunit)]])}
+    ${(() => { const F = EX().fotos || {}, ks = Object.keys(F).filter(k => F[k].length && (!SF || a.linhas.concat(a.sobras).some(r => r.st !== 'ok' && kL(r.cod, r.lote) === k))); if (!ks.length) return ''; const nomeK = k => { const r = a.linhas.find(x => kL(x.cod, x.lote) === k); return r ? `${esc(r.cod)} · lote ${esc(r.lote)}` : esc(k); }; return `<h3>📎 Fotos de evidência</h3><div class="fev">${ks.map(k => F[k].map(f => `<figure><img src="${f.img}" alt=""><figcaption>${nomeK(k)} · ${dataHoraBR(f.em)}</figcaption></figure>`).join('')).join('')}</div>`; })()}
     ${(() => { const A = EX().ass || {}, im = s => s?.img ? `<img src="${s.img}" alt="">` : '', quem = s => s ? `<br><small>Assinado na tela por ${esc(s.nome)}${s.doc ? ' · ' + esc(s.doc) : ''} em ${dataHoraBR(s.em)}</small>` : ''; return `<div class="ass"><div><div class="im">${im(A.cli)}</div><div class="li"><b>${esc(inv.cliente)}</b><br>${docCli ? esc(docCli) + '<br>' : ''}<small>${ehEstoque(inv) ? 'Responsável pelo estoque' : 'Responsável pelo cliente'} · nome / assinatura / data</small>${quem(A.cli)}</div></div><div><div class="im">${im(A.gf)}</div><div class="li"><b>${esc(gf.razao)}</b><br>CNPJ ${gf.cnpj} · ${gf.cidade}<br><small>${esc(A.gf?.nome || nomeCurto())}</small>${quem(A.gf)}</div></div></div>`; })()}
     <script>window.onload=()=>setTimeout(()=>print(),300)<\/script></body></html>`);
   w.document.close();
 };
+// quem bipou a sobra (para conferir depois)
+const quemBipou = r => [...new Set(ui.leit.filter(l => (r.tipo === 'esp' ? norm(l.codigo) === norm(r.cod) && norm(l.lote) === norm(r.lote) : !l.codigo && norm(l.lote || l.bruto) === norm(r.lote || '') && (l.gtin || '') === (r.gtin || ''))).map(l => String(l.usuario || '').replace(/\s*\(.*\)$/, '') + (l.local ? ' · ' + l.local : '')))].join(', ');
 // texto dos itens faltando, em dois formatos: WhatsApp (curto, *negrito*, em tópicos) e e-mail (formal, com saudação e assinatura)
 function textoFaltantes(comValor, fmt) {
   const inv = ui.inv, a = apurar(), wa = fmt !== 'mail', b = s => wa ? `*${s}*` : s, gf = GF[FILIAL] || GF.CGR;
@@ -1710,15 +1737,12 @@ function textoFaltantes(comValor, fmt) {
   // agrupa por produto: código · descrição → lotes
   const grupos = []; falt.forEach(r => { const g = grupos[grupos.length - 1]; if (g && g.cod === r.cod) g.l.push(r); else grupos.push({ cod: r.cod, produto: r.produto, l: [r] }); });
   const loteTxt = r => `Lote ${r.lote} · val. ${dataVal(r.validade)}${r.venc != null && r.venc < 0 ? (wa ? ' ⛔ VENCIDO' : ' (VENCIDO)') : r.venc != null && r.venc <= 90 ? (wa ? ' ⌛ vence em ' + r.venc + ' dias' : ' (vence em ' + r.venc + ' dias)') : ''} · ${qtd(unF(r))} un.${r.bip ? ` (de ${qtd(r.saldo)})` : ''}${comValor && r.vunit ? ' · ' + brl(unF(r) * r.vunit) : ''}${r.nfs?.length ? ' · NF ' + r.nfs.map(n => n.nf).join(', ') : ''}${motivoTxt(r) ? (wa ? '\n      ↳ ' : '\n      Motivo: ') + motivoTxt(r) : ''}`;
-  const usados = falt.filter(r => { const j = justDe(r); return j ? /cirurgia/i.test(j.m) && !/faturado/i.test(j.m) : ui.usos?.has(kL(r.cod, r.lote)); });
-  const usUn = usados.reduce((s, r) => s + unF(r), 0), usVal = usados.reduce((s, r) => s + unF(r) * r.vunit, 0);
   const L = [];
   if (wa) {
     L.push(`Olá! Segue o resultado do inventário ${ehEstoque(inv) ? 'do estoque' : 'de material consignado'}:`, '', `${ehEstoque(inv) ? '🏬' : '🏥'} ${b(inv.cliente)}`, `🏷 ${inv.fornecedor || 'Todos os fornecedores'}`, `📅 Inventário em ${quando} · relatório ${relNome(inv)} de ${dataBR(inv.relatorio_data)}`, '',
       b('RESUMO'), `📋 Saldo no relatório: ${qtd(a.esp)} un.${comValor ? ' · ' + R(a.espVal) : ''}`, `✅ Encontrado no local: ${qtd(a.fis)} un.${comValor ? ' · ' + R(a.fisVal) : ''} (${pct}%)`,
       `⚠ ${b(`Faltando: ${qtd(a.falta)} un.${comValor ? ' · ' + R(a.faltaVal) : ''}`)}`);
     if (vencFalt.length) L.push(`⛔ Entre os faltantes, ${vencFalt.length} lote${vencFalt.length === 1 ? ' está vencido' : 's estão vencidos'}`);
-    if (usados.length && !ehEstoque(inv)) L.push(`🩺 Usados em cirurgia (a faturar): ${qtd(usUn)} un.${comValor ? ' · ' + R(usVal) : ''}`);
     L.push('', b(`ITENS FALTANDO (${falt.length} lote${falt.length === 1 ? '' : 's'})`));
     grupos.forEach(g => { L.push('', `▪ ${b(g.cod)} — ${g.produto}`); g.l.forEach(r => L.push(`   • ${loteTxt(r)}`)); });
   } else {
@@ -1728,7 +1752,6 @@ function textoFaltantes(comValor, fmt) {
       `Encontrado no local ........ ${qtd(a.fis)} un.${comValor ? '   ' + R(a.fisVal) : ''}  (${pct}% conferido)`,
       `Faltando ................... ${qtd(a.falta)} un.${comValor ? '   ' + R(a.faltaVal) : ''}  (${falt.length} lotes)`);
     if (vencFalt.length) L.push(`Vencidos entre os faltantes . ${vencFalt.length} lote(s)`);
-    if (usados.length && !ehEstoque(inv)) L.push(`Usados em cirurgia ......... ${qtd(usUn)} un.${comValor ? '   ' + R(usVal) : ''}  (a faturar)`);
     L.push('', `ITENS FALTANDO`, '-'.repeat(40));
     let n = 0; grupos.forEach(g => { L.push('', `${g.cod} — ${g.produto}`); g.l.forEach(r => L.push(`   ${++n}. ${loteTxt(r)}`)); });
   }
@@ -1770,7 +1793,7 @@ window.abrirFaltantes = () => {
 window.baixarExcel = () => {
   if (semCega()) return;
   const inv = ui.inv, a = apurar(), gf = GF[FILIAL] || GF.CGR;
-  const jc = r => { const us = ui.usos?.get(kL(r.cod, r.lote)) || [], j = justDe(r); return { 'Motivo / justificativa': j ? [j.m, j.o].filter(Boolean).join(' — ') : '', 'Encontrado em cirurgia': us.map(u => usoTxt(u, true) + (u.faturado ? ' (faturado)' : '')).join(' | ') }; };
+  const jc = r => { const j = justDe(r); return { 'Motivo / justificativa': j ? [j.m, j.o].filter(Boolean).join(' — ') : '' }; };
   const ord = l => [...l].sort((x, y) => String(x.cod).localeCompare(String(y.cod)) || String(x.lote).localeCompare(String(y.lote)));
   const base = r => ({ 'Código': r.cod || '', 'Produto': r.produto || (r.gtin ? 'GTIN ' + r.gtin : ''), 'Lote': r.lote || '', 'Validade': dataVal(r.validade), 'Situação validade': r.venc == null ? '' : r.venc < 0 ? 'VENCIDO' : r.venc <= 90 ? `vence em ${r.venc} dias` : '', 'NF': (r.nfs || []).map(n => n.nf).join(', ') });
   const comTotal = (linhas, campos) => { if (!linhas.length) return [{ 'Código': 'Nenhum item' }]; const t = { 'Código': 'TOTAL', 'Produto': `${linhas.length} lote(s)` }; campos.forEach(c => t[c] = Math.round(linhas.reduce((s, r) => s + (Number(r[c]) || 0), 0) * 100) / 100); return [...linhas, {}, t]; };
