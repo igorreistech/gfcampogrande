@@ -191,6 +191,9 @@ html.embed .rodape{display:none}
 body.fechado .so-aberto{display:none!important}
 body:not(.fechado) .so-fechado{display:none!important}
 .bts-bip{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.equipe{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;font-size:.72rem;align-items:center}.equipe:empty{display:none}
+.equipe span{background:var(--surface2);border-radius:20px;padding:4px 10px}.equipe span.on{background:#dcfce7;color:#14532d;font-weight:700}.equipe span.on::before{content:'● ';color:#16a34a}
+.quem{font-size:.66rem;color:var(--info-c);margin-top:2px;font-weight:600}
 .dica-bip{align-self:center}
 .c-q,.so-cel{display:none}
 .top .user{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -325,6 +328,7 @@ body:not(.fechado) .so-fechado{display:none!important}
         <div class="cam-bts"><button type="button" id="cam-zoom" style="display:none">🔍 1×</button><button type="button" id="cam-luz" style="display:none">🔦</button><button type="button" id="cam-foto-bt">📸 Capturar</button></div><div id="cam-diag"></div><div id="cam-conf"></div></div>
       <div id="cam-foto" style="display:none"></div>
       <div id="ultimo">Aguardando a primeira leitura…</div>
+      <div class="equipe" id="equipe"></div>
       <div class="cega-aviso" id="cega-aviso" style="display:none">🙈 Contagem cega: o saldo do sistema está escondido. Conte tudo o que estiver no local; o resultado aparece quando alguém tocar em 👁 Revelar resultado.</div>
     </div>
     <div class="so-fechado muted" style="margin-top:10px" id="i-fechado-info"></div>
@@ -1032,7 +1036,7 @@ function desenharInv() {
   l.sort((x, y) => (C ? 0 : ordem[x.st] - ordem[y.st]) || String(x.cod).localeCompare(String(y.cod)) || String(x.lote).localeCompare(String(y.lote)));
   $('tb').innerHTML = `<thead><tr><th>Situação</th><th class="c-q"></th><th>Código</th><th>Produto</th><th>Lote</th><th>Validade</th><th>NF</th><th class="n">Saldo</th><th class="n">Bipado</th><th class="n">Valor un.</th></tr></thead><tbody>${l.map(r => `<tr class="st-${C ? (r.bip ? 'ok' : '') : r.st}">
     <td class="st c-st ${C ? (r.bip ? 'ok' : '') : r.st}">${C ? (r.bip ? '🔢 Contado' : '⬜ Não contado') : ST_TXT[r.st] + (r.st === 'falta' && r.bip ? ` (${qtd(r.saldo - r.bip)})` : r.st === 'exc' ? ` (+${qtd(r.bip - r.saldo)})` : '')}${C ? '' : `<button class="ev" type="button" title="Anexar foto de evidência" onclick="anexarFoto('${esc(kL(r.cod, r.lote))}')">📷</button>`}${extrasLinha(r, C)}</td>
-    <td class="c-q">${qtd(r.bip)}<small>/${r.tipo === 'esp' && !C ? qtd(r.saldo) : '—'}</small>${r.tipo === 'esp' && inv.status === 'aberto' ? `<button class="mais1" type="button" title="Etiqueta sem código de barras: contar 1 deste lote" onclick="contarManual('${esc(r.cod)}','${esc(r.lote)}')">+1</button>` : ''}</td><td class="mono c-cod">${esc(r.cod || '—')}</td><td class="c-prod">${esc(r.produto || (r.gtin ? 'GTIN ' + r.gtin : 'Não identificado'))}</td><td class="mono c-lote">${esc(r.lote || '—')}</td>
+    <td class="c-q">${qtd(r.bip)}<small>/${r.tipo === 'esp' && !C ? qtd(r.saldo) : '—'}</small>${r.tipo === 'esp' && inv.status === 'aberto' ? `<button class="mais1" type="button" title="Etiqueta sem código de barras: contar 1 deste lote" onclick="contarManual('${esc(r.cod)}','${esc(r.lote)}')">+1</button>` : ''}</td><td class="mono c-cod">${esc(r.cod || '—')}</td><td class="c-prod">${esc(r.produto || (r.gtin ? 'GTIN ' + r.gtin : 'Não identificado'))}${r.bip ? `<div class="quem">👤 ${esc(quemNaLinha(r))}</div>` : ''}</td><td class="mono c-lote">${esc(r.lote || '—')}</td>
     <td class="mono c-val ${r.venc != null && r.venc <= 90 ? 'venc' : ''}" title="${r.venc != null ? (r.venc < 0 ? 'vencido há ' + -r.venc + ' dias' : 'vence em ' + r.venc + ' dias') : ''}">${dataVal(r.validade)}${r.venc != null && r.venc < 0 ? ' ⛔' : r.venc != null && r.venc <= 90 ? ' ⌛' : ''}</td>
     <td class="mono c-nf">${esc((r.nfs || []).map(n => n.nf).join(', ') || '—')}</td><td class="n c-x">${r.tipo === 'esp' ? (C ? '•••' : qtd(r.saldo)) : '—'}</td><td class="n c-x"><b>${qtd(r.bip)}</b>${r.tipo === 'esp' && inv.status === 'aberto' ? `<button class="mais1" type="button" title="Etiqueta sem código de barras: contar 1 deste lote" onclick="contarManual('${esc(r.cod)}','${esc(r.lote)}')">+1</button>` : ''}</td><td class="n c-x">${r.vunit ? brl(r.vunit) : '—'}</td></tr>`).join('') || '<tr><td colspan="9" class="muted" style="padding:16px">Nada neste filtro.</td></tr>'}</tbody>`;
   const S = (f, ls = l) => ls.reduce((s, r) => s + f(r), 0), esp = l.filter(r => r.tipo === 'esp');
@@ -1044,12 +1048,26 @@ function desenharInv() {
     + (exc.length ? cx('er', '➕ A mais / fora', S(r => r.bip - (r.tipo === 'esp' ? r.saldo : 0), exc), null) : '')
     + (ven.length ? cx('er', `⌛ Vencidos / ≤ 90 dias (${ven.filter(r => r.venc < 0).length} vencidos)`, S(r => r.saldo, ven), S(r => r.saldo * r.vunit, ven)) : '') : '';
   [['p-venc', painelVenc(a)], ['p-cruz', C ? '' : painelCruz(a)], ['p-locais', painelLocais()], ['p-hist', C ? '' : painelHist(a)]].forEach(([id, x]) => { $(id).style.display = x ? '' : 'none'; $(id).innerHTML = x; });
+  desenharEquipe();
   const ult = [...ui.leit].reverse().slice(0, 60);
   $('n-leit').textContent = ui.leit.length ? `· ${ui.leit.length} (últimas ${ult.length})` : '';
   $('leituras').innerHTML = ult.map(x => `<div class="l"><span>${x.codigo ? '✅' : '➕'}</span><span>${Number(x.qtd) > 1 ? `<b style="color:#6d28d9">${qtd(x.qtd)}×</b> ` : ''}<b class="mono">${esc(x.codigo || x.gtin || '—')}</b> · lote <span class="mono">${esc(x.lote || '—')}</span> ${x.produto ? '· ' + esc(x.produto) : ''}</span>
     <span class="h">${x.local ? '📍 ' + esc(x.local) + ' · ' : ''}${x.origem === 'camera' ? '📷' : x.origem === 'manual' ? '✍️' : x.origem === 'foto' ? '🖼' : '🔫'} ${esc(String(x.usuario || '').replace(/\s*\(.*\)$/, ''))} · ${x._fila ? '📶 guardada, aguardando internet' : x._tmp ? 'enviando…' : dataHoraBR(x.criado_em).slice(11)}</span>${inv.status === 'aberto' && (!x._tmp || x._fila) ? `<button class="x" title="Desfazer esta leitura" onclick="desfazer('${x.id}')">✕</button>` : ''}</div>`).join('') || '<div class="muted" style="padding:8px 0">Nenhuma leitura ainda.</div>';
 }
 $('busca').oninput = e => { ui.busca = e.target.value; desenharInv(); };
+// 👤 quem bipou: em cada produto da lista e na faixa "quem está bipando" (bipou nos últimos 3 min = agora)
+const nomeLeit = l => String(l.usuario || '').replace(/\s*\(.*\)$/, '').trim() || '—';
+const leitDaLinha = r => ui.leit.filter(l => r.tipo === 'esp' ? norm(l.codigo) === norm(r.cod) && norm(l.lote) === norm(r.lote) : !l.codigo && (l.gtin || '') === (r.gtin || '') && norm(l.lote || l.bruto) === norm(r.lote || l.bruto));
+function quemNaLinha(r) { const m = new Map(); leitDaLinha(r).forEach(l => m.set(nomeLeit(l), (m.get(nomeLeit(l)) || 0) + Number(l.qtd || 0))); return [...m].map(([n, q]) => `${n} (${qtd(q)})`).join(' · '); }
+function desenharEquipe() {
+  const el = $('equipe'); if (!el) return;
+  const m = new Map(); ui.leit.forEach(l => { const n = nomeLeit(l), x = m.get(n) || { q: 0, ult: null }; x.q += Number(l.qtd || 0); if (!x.ult || String(l.criado_em) > String(x.ult.criado_em)) x.ult = l; m.set(n, x); });
+  if (!m.size) { el.innerHTML = ''; return; }
+  const agora = Date.now(), L = [...m].sort((a, b) => String(b[1].ult.criado_em).localeCompare(String(a[1].ult.criado_em)));
+  el.innerHTML = `<b>👥 Quem está bipando:</b>` + L.map(([n, x]) => { const on = agora - new Date(x.ult.criado_em).getTime() < 180000, u = x.ult;
+    return `<span class="${on ? 'on' : ''}" title="Última leitura: ${esc(u.codigo || u.gtin || '')} · lote ${esc(u.lote || '—')} ${esc(u.produto || '')}${u.local ? ' · 📍 ' + esc(u.local) : ''}">${esc(n)} · ${qtd(x.q)} un. · último ${esc(u.codigo || u.gtin || '—')} lote ${esc(u.lote || '—')} às ${(dataHoraBR(u.criado_em).match(/\d{1,2}:\d{2}/) || [''])[0]}${u.local ? ' · 📍 ' + esc(u.local) : ''}</span>`; }).join('');
+}
+setInterval(() => { if (ui.inv) desenharEquipe(); }, 60000);
 // selos de cada lote na tabela: recontagem, faltou antes, justificativa, fotos
 function extrasLinha(r, C) {
   if (C) return r.recont ? '<br><span class="bdg rc">🔁 recontar este lote</span>' : '';
