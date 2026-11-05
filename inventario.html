@@ -335,6 +335,7 @@ body:not(.fechado) .so-fechado{display:none!important}
   <div class="filtros"><input id="busca" placeholder="🔍 Buscar código, produto, lote, NF…"></div>
   <div class="tw"><table id="tb"></table></div>
   <div class="tot-tela" id="tb-tot"></div>
+  <div class="card painel" id="p-venc" style="display:none;border:2px solid #dc2626;background:#fef2f2"></div>
   <div class="card painel" id="p-cruz" style="display:none"></div>
   <div class="card painel" id="p-locais" style="display:none"></div>
   <div class="card painel" id="p-hist" style="display:none"></div>
@@ -1042,7 +1043,7 @@ function desenharInv() {
     + cx('av', '⚠ Faltando', S(r => Math.max(0, r.saldo - r.bip), esp), S(r => Math.max(0, r.saldo - r.bip) * r.vunit, esp), `${fal.length} lote${fal.length === 1 ? '' : 's'}`)
     + (exc.length ? cx('er', '➕ A mais / fora', S(r => r.bip - (r.tipo === 'esp' ? r.saldo : 0), exc), null) : '')
     + (ven.length ? cx('er', `⌛ Vencidos / ≤ 90 dias (${ven.filter(r => r.venc < 0).length} vencidos)`, S(r => r.saldo, ven), S(r => r.saldo * r.vunit, ven)) : '') : '';
-  [['p-cruz', C ? '' : painelCruz(a)], ['p-locais', painelLocais()], ['p-hist', C ? '' : painelHist(a)]].forEach(([id, x]) => { $(id).style.display = x ? '' : 'none'; $(id).innerHTML = x; });
+  [['p-venc', painelVenc(a)], ['p-cruz', C ? '' : painelCruz(a)], ['p-locais', painelLocais()], ['p-hist', C ? '' : painelHist(a)]].forEach(([id, x]) => { $(id).style.display = x ? '' : 'none'; $(id).innerHTML = x; });
   const ult = [...ui.leit].reverse().slice(0, 60);
   $('n-leit').textContent = ui.leit.length ? `· ${ui.leit.length} (últimas ${ult.length})` : '';
   $('leituras').innerHTML = ult.map(x => `<div class="l"><span>${x.codigo ? '✅' : '➕'}</span><span>${Number(x.qtd) > 1 ? `<b style="color:#6d28d9">${qtd(x.qtd)}×</b> ` : ''}<b class="mono">${esc(x.codigo || x.gtin || '—')}</b> · lote <span class="mono">${esc(x.lote || '—')}</span> ${x.produto ? '· ' + esc(x.produto) : ''}</span>
@@ -1057,6 +1058,16 @@ function extrasLinha(r, C) {
     + (r.st === 'falta' && n ? `<br><span class="bdg rep">🔁 faltou também em ${n} inventário${n > 1 ? 's' : ''} anterior${n > 1 ? 'es' : ''}</span>` : '')
     + (j && r.st === 'falta' ? `<br><span class="bdg jus">📝 ${esc(j.m || 'obs.')}${j.o ? ' · ' + esc(j.o) : ''}</span>` : '')
     + (f?.length ? `<br><button type="button" class="bdg" onclick="verFotos('${esc(k)}')">📎 ${f.length} foto${f.length > 1 ? 's' : ''}</button>` : '');
+}
+// ⛔ vencidos já bipados: lista para separar num canto e devolver à GF Medical (estoque: área de vencidos)
+function painelVenc(a) {
+  const l = [...a.linhas, ...a.sobras].filter(r => r.bip > 0 && r.venc != null && r.venc < 0).sort((x, y) => x.venc - y.venc);
+  if (!l.length) return '';
+  const un = l.reduce((s, r) => s + r.bip, 0), val = l.reduce((s, r) => s + r.bip * (r.vunit || 0), 0), est = ehEstoque(ui.inv);
+  return `<h4 style="color:#991b1b">⛔ Vencidos encontrados — ${est ? 'separar na área de vencidos' : 'separar num canto e devolver à GF Medical'} <span class="muted">${l.length} lote${l.length === 1 ? '' : 's'} · ${qtd(un)} un.${val ? ' · ' + brl(val) : ''}</span></h4>
+    <div style="font-size:.76rem;color:#7f1d1d;margin-bottom:4px">${est ? 'Não podem sair para cirurgia.' : 'Não deixe no cliente: separe agora e leve de volta para o estoque da GF Medical.'}</div>
+    ${l.map(r => `<div style="font-size:.78rem;padding:6px 0;border-top:1px dashed #fca5a5"><b class="mono">${esc(r.cod || (r.gtin ? 'GTIN ' + r.gtin : '—'))}</b> ${esc(r.produto || '')} · lote <b class="mono">${esc(r.lote || '—')}</b> · val. <b>${dataVal(r.validade)}</b> (vencido há ${-r.venc} dias) · <b>${qtd(r.bip)} un.</b>${r.tipo !== 'esp' ? ' · <span class="bdg rep">sobra</span>' : ''}</div>`).join('')}
+    <div style="margin-top:8px"><button class="btn r" type="button" onclick="imprimir('venc')">🖨 Imprimir lista de vencidos e a vencer</button></div>`;
 }
 // 🔄 sobra no consignado × falta no estoque físico, pelo lote: o item saiu do estoque sem baixa (sem nota / sem consignar)
 // No consignado: as sobras daqui que faltam no inventário do estoque. No estoque: as faltas daqui que sobraram em algum cliente.
@@ -1205,12 +1216,12 @@ async function registrar(bruto, origem, forcarCod, qtdForcada) {
   else if (r && r.bip <= r.saldo) { ultimo(`✅ <b class="mono">${esc(r.cod)}</b> ${esc(r.produto)} · lote <b class="mono">${esc(r.lote)}</b>${vtxt}`, 'ok', `${qtd(r.bip)}/${qtd(r.saldo)}`); bipe(true); }
   else if (r) { ultimo(`⚠ <b class="mono">${esc(r.cod)}</b> lote <b class="mono">${esc(r.lote)}</b>: já bipou <b>${qtd(r.bip)}</b> e o relatório tem só ${qtd(r.saldo)}. É outra embalagem? Se bipou a mesma etiqueta 2×, desfaça abaixo.`, 'av', `${qtd(r.bip)}/${qtd(r.saldo)}`); bipe('av'); }
   else { ultimo(`➕ <b>Sobra registrada</b> (não está no relatório) · ${id.produto ? esc((id.produtoCod ? id.produtoCod + ' ' : '') + id.produto) + ' · ' : ''}${id.gtin ? 'GTIN <span class="mono">' + esc(id.gtin) + '</span> · ' : ''}lote <b class="mono">${esc(id.lote || '—')}</b>${vtxt}`, 'er'); bipe(false); }
-  if (r && id.validade && diasAte(id.validade) < 0) {
+  if (id.validade && diasAte(id.validade) < 0) {
     $('ultimo').className = 'er'; $('ultimo').insertAdjacentHTML('beforeend', alertaVenc()); bipeVencido();
     // leitor/teclado: janela por cima da tela, só fecha confirmando que separou (na câmera o painel já pede isso)
-    _vencK = kL(r.cod, r.lote);
+    _vencK = r ? kL(r.cod, r.lote) : kL('', id.lote || id.gtin);
     if (origem === 'leitor' || origem === 'manual') {
-      $('venc-desc').innerHTML = `<b class="mono">${esc(r.cod)}</b> · ${esc(r.produto)}<br>Lote <b class="mono">${esc(r.lote)}</b> · validade <b>${dataVal(id.validade)}</b> (vencido há ${-diasAte(id.validade)} dias)`;
+      $('venc-desc').innerHTML = `<b class="mono">${esc(r ? r.cod : id.gtin ? 'GTIN ' + id.gtin : '—')}</b> · ${esc(r ? r.produto : id.produto || 'fora do relatório (sobra)')}<br>Lote <b class="mono">${esc(r ? r.lote : id.lote || '—')}</b> · validade <b>${dataVal(id.validade)}</b> (vencido há ${-diasAte(id.validade)} dias)`;
       $('venc-acao').innerHTML = ehEstoque(ui.inv) ? 'Separe esta embalagem na <u>área de vencidos</u>.<br>Não pode sair para cirurgia.' : 'Separe esta embalagem para <u>devolver ao estoque da GF Medical</u>.<br>Não deixe no cliente.';
       $('m-venc').classList.add('open'); setTimeout(() => $('venc-fechar').focus(), 50);
     }
@@ -1317,7 +1328,7 @@ function descreverLeitura(txt) {
   if (!id.codigo && /^\d{8,14}$/.test(txt)) return { ean: true, html: `<div class="ct">⚠ Código EAN da embalagem</div><div class="mono">${esc(txt)}</div><div class="cs av">Esse código não tem o lote. Mire no outro código de barras — o comprido, com (01)…(17)…(10)… embaixo.</div>` };
   const corpo = `<div class="ct">${r ? `<span class="mono">${esc(r.cod)}</span> · ${esc(r.produto)}` : id.produto ? esc((id.produtoCod ? id.produtoCod + ' · ' : '') + id.produto) : 'Produto fora do relatório'}</div>
     <div>Lote <b class="mono">${esc(id.lote || '—')}</b>${val ? ' · ' + val : ''}${id.gtin ? `<br><span class="mono" style="font-size:.72rem;color:var(--text3)">GTIN ${esc(id.gtin)}</span>` : ''}</div>`;
-  if (!r && !id.codigo && (id.lote || id.gtin)) return { html: corpo + `<div class="cs er">➕ Não está no relatório: vai entrar como <b>sobra</b>.</div>`, id, r: null, venc: false, som: 'er', sobra: true };
+  if (!r && !id.codigo && (id.lote || id.gtin)) return { html: corpo + (id.validade && diasAte(id.validade) < 0 ? alertaVenc() : '') + `<div class="cs er">➕ Não está no relatório: vai entrar como <b>sobra</b>.</div>`, id, r: null, venc: !!(id.validade && diasAte(id.validade) < 0), som: 'er', sobra: true };
   if (!r) return { ean: true, html: `<div class="ct">✔ Código lido — mas ❌ não está no relatório</div><div>Lote <b class="mono">${esc(id.lote || '—')}</b>${id.gtin ? ' · <span class="mono">GTIN ' + esc(id.gtin) + '</span>' : ''}</div><div class="cs er">Não foi incluído. Mire no código com o <b>lote</b> de uma embalagem deste cliente.</div>` };
   const st = cega() && r ? `<div class="cs ok">Vai somar na contagem deste lote (já contados: ${qtd(r.bip)}).</div>` : r && r.bip < r.saldo ? `<div class="cs ok">Vai contar ${qtd(r.bip + 1)} de ${qtd(r.saldo)} deste lote.</div>`
     : r ? `<div class="cs av">⚠ Já foram bipados ${qtd(r.bip)} de ${qtd(r.saldo)} deste lote. É outra embalagem?</div>`
