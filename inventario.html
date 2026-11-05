@@ -345,6 +345,7 @@ body:not(.fechado) .so-fechado{display:none!important}
   <div class="card painel" id="p-venc" style="display:none;border:2px solid #dc2626;background:#fef2f2"></div>
   <div class="card painel" id="p-cruz" style="display:none"></div>
   <div class="card painel" id="p-locais" style="display:none"></div>
+  <div class="card painel" id="p-antes" style="display:none"></div>
   <div class="card painel" id="p-hist" style="display:none"></div>
 
   <div class="acoes" id="acoes">
@@ -785,7 +786,7 @@ function desenharLista() {
     const esp = (i.esperado || []).reduce((s, e) => s + Number(e.saldo || 0), 0), bip = Math.min(ui.contagem.get(i.id) || 0, esp), pct = esp ? Math.round(bip / esp * 100) : 0;
     return `<div class="card inv" onclick="abrirInv('${i.id}')">
       <div style="display:flex;gap:8px;align-items:flex-start"><h3 style="flex:1">${esc(i.cliente)}</h3>${ehEstoque(i) ? '<span class="tag" style="background:#ede9fe;color:#6d28d9">🏬 estoque</span> ' : ''}<span class="tag ${i.status === 'aberto' ? 'ab' : 'fe'}">${i.status === 'aberto' ? 'em andamento' : 'encerrado'}</span></div>
-      <div class="muted">${esc(i.fornecedor || 'Todos os fornecedores')} · relatório de ${dataBR(i.relatorio_data)}</div>
+      <div class="muted">${rotEscopo(i) ? `<b style="color:${ehGeral(i) ? '#0e7490' : '#b45309'}">${rotEscopo(i)}</b> · ` : ''}${esc(i.fornecedor || 'Todos os fornecedores')} · relatório de ${dataBR(i.relatorio_data)}</div>
       ${i.status === 'aberto' ? `<div class="barra"><i style="width:${pct}%"></i></div><div class="muted">${qtd(bip)} de ${qtd(esp)} un. conferidas (${pct}%)</div>` : `<div class="muted" style="margin-top:8px">${qtd(esp)} un. no relatório · encerrado em ${dataHoraBR(i.fechado_em)}</div>`}
       <div class="muted" style="margin-top:4px">Iniciado por ${esc(i.criado_por || '—')} · ${dataHoraBR(i.criado_em)}</div></div>`;
   }).join('') : `<div class="muted" style="padding:20px">${ui.invs.length ? 'Nenhum inventário neste filtro.' : 'Nenhum inventário ainda. Importe o relatório C457 (consignado) ou S013 (estoque) do cliente para começar.'}</div>`;
@@ -812,6 +813,27 @@ function montarNovo(lidos) {
   return { filial: FILIAL, obs: lidos[0].tipo === 'estoque' ? 'estoque' : null, cliente: lidos[0].cliente, fornecedor: [...new Set(lidos.map(r => r.fornecedor).filter(Boolean))].join(' · '), relatorio_data: lidos.map(r => r.data).filter(Boolean).sort().pop() || null, arquivos: lidos.map(r => r.arquivo).join(', '), esperado };
 }
 const resumoNovo = n => ({ lotes: n.esperado.length, un: n.esperado.reduce((s, e) => s + e.saldo, 0), val: n.esperado.reduce((s, e) => s + e.saldo * e.vunit, 0), venc: n.esperado.filter(e => diasAte(e.validade) != null && diasAte(e.validade) <= 90).length });
+// 🏭 por fabricante × 📦 geral: o C457 de um fornecedor e o C457 de todos os fornecedores não se misturam
+// (nem na importação, nem na comparação com o arquivo anterior, nem no histórico de faltas)
+const escopo = x => (ehEstoque(x) ? 'EST|' : '') + (norm(x?.fornecedor || '') || 'TODOS');
+const ehGeral = x => !ehEstoque(x) && !norm(x?.fornecedor || '');
+const rotEscopo = x => ehEstoque(x) ? '' : ehGeral(x) ? '📦 Geral (todos os fornecedores)' : '🏭 Por fabricante';
+// 📂 histórico do arquivo importado: guarda o relatório anterior do mesmo cliente e mesmo escopo
+// e compara antes × depois (lotes que entraram, saíram e mudaram de saldo)
+async function anteriorDe(ref, antesDe) {
+  let q = supabase.from('inventarios').select('id,cliente,fornecedor,relatorio_data,criado_em,arquivos,esperado,obs').eq('filial', FILIAL).eq('cliente', ref.cliente).order('criado_em', { ascending: false }).limit(20);
+  if (antesDe) q = q.lt('criado_em', antesDe);
+  const { data } = await q; return (data || []).find(x => escopo(x) === escopo(ref)) || null;
+}
+const snapAnterior = x => x ? { id: x.id, criado_em: x.criado_em, relatorio_data: x.relatorio_data, arquivos: x.arquivos, fornecedor: x.fornecedor, esperado: x.esperado || [] } : null;
+function compararArquivos(antes, depois) {
+  const A = new Map((antes || []).map(e => [kL(e.cod, e.lote), e])), D = new Map((depois || []).map(e => [kL(e.cod, e.lote), e]));
+  const entrou = [...D].filter(([k]) => !A.has(k)).map(([, e]) => e), saiu = [...A].filter(([k]) => !D.has(k)).map(([, e]) => e);
+  const mudou = [...D].filter(([k, e]) => A.has(k) && Number(A.get(k).saldo) !== Number(e.saldo)).map(([k, e]) => ({ ...e, antes: Number(A.get(k).saldo), dif: Number(e.saldo) - Number(A.get(k).saldo) }));
+  const un = l => l.reduce((s, e) => s + Number(e.saldo || 0), 0), val = l => l.reduce((s, e) => s + Number(e.saldo || 0) * Number(e.vunit || 0), 0);
+  return { entrou, saiu, mudou, antesUn: un(antes || []), depoisUn: un(depois || []), antesVal: val(antes || []), depoisVal: val(depois || []), entrouUn: un(entrou), saiuUn: un(saiu), mudouUn: mudou.reduce((s, e) => s + e.dif, 0) };
+}
+const resumoComp = c => `${c.entrou.length} lote${c.entrou.length === 1 ? '' : 's'} novo${c.entrou.length === 1 ? '' : 's'} (+${qtd(c.entrouUn)} un.) · ${c.saiu.length} saíram (−${qtd(c.saiuUn)} un.) · ${c.mudou.length} mudaram de saldo (${c.mudouUn >= 0 ? '+' : ''}${qtd(c.mudouUn)} un.)`;
 async function importarPdfs(files) {
   files = [...files].filter(f => /\.pdf$/i.test(f.name) || f.type === 'application/pdf'); if (!files.length) return toast('Nenhum PDF encontrado.', 'err');
   const lidos = [], erros = [];
@@ -827,22 +849,29 @@ async function importarPdfs(files) {
   }
   if (!lidos.length) { toast((TIPO ? `Nenhum PDF era do inventário de ${TIPO}. ` : 'Nenhum PDF era o relatório C457 ou S013. ') + erros.join(' · '), 'err'); return; }
   // um inventário por cliente
-  const grupos = new Map(); lidos.forEach(r => { const k = norm(r.cliente); grupos.set(k, [...(grupos.get(k) || []), r]); });
-  const novos = [...grupos.values()].map(montarNovo).sort((x, y) => x.cliente.localeCompare(y.cliente));
+  const grupos = new Map(); lidos.forEach(r => { const k = norm(r.cliente) + '|' + (r.tipo === 'estoque' ? 'EST' : norm(r.fornecedor || '') ? 'FAB' : 'GERAL'); grupos.set(k, [...(grupos.get(k) || []), r]); });
+  const novos = [...grupos.values()].map(montarNovo).sort((x, y) => x.cliente.localeCompare(y.cliente) || escopo(x).localeCompare(escopo(y)));
+  ultimoLote('📂 Procurando o arquivo anterior de cada um…');
+  for (const n of novos) { try { const ant = await anteriorDe(n); if (ant) { n.extra = { ...(n.extra || {}), anterior: snapAnterior(ant) }; n._comp = compararArquivos(ant.esperado, n.esperado); } } catch (e) {} }
+  ultimoLote('');
+  // grava sem o campo de apoio da tela; sem a coluna "extra" no banco, grava sem o histórico
+  const limpo = n => { const { _comp, ...x } = n; return x; };
+  const inserir = async rows => { let r = await supabase.from('inventarios').insert(rows.map(limpo)).select('id'); if (r.error && semColuna(r.error)) r = await supabase.from('inventarios').insert(rows.map(n => { const { extra, ...x } = limpo(n); return x; })).select('id'); return r; };
   // cliente que já tem inventário em andamento: avisa (não duplica sem querer)
-  const abertos = new Set(ui.invs.filter(i => i.status === 'aberto').map(i => norm(i.cliente)));
+  const abertos = new Set(ui.invs.filter(i => i.status === 'aberto').map(i => norm(i.cliente) + '|' + escopo(i)));
   const errosHtml = erros.length ? `<div style="background:var(--crit-bg);color:var(--crit-c);padding:9px 11px;border-radius:8px;margin-bottom:10px;font-size:.76rem">⚠ ${erros.length} arquivo(s) ignorado(s):<br>${erros.map(esc).join('<br>')}</div>` : '';
   if (novos.length === 1) {
     const novo = novos[0], s = resumoNovo(novo);
-    $('novo-corpo').innerHTML = `${errosHtml}${abertos.has(norm(novo.cliente)) ? `<div style="background:var(--warn-bg);color:var(--warn-c);padding:9px 11px;border-radius:8px;margin-bottom:10px;font-size:.78rem">⚠ Este cliente já tem um inventário em andamento.</div>` : ''}
+    $('novo-corpo').innerHTML = `${errosHtml}${abertos.has(norm(novo.cliente) + '|' + escopo(novo)) ? `<div style="background:var(--warn-bg);color:var(--warn-c);padding:9px 11px;border-radius:8px;margin-bottom:10px;font-size:.78rem">⚠ Este cliente já tem um inventário em andamento.</div>` : ''}
       <div style="font-family:var(--display);font-weight:700;font-size:1rem">${esc(novo.cliente)}</div>
-      <div class="muted" style="margin:4px 0 12px">${esc(novo.fornecedor || '—')} · relatório de ${dataBR(novo.relatorio_data)} · ${esc(novo.arquivos)}</div>
+      <div class="muted" style="margin:4px 0 12px">${rotEscopo(novo) ? '<b>' + rotEscopo(novo) + '</b> · ' : ''}${esc(novo.fornecedor || 'Todos os fornecedores')} · relatório de ${dataBR(novo.relatorio_data)} · ${esc(novo.arquivos)}</div>
+      ${novo._comp ? `<div style="background:var(--info-bg);color:var(--info-c);padding:9px 11px;border-radius:8px;margin-bottom:10px;font-size:.76rem">📂 <b>Comparado com o arquivo anterior</b> (${esc(novo.extra.anterior.arquivos || 'relatório')} de ${dataBR(novo.extra.anterior.relatorio_data)}): ${resumoComp(novo._comp)}. Fica guardado no histórico deste inventário.</div>` : `<div class="muted" style="margin-bottom:10px">📂 Primeiro arquivo ${novo.obs === 'estoque' ? 'deste estoque' : ehGeral(novo) ? 'geral deste cliente' : 'deste fabricante neste cliente'}: não há anterior para comparar.</div>`}
       <div class="kpis" style="margin-top:0"><div class="kpi"><span>Lotes</span><b>${s.lotes}</b></div><div class="kpi"><span>Unidades</span><b>${qtd(s.un)}</b></div><div class="kpi"><span>Valor</span><b style="font-size:.95rem">${brl(s.val)}</b></div>${s.venc ? `<div class="kpi er"><span>Validade ≤ 90 dias</span><b>${s.venc}</b></div>` : ''}</div>
       <div class="muted" style="margin-top:12px">${novo.obs === 'estoque' ? `Saldo pela coluna <b>Estoque Disp.</b> do S013 (só os lotes com disponível &gt; 0)${(() => { const r = novo.esperado.reduce((s, e) => s + Math.max(0, (e.total || e.saldo) - e.saldo), 0); return r ? ` · <b>${qtd(r)} un. reservadas</b> ficam fora da contagem — deixe-as separadas.` : ''; })()}` : 'Só entram os lotes com <b>saldo</b> no cliente (os de saldo 0 já foram vendidos ou devolvidos).'}</div>`;
     $('novo-ok').textContent = 'Iniciar inventário'; $('novo-ok').disabled = false;
     $('novo-ok').onclick = async () => {
       $('novo-ok').disabled = true;
-      const { data, error } = await supabase.from('inventarios').insert({ ...novo, criado_por: quemSou() }).select('id').single();
+      const { data: d0, error } = await inserir([{ ...novo, criado_por: quemSou() }]), data = d0 && d0[0];
       $('novo-ok').disabled = false;
       if (error) { if (semTabela(error)) pedirSql(); else toast('Não foi possível criar: ' + error.message, 'err'); return; }
       fecharModal('m-novo'); toast('✅ Inventário iniciado — pode bipar'); abrirInv(data.id);
@@ -852,9 +881,9 @@ async function importarPdfs(files) {
     const tot = novos.reduce((s, n) => { const r = resumoNovo(n); s.un += r.un; s.val += r.val; return s; }, { un: 0, val: 0 });
     $('novo-corpo').innerHTML = `${errosHtml}<div style="font-family:var(--display);font-weight:700;font-size:1rem;margin-bottom:4px">📦 Importação em lote · ${novos.length} clientes</div>
       <div class="muted" style="margin-bottom:10px">${lidos.length} PDF(s) · ${qtd(tot.un)} un. · ${brl(tot.val)} · um inventário por cliente</div>
-      <div class="tw"><table><thead><tr><th><input type="checkbox" id="lote-todos" checked></th><th>Cliente</th><th class="n">Lotes</th><th class="n">Un.</th><th class="n">Valor</th></tr></thead><tbody>${novos.map((n, i) => { const s = resumoNovo(n), ja = abertos.has(norm(n.cliente)); return `<tr>
+      <div class="tw"><table><thead><tr><th><input type="checkbox" id="lote-todos" checked></th><th>Cliente</th><th class="n">Lotes</th><th class="n">Un.</th><th class="n">Valor</th></tr></thead><tbody>${novos.map((n, i) => { const s = resumoNovo(n), ja = abertos.has(norm(n.cliente) + '|' + escopo(n)); return `<tr>
         <td><input type="checkbox" data-lote="${i}" ${ja ? '' : 'checked'}></td>
-        <td><b>${esc(n.cliente)}</b><div class="muted">${esc(n.fornecedor || '—')} · ${dataBR(n.relatorio_data)}${s.venc ? ` · <span class="venc">⌛ ${s.venc} vencendo</span>` : ''}${ja ? ' · <span style="color:var(--warn-c);font-weight:700">⚠ já tem inventário em andamento</span>' : ''}</div></td>
+        <td><b>${esc(n.cliente)}</b><div class="muted">${rotEscopo(n) ? '<b>' + rotEscopo(n) + '</b> · ' : ''}${esc(n.fornecedor || 'Todos os fornecedores')} · ${dataBR(n.relatorio_data)}${s.venc ? ` · <span class="venc">⌛ ${s.venc} vencendo</span>` : ''}${ja ? ' · <span style="color:var(--warn-c);font-weight:700">⚠ já tem inventário em andamento</span>' : ''}${n._comp ? `<div style="color:var(--info-c)">📂 vs. anterior de ${dataBR(n.extra.anterior.relatorio_data)}: ${resumoComp(n._comp)}</div>` : ''}</div></td>
         <td class="n">${s.lotes}</td><td class="n">${qtd(s.un)}</td><td class="n">${brl(s.val)}</td></tr>`; }).join('')}</tbody></table></div>`;
     const marcados = () => [...$('novo-corpo').querySelectorAll('[data-lote]:checked')].map(c => novos[+c.dataset.lote]);
     const rot = () => { const n = marcados().length; $('novo-ok').textContent = `Criar ${n} inventário${n === 1 ? '' : 's'}`; $('novo-ok').disabled = !n; };
@@ -863,7 +892,7 @@ async function importarPdfs(files) {
     $('novo-ok').onclick = async () => {
       const sel = marcados(); if (!sel.length) return;
       $('novo-ok').disabled = true; $('novo-ok').textContent = 'Criando…';
-      const quem = quemSou(), { error } = await supabase.from('inventarios').insert(sel.map(n => ({ ...n, criado_por: quem })));
+      const quem = quemSou(), { error } = await inserir(sel.map(n => ({ ...n, criado_por: quem })));
       if (error) { rot(); if (semTabela(error)) pedirSql(); else toast('Não foi possível criar: ' + error.message, 'err'); return; }
       fecharModal('m-novo'); toast(`✅ ${sel.length} inventários criados`); ui.fl = 'aberto'; carregarLista();
     };
@@ -884,12 +913,12 @@ window.abrirInv = async (id, comCamera) => {
   let { data, error } = await supabase.from('inventarios').select('*').eq('id', id).maybeSingle(), offline = null;
   if (error && erroRede(error)) { try { offline = JSON.parse(localStorage.getItem(cacheK(id)) || 'null'); } catch (e) {} if (offline) { data = offline.inv; error = null; toast('📶 Sem internet: abri a cópia salva neste aparelho. O que bipar fica guardado e sobe quando a conexão voltar.', 'info'); } }
   if (error || !data) { toast(error ? 'Erro: ' + error.message : 'Inventário não encontrado', 'err'); if (error && semTabela(error)) pedirSql(); return carregarLista(); }
-  ui.inv = data; ui.filtro = ''; ui.busca = ''; $('busca').value = ''; ui.leit = offline ? offline.leit || [] : []; ui.hist = null; ui.cruz = null;
+  ui.inv = data; ui.filtro = ''; ui.busca = ''; $('busca').value = ''; ui.leit = offline ? offline.leit || [] : []; ui.hist = null; ui.cruz = null; ui.antes = null;
   try { $('local-bip').value = sessionStorage.getItem('gf_inv_local_' + id) || ''; } catch (e) {}
   const u = new URL(location.href); u.searchParams.set('inv', id); u.searchParams.delete('cam'); history.replaceState(null, '', u.href);
   $('v-lista').style.display = 'none'; $('v-inv').style.display = '';
   await carregarLeituras(); desenharInv(); iniciarTempoReal();
-  if (!offline) { carregarHistorico(); cruzarEstoque(); }
+  if (!offline) { carregarHistorico(); cruzarEstoque(); carregarAnterior(); }
   if (comCamera && data.status === 'aberto') alternarCamera(); else focarBip();
 };
 async function carregarLeituras() {
@@ -1009,7 +1038,7 @@ function desenharInv() {
   $('dl-locais').innerHTML = [...new Set(ui.leit.map(l => l.local).filter(Boolean))].map(l => `<option value="${esc(l)}">`).join('');
   if (C && /^(ok|falta|exc)$/.test(ui.filtro)) ui.filtro = '';
   $('i-cli').textContent = inv.cliente;
-  $('i-info').innerHTML = `${esc(inv.fornecedor || 'Todos os fornecedores')} · relatório ${relNome(inv)} de ${dataBR(inv.relatorio_data)}<br>Iniciado por ${esc(inv.criado_por || '—')} em ${dataHoraBR(inv.criado_em)}${(() => { const A = EX().ass || {}; return A.cli || A.gf ? `<br>✍️ Assinado: ${[A.cli && 'cliente (' + esc(A.cli.nome) + ')', A.gf && 'GF Medical (' + esc(A.gf.nome) + ')'].filter(Boolean).join(' · ')}` : ''; })()}`;
+  $('i-info').innerHTML = `${rotEscopo(inv) ? '<b>' + rotEscopo(inv) + '</b> · ' : ''}${esc(inv.fornecedor || 'Todos os fornecedores')} · relatório ${relNome(inv)} de ${dataBR(inv.relatorio_data)}<br>Iniciado por ${esc(inv.criado_por || '—')} em ${dataHoraBR(inv.criado_em)}${(() => { const A = EX().ass || {}; return A.cli || A.gf ? `<br>✍️ Assinado: ${[A.cli && 'cliente (' + esc(A.cli.nome) + ')', A.gf && 'GF Medical (' + esc(A.gf.nome) + ')'].filter(Boolean).join(' · ')}` : ''; })()}`;
   $('i-status').className = 'tag ' + (inv.status === 'aberto' ? 'ab' : 'fe'); $('i-status').textContent = inv.status === 'aberto' ? 'em andamento' : 'encerrado';
   $('i-fechado-info').textContent = inv.status === 'fechado' ? `✔ Encerrado por ${inv.fechado_por || '—'} em ${dataHoraBR(inv.fechado_em)}. Reabra para bipar de novo.` : '';
   $('b-excluir').style.display = _role === 'admin' ? '' : 'none';
@@ -1049,7 +1078,7 @@ function desenharInv() {
     + cx('av', '⚠ Faltando', S(r => Math.max(0, r.saldo - r.bip), esp), S(r => Math.max(0, r.saldo - r.bip) * r.vunit, esp), `${fal.length} lote${fal.length === 1 ? '' : 's'}`)
     + (exc.length ? cx('er', '➕ A mais / fora', S(r => r.bip - (r.tipo === 'esp' ? r.saldo : 0), exc), null) : '')
     + (ven.length ? cx('er', `⌛ Vencidos / ≤ 90 dias (${ven.filter(r => r.venc < 0).length} vencidos)`, S(r => r.saldo, ven), S(r => r.saldo * r.vunit, ven)) : '') : '';
-  [['p-venc', painelVenc(a)], ['p-cruz', C ? '' : painelCruz(a)], ['p-locais', painelLocais()], ['p-hist', C ? '' : painelHist(a)]].forEach(([id, x]) => { $(id).style.display = x ? '' : 'none'; $(id).innerHTML = x; });
+  [['p-venc', painelVenc(a)], ['p-cruz', C ? '' : painelCruz(a)], ['p-locais', painelLocais()], ['p-antes', painelAntes()], ['p-hist', C ? '' : painelHist(a)]].forEach(([id, x]) => { $(id).style.display = x ? '' : 'none'; $(id).innerHTML = x; });
   desenharEquipe();
   const ult = [...ui.leit].reverse().slice(0, 300);
   $('n-leit').textContent = ui.leit.length ? `· ${ui.leit.length} (últimas ${ult.length})` : '';
@@ -1136,6 +1165,29 @@ function painelCruz(a) {
     <div class="muted" style="margin-bottom:4px">${est ? 'Estes lotes faltam no estoque e foram encontrados a mais em clientes: provavelmente saíram sem nota de consignação. Regularize a remessa.' : 'Estes lotes sobraram aqui e estão faltando no estoque da GF Medical: provavelmente saíram do estoque sem nota de consignação. Regularize a remessa.'}</div>
     ${ach.map(r => `<div style="font-size:.78rem;padding:6px 0;border-top:1px dashed var(--border)"><b class="mono">${esc(r.cod || (r.gtin ? 'GTIN ' + r.gtin : '—'))}</b> ${esc(r.produto || '')} · lote <b class="mono">${esc(r.lote)}</b> · ${est ? 'falta' : 'sobra'} <b>${qtd(r.q)}</b> aqui<br>${cruzDe(r).map(c => `<span class="bdg rep">${est ? '➕ sobra' : '⚠ falta'} ${qtd(c.q)} · ${invRot(c.inv)}${c.cod && c.cod !== r.cod ? ' · ' + esc(c.cod) + ' ' + esc(c.produto) : ''}</span>`).join(' ')}</div>`).join('')}`;
 }
+// 📂 antes × depois: o arquivo anterior fica guardado no próprio inventário; nos antigos, procura o anterior do mesmo escopo
+async function carregarAnterior() {
+  const inv = ui.inv; if (!inv) return;
+  let ant = EX().anterior || null;
+  if (!ant) { try { ant = snapAnterior(await anteriorDe(inv, inv.criado_em)); } catch (e) {} }
+  ui.antes = ant ? { ant, c: compararArquivos(ant.esperado, inv.esperado) } : { ant: null };
+  if (ui.inv?.id === inv.id) desenharInv();
+}
+function painelAntes() {
+  const X = ui.antes; if (!X) return '';
+  const qual = ehEstoque(ui.inv) ? 'do estoque' : ehGeral(ui.inv) ? 'geral deste cliente' : 'deste fabricante neste cliente';
+  if (!X.ant) return `<h4>📂 Antes × depois do arquivo</h4><div class="muted">Este foi o primeiro arquivo ${qual}: não há anterior para comparar.</div>`;
+  const c = X.c, A = X.ant, lin = (l, f) => l.map(e => `<tr><td class="mono">${esc(e.cod)}</td><td>${esc(e.produto || '')}</td><td class="mono">${esc(e.lote || '—')}</td><td class="mono">${dataVal(e.validade)}</td>${f(e)}</tr>`).join('');
+  const cab = extra => `<thead><tr><th>Código</th><th>Produto</th><th>Lote</th><th>Validade</th>${extra}</tr></thead>`;
+  const bloco = (tit, n, html) => n ? `<details style="margin-top:6px"><summary style="cursor:pointer;font-weight:700;font-size:.8rem">${tit} (${n})</summary><div class="tw" style="margin-top:6px"><table class="mini">${html}</table></div></details>` : '';
+  const dU = c.depoisUn - c.antesUn;
+  return `<h4>📂 Antes × depois do arquivo <span class="muted">${rotEscopo(ui.inv) ? rotEscopo(ui.inv) + ' · ' : ''}anterior: ${esc(A.arquivos || 'relatório')} de ${dataBR(A.relatorio_data)} (importado em ${dataHoraBR(A.criado_em)})</span></h4>
+    <div class="tot-tela" style="margin-top:0"><div>Antes<b>${qtd(c.antesUn)} un. · ${brl(c.antesVal)}</b></div><div>Depois (este arquivo)<b>${qtd(c.depoisUn)} un. · ${brl(c.depoisVal)}</b></div><div class="${dU < 0 ? 'av' : 'ok'}">Diferença<b>${dU >= 0 ? '+' : ''}${qtd(dU)} un. · ${brl(c.depoisVal - c.antesVal)}</b></div></div>
+    <div class="muted" style="margin-top:6px">${resumoComp(c)}</div>
+    ${bloco('➕ Lotes novos (não estavam no anterior)', c.entrou.length, cab('<th class="n">Saldo</th>') + `<tbody>${lin(c.entrou, e => `<td class="n">${qtd(e.saldo)}</td>`)}</tbody>`)}
+    ${bloco('➖ Saíram (estavam no anterior e não estão mais)', c.saiu.length, cab('<th class="n">Saldo antes</th>') + `<tbody>${lin(c.saiu, e => `<td class="n">${qtd(e.saldo)}</td>`)}</tbody>`)}
+    ${bloco('🔁 Mudaram de saldo', c.mudou.length, cab('<th class="n">Antes</th><th class="n">Depois</th><th class="n">Diferença</th>') + `<tbody>${lin(c.mudou, e => `<td class="n">${qtd(e.antes)}</td><td class="n">${qtd(e.saldo)}</td><td class="n"><b style="color:${e.dif < 0 ? 'var(--warn-c)' : 'var(--ok-c)'}">${e.dif > 0 ? '+' : ''}${qtd(e.dif)}</b></td>`)}</tbody>`)}`;
+}
 // 📍 andamento por local (estoque) e por pessoa
 function painelLocais() {
   const lt = ui.leit; if (!lt.length) return '';
@@ -1150,9 +1202,9 @@ function painelLocais() {
 function resumir(inv, leit) { const a = apurar(inv, leit); return { esp: a.esp, conf: a.conf, falta: a.falta, faltaVal: Math.round(a.faltaVal * 100) / 100, faltaCods: [...new Set(a.linhas.filter(r => r.st === 'falta').map(r => r.cod))] }; }
 async function carregarHistorico() {
   const inv = ui.inv; if (!inv) return;
-  const { data, error } = await supabase.from('inventarios').select('*').eq('filial', FILIAL).eq('cliente', inv.cliente).eq('status', 'fechado').order('fechado_em', { ascending: false }).limit(8);
+  const { data, error } = await supabase.from('inventarios').select('*').eq('filial', FILIAL).eq('cliente', inv.cliente).eq('status', 'fechado').order('fechado_em', { ascending: false }).limit(20);
   if (error || ui.inv?.id !== inv.id) return;
-  const ant = (data || []).filter(i => i.id !== inv.id && ehEstoque(i) === ehEstoque(inv)).slice(0, 6);
+  const ant = (data || []).filter(i => i.id !== inv.id && escopo(i) === escopo(inv)).slice(0, 6);   // geral só com geral, fabricante só com o mesmo fabricante
   let lt = []; const semRes = ant.filter(i => !i.extra?.resumo).map(i => i.id);
   if (semRes.length) { const { data: l } = await supabase.from('inventario_leituras').select('inventario_id,codigo,lote,qtd,criado_em').in('inventario_id', semRes).limit(50000); lt = l || []; }
   ui.hist = ant.map(i => ({ id: i.id, em: i.fechado_em || i.criado_em, ...(i.extra?.resumo || resumir(i, lt.filter(l => l.inventario_id === i.id))) }));
@@ -1864,6 +1916,9 @@ window.baixarExcel = () => {
   XLSX.utils.book_append_sheet(wb, aba(comTotal(venc.filter(r => r.Dias >= 0), ['Saldo relatório', 'Encontrado (separar p/ devolução se vencido)', 'Valor saldo']), L), 'Próximos a vencer');
   XLSX.utils.book_append_sheet(wb, aba(comTotal(tudo, ['Saldo relatório', 'Bipado', 'Diferença', 'Valor da diferença']), [14, ...L]), 'Conferência completa');
   if (ehEstoque(inv)) { const aj = linhasAjuste(a); XLSX.utils.book_append_sheet(wb, aba(aj.length ? comTotalAj(aj) : [{ 'Código': 'Sem diferenças' }], [12, 42, 14, 13, 14, 10, 9, 17, 13, 14, 40]), 'Ajuste de estoque'); }
+  if (ui.antes?.ant) { const c = ui.antes.c, b = (e, sit, antes, depois) => ({ 'Situação': sit, 'Código': e.cod, 'Produto': e.produto || '', 'Lote': e.lote || '', 'Validade': dataVal(e.validade), 'Saldo antes': antes, 'Saldo depois': depois, 'Diferença': depois - antes });
+    const rows = [...c.entrou.map(e => b(e, 'Lote novo', 0, Number(e.saldo))), ...c.saiu.map(e => b(e, 'Saiu', Number(e.saldo), 0)), ...c.mudou.map(e => b(e, 'Mudou o saldo', e.antes, Number(e.saldo)))];
+    XLSX.utils.book_append_sheet(wb, aba([{ 'Situação': `Anterior: ${ui.antes.ant.arquivos || ''} de ${dataBR(ui.antes.ant.relatorio_data)}` }, ...(rows.length ? rows : [{ 'Situação': 'Sem diferença para o arquivo anterior' }])], [16, 12, 42, 14, 13, 12, 12, 11]), 'Antes x depois'); }
   XLSX.utils.book_append_sheet(wb, aba(leit.length ? leit : [{ Quando: 'Nenhuma leitura' }], [17, 30, 12, 6, 18, 12, 40, 16, 14, 13, 50]), 'Leituras');
   XLSX.writeFile(wb, `Inventário ${inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
 };
