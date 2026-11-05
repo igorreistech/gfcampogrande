@@ -531,8 +531,9 @@ function lerC457(linhas) {
     if (!m || !prod) continue;
     const saldo = numBR(m[5]); if (saldo <= 0) continue;          // saldo 0 = já vendido / devolvido
     const k = norm(prod.cod) + '|' + norm(m[1]);
-    const e = mapa.get(k) || { cod: prod.cod, produto: prod.produto, lote: m[1], serie: m[2] || '', validade: dISO(m[4]), saldo: 0, vunit: prod.vunit, nfs: [] };
+    const e = mapa.get(k) || { cod: prod.cod, produto: prod.produto, lote: m[1], serie: m[2] || '', validade: dISO(m[4]), saldo: 0, vunit: prod.vunit, nfs: [], ids: [] };
     e.saldo += saldo;
+    const idl = (/C.d\.?\s*Lote:\s*([\d.]+)/i.exec(l) || [])[1]; if (idl) { const v = String(numBR(idl)); if (!e.ids.includes(v)) e.ids.push(v); }   // código interno do lote (etiqueta GF)
     if (!e.nfs.some(n => n.nf === prod.nf)) e.nfs.push({ nf: prod.nf, pedido: prod.pedido, data: prod.data });
     mapa.set(k, e);
   }
@@ -555,8 +556,8 @@ function lerS013(linhas) {
     if (m) {
       n++; const qtd = numBR(m[8]); if (qtd <= 0) { ult = null; continue; }   // saldo = Estoque Disp. (os reservados ficam fora da contagem)
       const [lote, serie] = m[5].split('|').map(s => s.trim()), k = norm(m[2]) + '|' + norm(lote || '');
-      const e = mapa.get(k) || { cod: m[2], produto: m[3].trim(), lote: lote || '', serie: serie || '', validade: m[6] === 'N/A' ? null : dISO(m[6]), saldo: 0, total: 0, vunit: numBR(m[13]), nfs: [] };
-      e.saldo += qtd; e.total += numBR(m[7]); mapa.set(k, e); ult = e; continue;
+      const e = mapa.get(k) || { cod: m[2], produto: m[3].trim(), lote: lote || '', serie: serie || '', validade: m[6] === 'N/A' ? null : dISO(m[6]), saldo: 0, total: 0, vunit: numBR(m[13]), nfs: [], ids: [] };
+      e.saldo += qtd; if (!e.ids.includes(String(+m[4]))) e.ids.push(String(+m[4]));   /* Id.Lote = código de barras da etiqueta GF */ e.total += numBR(m[7]); mapa.set(k, e); ult = e; continue;
     }
     if (RE_S013_CAB.test(l)) { ult = null; continue; }
     if (ult && l.trim() && !/^\d/.test(l) && ult.produto.length < 120) ult.produto += ' ' + l.trim();   // continuação da descrição
@@ -596,10 +597,14 @@ function identificar(bruto, esperado, codDoGtin) {
   let g = gs1(bruto);
   // sem o (01), um texto que começa com 10/17 pode ser só o lote digitado: se bate com um lote do relatório, vale como lote
   if (g && !g['01'] && esperado.some(x => semEsp(x.lote) === semEsp(bruto))) g = null;
+  // etiqueta da GF Medical: o código de barras é só o Id.Lote do S013 / Cód. Lote do C457 (ex.: 5729)
+  const idGF = /^\d{1,7}$/.test(String(bruto).trim()) ? String(+String(bruto).trim()) : '';
+  if (g && !g['01'] && idGF && esperado.some(x => (x.ids || []).includes(idGF))) g = null;
   const loteLido = g ? semEsp(g['10'] || '') : '', onde = g ? semEsp((g['10'] || '') + ' ' + (g['21'] || '')) : semEsp(bruto);
   const exato = v => v ? esperado.filter(x => semEsp(x.lote) === v) : [];
   let cands = exato(loteLido);
   if (!cands.length && !g) cands = exato(onde);
+  if (!cands.length && !g && idGF) cands = esperado.filter(x => (x.ids || []).includes(idGF));
   if (!cands.length) { const e = esperado.find(x => { const L = semEsp(x.lote); return L.length >= 5 && (onde.includes(L) || (loteLido && loteLido.startsWith(L))); }); if (e) cands = [e]; }
   if (!cands.length && !g) { const e = esperado.find(x => semEsp(x.serie) && semEsp(x.serie) === onde); if (e) cands = [e]; }
   if (!cands.length && !g) cands = esperado.filter(x => !semEsp(x.lote) && semEsp(x.cod) === onde);   // item sem lote: pelo código
@@ -2051,7 +2056,7 @@ window.baixarAjuste = () => {
   XLSX.writeFile(wb, `Ajuste de estoque ${ui.inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
 };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.inv) carregarLeituras().then(desenharInv); });
-const VERSAO = '2026-11-05.120624';
+const VERSAO = '2026-11-05.131520';
 async function conferirVersao() {
   try {
     const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];
