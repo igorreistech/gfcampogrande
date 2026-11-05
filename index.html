@@ -9,7 +9,7 @@
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="icon-192.png">
     <link rel="apple-touch-icon" href="icon-192.png">
-    <title>Monitor Cirúrgico · Campo Grande - MS</title>
+    <title>GF Hub · Campo Grande - MS</title>
     <meta name="description" content="Monitor Cirúrgico GF Medical — Campo Grande, MS. Acompanhamento em tempo real de procedimentos cirúrgicos.">
     <!-- Supabase SDK (migrado do Firebase) -->
     <script type="module">
@@ -17637,7 +17637,7 @@ window.mostrarAlertaReagendado = mostrarAlertaReagendado;
       </div>`;
   }
   function enhanceLabels(){
-    const t = document.title; if(t) document.title = t.replace('Monitor Cirúrgico','Mapa Cirúrgico Hospitalar');
+    const t = document.title; if(t) document.title = t.replace(/Monitor Cirúrgico|Mapa Cirúrgico Hospitalar/, 'GF Hub');
     const h1 = document.querySelector('.header-text h1'); if(h1) h1.textContent = 'Mapa Cirúrgico Hospitalar';
     const p = document.querySelector('.header-text p'); if(p) p.textContent = window._isDemoUser ? 'Central operacional · Campo Grande/MS' : 'Central operacional · Campo Grande/MS · GF Medical';
     const btnTable = document.getElementById('tab-table'); if(btnTable) btnTable.textContent = '🧭 Central Cirúrgica';
