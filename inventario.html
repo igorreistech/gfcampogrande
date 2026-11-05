@@ -191,8 +191,6 @@ html.embed .rodape{display:none}
 body.fechado .so-aberto{display:none!important}
 body:not(.fechado) .so-fechado{display:none!important}
 .bts-bip{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-.sobra-tog{display:flex;align-items:center;gap:6px;margin-top:8px;padding:8px 10px;border-radius:12px;background:#fee2e2;color:#7f1d1d;font-size:.78rem;cursor:pointer}
-.sobra-tog input{width:18px;height:18px}
 .dica-bip{align-self:center}
 .c-q,.so-cel{display:none}
 .top .user{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -316,7 +314,6 @@ body:not(.fechado) .so-fechado{display:none!important}
         <span>📍 Local que estou contando:</span><input id="local-bip" list="dl-locais" placeholder="ex.: Prateleira A3 · Sala 2 · Gaveta 5" autocomplete="off"><datalist id="dl-locais"></datalist>
         <span class="muted" style="flex-basis:100%;font-weight:400">Cada pessoa escolhe a área que está contando; as leituras ficam marcadas com o local (andamento por local e por pessoa logo abaixo da lista).</span>
       </div>
-      <label class="sobra-tog" title="Ligado: item que não está no relatório entra como sobra sem perguntar (vale para todos que estão contando este inventário)"><input type="checkbox" id="sobra-on" onchange="alternarSobra(this.checked)"> ➕ <b>Contar sobras</b> — incluir os itens bipados que não estão no relatório</label>
       <div class="bts-bip">
         <button class="btn b" id="b-cam" type="button" onclick="alternarCamera()">📷 Câmera deste aparelho</button>
         <label class="btn" for="f-fotos" title="Escolha várias fotos de etiquetas de uma vez: cada foto conta 1 embalagem">🖼 Fotos em lote</label><input type="file" id="f-fotos" accept="image/*" multiple style="display:none">
@@ -999,7 +996,6 @@ function desenharInv() {
   $('loc-box').style.display = est ? '' : 'none';
   $('cega-aviso').style.display = C ? '' : 'none';
   $('b-ajuste').style.display = est ? '' : 'none';
-  $('sobra-on').checked = !!EX().sobra;
   $('b-cega').style.display = est ? '' : 'none'; $('b-cega').textContent = C ? '👁 Revelar resultado' : '🙈 Contagem cega';
   $('b-recont').style.display = est && !C ? '' : 'none';
   $('dl-locais').innerHTML = [...new Set(ui.leit.map(l => l.local).filter(Boolean))].map(l => `<option value="${esc(l)}">`).join('');
@@ -1161,8 +1157,7 @@ async function nomeDoGtin(gtin) {
   const r = data && data[0] ? data[0] : null; _gtinNome.set(gtin, r); return r;
 }
 let _ultBip = { txt: '', em: 0 }, _vencK = null;
-let _ultSobra = null;
-async function registrar(bruto, origem, forcarCod, qtdForcada, sobra) {
+async function registrar(bruto, origem, forcarCod, qtdForcada) {
   bruto = String(bruto || '').replace(/[\r\n]+/g, '').trim();
   if (!bruto || !ui.inv) return;
   if (ui.inv.status !== 'aberto') { ultimo('🔒 Inventário encerrado — reabra para bipar.', 'er'); return; }
@@ -1186,12 +1181,11 @@ async function registrar(bruto, origem, forcarCod, qtdForcada, sobra) {
   }
   if (!id.gtin && _gtinPend && Date.now() - _gtinPend.em < 60000) id.gtin = _gtinPend.gtin;
   _gtinPend = null;
-  // fora do relatório: só entra como sobra (pelo botão, ou com "Contar sobras" ligado); senão só avisa (não grava)
+  // fora do relatório: entra sozinho como sobra (precisa ter lote ou GTIN); sem isso só avisa (não grava)
   if (!id.codigo) {
     const temLote = !!(id.lote || id.gtin);
-    if (!temLote || !(sobra || EX().sobra)) {
-      _ultSobra = temLote ? { bruto, origem } : null;
-      ultimo(`✔ Código lido, mas ❌ <b>não incluído</b>: esse lote não está no relatório ${ehEstoque(ui.inv) ? 'do estoque' : 'deste cliente'} (${esc(ui.inv.fornecedor || '')})${id.lote ? ' (lote <b class="mono">' + esc(id.lote) + '</b>)' : ''}. Confira se bipou o código com o <b>lote</b> da etiqueta certa.${temLote ? ' <button type="button" class="btn r" style="padding:5px 10px" onclick="contarSobra()">➕ Contar como sobra</button>' : ''}`, 'er'); bipe(false);
+    if (!temLote) {
+      ultimo(`✔ Código lido, mas ❌ <b>não incluído</b>: esse lote não está no relatório ${ehEstoque(ui.inv) ? 'do estoque' : 'deste cliente'} (${esc(ui.inv.fornecedor || '')})${id.lote ? ' (lote <b class="mono">' + esc(id.lote) + '</b>)' : ''}. Confira se bipou o código com o <b>lote</b> da etiqueta certa.`, 'er'); bipe(false);
       return false;
     }
     if (id.gtin && !id.produto) { const n = await nomeDoGtin(id.gtin); if (n) id.produto = [n.codigo, n.produto].filter(Boolean).join(' · '); }
@@ -1231,8 +1225,6 @@ async function registrar(bruto, origem, forcarCod, qtdForcada, sobra) {
   if (i >= 0) ui.leit[i] = data; if (ui.leit.filter(x => x.id === data.id).length > 1) ui.leit.splice(ui.leit.lastIndexOf(data), 1);
   desenharInv(); guardarCache(); return true;
 }
-window.contarSobra = () => { const x = _ultSobra; _ultSobra = null; if (x) registrar(x.bruto, x.origem, null, null, true).then(focarBip); };
-window.alternarSobra = async on => { if (!(await salvarExtra(ex => { ex.sobra = !!on; }))) { $('sobra-on').checked = !on; return; } toast(on ? '➕ Contar sobras ligado: item fora do relatório entra como sobra' : 'Contar sobras desligado: item fora do relatório só avisa', 'info'); focarBip(); };
 $('venc-fechar').onclick = () => { fecharModal('m-venc'); focarBip(); };
 $('venc-foto').onclick = () => { if (_vencK) anexarFoto(_vencK); };
 $('local-bip').oninput = () => { try { sessionStorage.setItem('gf_inv_local_' + ui.inv?.id, $('local-bip').value.trim()); } catch (e) {} };
@@ -1323,7 +1315,7 @@ function descreverLeitura(txt) {
   if (!id.codigo && /^\d{8,14}$/.test(txt)) return { ean: true, html: `<div class="ct">⚠ Código EAN da embalagem</div><div class="mono">${esc(txt)}</div><div class="cs av">Esse código não tem o lote. Mire no outro código de barras — o comprido, com (01)…(17)…(10)… embaixo.</div>` };
   const corpo = `<div class="ct">${r ? `<span class="mono">${esc(r.cod)}</span> · ${esc(r.produto)}` : id.produto ? esc((id.produtoCod ? id.produtoCod + ' · ' : '') + id.produto) : 'Produto fora do relatório'}</div>
     <div>Lote <b class="mono">${esc(id.lote || '—')}</b>${val ? ' · ' + val : ''}${id.gtin ? `<br><span class="mono" style="font-size:.72rem;color:var(--text3)">GTIN ${esc(id.gtin)}</span>` : ''}</div>`;
-  if (!r && !id.codigo && (id.lote || id.gtin)) return { html: corpo + `<div class="cs er">❌ Não está no relatório. Se for uma <b>sobra</b> (item a mais no local), toque em ➕ Contar como sobra.</div>`, id, r: null, venc: false, som: 'er', sobra: true };
+  if (!r && !id.codigo && (id.lote || id.gtin)) return { html: corpo + `<div class="cs er">➕ Não está no relatório: vai entrar como <b>sobra</b>.</div>`, id, r: null, venc: false, som: 'er', sobra: true };
   if (!r) return { ean: true, html: `<div class="ct">✔ Código lido — mas ❌ não está no relatório</div><div>Lote <b class="mono">${esc(id.lote || '—')}</b>${id.gtin ? ' · <span class="mono">GTIN ' + esc(id.gtin) + '</span>' : ''}</div><div class="cs er">Não foi incluído. Mire no código com o <b>lote</b> de uma embalagem deste cliente.</div>` };
   const st = cega() && r ? `<div class="cs ok">Vai somar na contagem deste lote (já contados: ${qtd(r.bip)}).</div>` : r && r.bip < r.saldo ? `<div class="cs ok">Vai contar ${qtd(r.bip + 1)} de ${qtd(r.saldo)} deste lote.</div>`
     : r ? `<div class="cs av">⚠ Já foram bipados ${qtd(r.bip)} de ${qtd(r.saldo)} deste lote. É outra embalagem?</div>`
@@ -1343,14 +1335,14 @@ function confirmarLeitura(txt, origem = 'camera') {
   const campoQ = ehEstoque(ui.inv) ? `<div class="cq">📦 Quantidade: <button type="button" data-dq="-1">−</button><input id="conf-q" type="number" min="1" value="${q0}" inputmode="numeric"><button type="button" data-dq="1">+</button><span style="font-weight:400;font-size:.72rem;color:var(--text3)">(caixa fechada)</span></div>` : '';
   c.innerHTML = `<div style="font-size:.7rem;color:var(--text3);font-weight:700;letter-spacing:.05em">CÓDIGO LIDO — INCLUIR NO INVENTÁRIO?</div>` + d.html
     + campoQ + (varios ? `<div class="cs av">⚠ Este lote existe em ${d.id.cands.length} produtos. Toque no produto certo:</div><div class="cb" style="flex-direction:column">${d.id.cands.map(x => `<button class="sim" type="button" data-cod="${esc(x.cod)}" style="text-align:left">✅ ${esc(x.cod)} · ${esc(x.produto)}</button>`).join('')}<button class="nao" type="button">✖ Ignorar</button></div>`
-      : `<div class="cb"><button class="nao" type="button">✖ Ignorar</button><button class="sim" type="button">${d.sobra ? '➕ Contar como sobra' : '✅ Incluir'}</button></div>`);
+      : `<div class="cb"><button class="nao" type="button">✖ Ignorar</button><button class="sim" type="button">${d.sobra ? '➕ Incluir como sobra' : '✅ Incluir'}</button></div>`);
   c.querySelector('.nao').onclick = fim;
   c.querySelectorAll('[data-dq]').forEach(b => b.onclick = () => { const i = $('conf-q'); i.value = Math.max(1, (Math.floor(Number(i.value)) || 1) + Number(b.dataset.dq)); });
   c.querySelectorAll('.sim').forEach(bt => bt.onclick = async () => {
     const qConf = $('conf-q') ? Math.max(1, Math.floor(Number($('conf-q').value)) || 1) : 0;
     c.querySelectorAll('.sim').forEach(x => x.disabled = true);
     if (bt.dataset.cod) { const x = d.id.cands.find(y => y.cod === bt.dataset.cod); Object.assign(d.id, { codigo: x.cod, produto: x.produto, lote: x.lote }); }
-    const ok = await registrar(txt, origem, bt.dataset.cod || d.id.codigo, qConf || undefined, d.sobra);
+    const ok = await registrar(txt, origem, bt.dataset.cod || d.id.codigo, qConf || undefined);
     const a = apurar(), r = d.id.codigo ? a.linhas.find(x => norm(x.cod) === norm(d.id.codigo) && norm(x.lote) === norm(d.id.lote)) : null;
     const desc = `${r ? esc(r.cod) + ' · ' + esc(r.produto) : esc(d.id.produto || 'Fora do relatório')} · lote ${esc(d.id.lote || '—')}`;
     c.className = 'on feito ' + (!ok ? 'er' : r && r.bip <= r.saldo ? '' : r ? 'av' : 'er');
