@@ -592,6 +592,7 @@ const validade17 = v => { if (!/^\d{6}$/.test(v || '')) return null; const a = 2
 // casa a leitura com uma linha do relatório pelo lote (a etiqueta não tem o código do ERP)
 // casa a leitura com o relatório pelo lote (a etiqueta não tem o código do ERP). Devolve também os candidatos
 // quando o mesmo lote existe em mais de um produto; codDoGtin (opcional) = código já aprendido para aquele GTIN.
+const _gfMapa = new Map();   // Id.Lote (etiqueta GF) → { cod, produto, lote, validade }, de outros relatórios
 function identificar(bruto, esperado, codDoGtin) {
   const semEsp = s => norm(s).replace(/[\s\x1d]+/g, '');
   let g = gs1(bruto);
@@ -599,12 +600,14 @@ function identificar(bruto, esperado, codDoGtin) {
   if (g && !g['01'] && esperado.some(x => semEsp(x.lote) === semEsp(bruto))) g = null;
   // etiqueta da GF Medical: o código de barras é só o Id.Lote do S013 / Cód. Lote do C457 (ex.: 5729)
   const idGF = /^\d{1,7}$/.test(String(bruto).trim()) ? String(+String(bruto).trim()) : '';
-  if (g && !g['01'] && idGF && esperado.some(x => (x.ids || []).includes(idGF))) g = null;
+  if (g && !g['01'] && idGF && (esperado.some(x => (x.ids || []).includes(idGF)) || _gfMapa.get(idGF))) g = null;   // ex.: 10162 não é o GS1 (10) lote 162
   const loteLido = g ? semEsp(g['10'] || '') : '', onde = g ? semEsp((g['10'] || '') + ' ' + (g['21'] || '')) : semEsp(bruto);
   const exato = v => v ? esperado.filter(x => semEsp(x.lote) === v) : [];
   let cands = exato(loteLido);
   if (!cands.length && !g) cands = exato(onde);
   if (!cands.length && !g && idGF) cands = esperado.filter(x => (x.ids || []).includes(idGF));
+  let gf = null;   // etiqueta GF conhecida de outro relatório: casa pelo lote; se o lote não está neste, é sobra com produto e lote
+  if (!cands.length && !g && idGF && _gfMapa.get(idGF)) { gf = _gfMapa.get(idGF); cands = esperado.filter(x => semEsp(x.lote) === semEsp(gf.lote) && (!gf.cod || norm(x.cod) === norm(gf.cod))); if (!cands.length) cands = exato(semEsp(gf.lote)); }
   if (!cands.length) { const e = esperado.find(x => { const L = semEsp(x.lote); return L.length >= 5 && (onde.includes(L) || (loteLido && loteLido.startsWith(L))); }); if (e) cands = [e]; }
   if (!cands.length && !g) { const e = esperado.find(x => semEsp(x.serie) && semEsp(x.serie) === onde); if (e) cands = [e]; }
   if (!cands.length && !g) cands = esperado.filter(x => !semEsp(x.lote) && semEsp(x.cod) === onde);   // item sem lote: pelo código
@@ -612,9 +615,9 @@ function identificar(bruto, esperado, codDoGtin) {
   if (cands.length > 1 && dica) { const c = cands.filter(x => x.cod === dica); if (c.length) cands = c; }
   const e = cands[0];
   return {
-    gtin: g?.['01'] || null, lote: e ? e.lote : (g ? (g['10'] || null) : String(bruto).trim().slice(0, 60)),
-    validade: g?.['17'] ? validade17(g['17']) : (e?.validade || null), serie: g?.['21'] || null,
-    codigo: e?.cod || null, produto: e?.produto || null, cands,
+    gtin: g?.['01'] || null, lote: e ? e.lote : gf ? gf.lote : (g ? (g['10'] || null) : String(bruto).trim().slice(0, 60)),
+    validade: g?.['17'] ? validade17(g['17']) : (e?.validade || gf?.validade || null), serie: g?.['21'] || null,
+    codigo: e?.cod || null, produto: e?.produto || gf?.produto || null, produtoCod: !e && gf ? gf.cod : undefined, idGF: idGF || null, cands,
   };
 }
 
@@ -853,7 +856,7 @@ async function importarPdfs(files) {
   const lidos = [], erros = [];
   for (let i = 0; i < files.length; i++) {
     const f = files[i]; ultimoLote(`📄 Lendo ${i + 1} de ${files.length}: ${f.name}`);
-    try { lidos.push({ ...lerRelatorio(await linhasPdf(f)), arquivo: f.name }); } catch (e) { erros.push(`${f.name}: ${e.message}`); }
+    try { const ls = await linhasPdf(f); lidos.push({ ...lerRelatorio(ls), idsGF: idsDoRelatorio(ls), arquivo: f.name }); } catch (e) { erros.push(`${f.name}: ${e.message}`); }
   }
   ultimoLote('');
   if (TIPO) {
@@ -864,7 +867,7 @@ async function importarPdfs(files) {
   if (!lidos.length) { toast((TIPO ? `Nenhum PDF era do inventário de ${TIPO}. ` : 'Nenhum PDF era o relatório C457 ou S013. ') + erros.join(' · '), 'err'); return; }
   // um inventário por cliente
   const grupos = new Map(); lidos.forEach(r => { const k = norm(r.cliente) + '|' + (r.tipo === 'estoque' ? 'EST' : norm(r.fornecedor || '') ? 'FAB' : 'GERAL'); grupos.set(k, [...(grupos.get(k) || []), r]); });
-  const novos = [...grupos.values()].map(montarNovo).sort((x, y) => x.cliente.localeCompare(y.cliente) || escopo(x).localeCompare(escopo(y)));
+  const novos = [...grupos.values()].map(g => { const n = montarNovo(g), ids = Object.assign({}, ...g.map(r => r.idsGF || {})); if (Object.keys(ids).length) n.extra = { ...(n.extra || {}), idsGF: ids }; return n; }).sort((x, y) => x.cliente.localeCompare(y.cliente) || escopo(x).localeCompare(escopo(y)));
   ultimoLote('📂 Procurando o arquivo anterior de cada um…');
   for (const n of novos) { try { const ant = await anteriorDe(n); if (ant) { n.extra = { ...(n.extra || {}), anterior: snapAnterior(ant) }; n._comp = compararArquivos(ant.esperado, n.esperado); } } catch (e) {} }
   ultimoLote('');
@@ -1016,6 +1019,37 @@ function apurar(inv = ui.inv, leit = ui.leit) {
 }
 const ehEstoque = inv => inv?.obs === 'estoque';
 const EX = () => ui.inv?.extra || {};
+// 🏷 etiqueta GF (código de barras = Id.Lote / Cód. Lote): acha produto e lote mesmo fora deste relatório
+const idGFde = t => /^\d{1,7}$/.test(String(t || '').trim()) ? String(+String(t).trim()) : '';
+async function garantirGF(txt) {
+  const id = idGFde(txt); if (!id || !ui.inv) return;
+  if ((ui.inv.esperado || []).some(x => (x.ids || []).includes(id))) return;
+  const deArr = a => Array.isArray(a) ? { cod: a[0], produto: a[1], lote: a[2], validade: a[3] } : a;
+  const loc = EX().idsGF?.[id]; if (loc) { _gfMapa.set(id, deArr(loc)); return; }
+  if (_gfMapa.has(id)) return;
+  _gfMapa.set(id, null);
+  try {
+    const { data } = await supabase.from('inventarios').select('esperado').contains('esperado', JSON.stringify([{ ids: [id] }])).order('criado_em', { ascending: false }).limit(3);
+    const e = (data || []).flatMap(r => r.esperado || []).find(x => (x.ids || []).includes(id));
+    if (e) return void _gfMapa.set(id, { cod: e.cod, produto: e.produto, lote: e.lote, validade: e.validade });
+    const { data: d2 } = await supabase.from('inventarios').select('extra').contains('extra', JSON.stringify({ idsGF: { [id]: [] } })).order('criado_em', { ascending: false }).limit(1);
+    const x = d2?.[0]?.extra?.idsGF?.[id]; if (x) _gfMapa.set(id, deArr(x));
+  } catch (er) {}
+}
+const gfSemCadastro = (txt, id) => !!idGFde(txt) && !id.codigo && !id.produtoCod;
+const MSG_GF = n => `🏷 Etiqueta GF Medical · código <b class="mono">${esc(n)}</b> — não achei esse código ${ehEstoque(ui.inv) ? 'no S013' : 'no C457'} deste inventário nem nos outros. Importe o S013 / C457 em que ele aparece (Id.Lote / Cód. Lote) — a partir daí todos os inventários reconhecem.`;
+// tabela Id.Lote → [código, produto, lote, validade] de um S013 ou C457 (todas as linhas, até as de saldo zerado)
+function idsDoRelatorio(linhas) {
+  const out = {}; let prod = null;
+  for (const l of linhas) {
+    const s = RE_S013.exec(l); if (s) { const lote = s[5].split('|')[0].trim(); out[String(+s[4])] = [s[2], s[3].trim(), lote, s[6] === 'N/A' ? null : dISO(s[6])]; continue; }
+    const pr = RE_PROD.exec(l); if (pr) { prod = { cod: pr[6], produto: pr[7] }; continue; }
+    const m = RE_LOTE.exec(l), idl = (/C.d\.?\s*Lote:\s*([\d.]+)/i.exec(l) || [])[1];
+    if (m && idl && prod) out[String(numBR(idl))] = [prod.cod, prod.produto, m[1], dISO(m[4])];
+  }
+  return out;
+}
+
 // grava no "extra" do inventário: relê do banco antes (outro aparelho pode ter mudado) e aplica só a alteração
 async function salvarExtra(mut, quieto) {
   const id = ui.inv?.id; if (!id) return false;
@@ -1267,7 +1301,9 @@ async function registrar(bruto, origem, forcarCod, qtdForcada) {
   if (ui.inv.status !== 'aberto') { ultimo('🔒 Inventário encerrado — reabra para bipar.', 'er'); return; }
   // a mesma etiqueta duas vezes em menos de 2 s (gatilho apertado 2×): ignora; bipando de novo, conta
   if (origem === 'leitor' && bruto === _ultBip.txt && Date.now() - _ultBip.em < 2000) { _ultBip.em = 0; ultimo('🔁 A mesma etiqueta foi lida 2× em menos de 2 segundos — <b>ignorei a repetição</b>. Se for outra embalagem igual, bipe de novo.', 'av'); bipe('av'); return false; }
+  await garantirGF(bruto);
   const id = identificar(bruto, ui.inv.esperado || [], codDoGtin);
+  if (gfSemCadastro(bruto, id)) { if (origem === 'camera') return false; ultimo(MSG_GF(idGFde(bruto)), 'av'); bipe('av'); return false; }
   if (forcarCod && id.cands?.length) { const c = id.cands.find(x => x.cod === forcarCod); if (c) Object.assign(id, { codigo: c.cod, produto: c.produto, lote: c.lote, validade: id.validade || c.validade }); }
   else if (id.cands?.length > 1) {   // leitor: mesmo lote em mais de um produto → o que ainda tem saldo a conferir
     const a0 = apurar(), c = id.cands.find(x => { const r0 = a0.linhas.find(y => y.cod === x.cod && y.lote === x.lote); return r0 && r0.bip < r0.saldo; }) || id.cands[0];
@@ -1295,7 +1331,7 @@ async function registrar(bruto, origem, forcarCod, qtdForcada) {
     if (id.gtin && !id.produto) { const n = await nomeDoGtin(id.gtin); if (n) id.produto = [n.codigo, n.produto].filter(Boolean).join(' · '); }
   }
   if (origem === 'leitor') _ultBip = { txt: bruto, em: Date.now() };
-  const reg = { inventario_id: ui.inv.id, bruto: bruto.slice(0, 300), gtin: id.gtin, lote: id.lote, validade: id.validade, serie: id.serie, codigo: id.codigo, produto: id.produto, qtd: qtdForcada || qtdDoCodigo(bruto) || (ehEstoque(ui.inv) && origem === 'leitor' ? qtdAtual() : 1), origem, usuario: quemSou() };
+  const reg = { inventario_id: ui.inv.id, bruto: bruto.slice(0, 300), gtin: id.gtin, lote: id.lote, validade: id.validade, serie: id.serie, codigo: id.codigo, produto: id.produtoCod && id.produto ? (id.produtoCod + ' · ' + id.produto).slice(0, 200) : id.produto, qtd: qtdForcada || qtdDoCodigo(bruto) || (ehEstoque(ui.inv) && origem === 'leitor' ? qtdAtual() : 1), origem, usuario: quemSou() };
   const loc = ehEstoque(ui.inv) ? $('local-bip').value.trim() : ''; if (loc) reg.local = loc.slice(0, 60);
   if (reg.qtd > 1) toast(`📦 ${reg.qtd} unidades de uma vez (caixa fechada)`, 'info');
   const tmp = { ...reg, id: 'tmp' + Math.random().toString(36).slice(2), _tmp: true, criado_em: new Date().toISOString() };
@@ -1414,6 +1450,7 @@ function descreverLeitura(txt) {
   if (!id.gtin && _gtinPend && Date.now() - _gtinPend.em < 60000) id.gtin = _gtinPend.gtin;
   const r = id.codigo ? a.linhas.find(x => norm(x.cod) === norm(id.codigo) && norm(x.lote) === norm(id.lote)) : null;
   const val = id.validade ? `Validade <b>${dataVal(id.validade)}</b>${diasAte(id.validade) < 0 ? ' ⛔ VENCIDO' : diasAte(id.validade) <= 90 ? ' ⌛ vence em ' + diasAte(id.validade) + ' dias' : ''}` : '';
+  if (gfSemCadastro(txt, id)) return { ean: true, html: `<div class="ct">🏷 Etiqueta GF Medical</div><div class="cs av">${MSG_GF(idGFde(txt))}</div>` };
   const sg = !id.codigo && soGtin(txt);
   if (sg) return { ean: true, gtin: sg, html: `<div class="ct">📦 Código do produto</div><div class="mono">GTIN ${esc(sg)}</div><div class="cs av">Falta o lote. Mire agora no <b>outro código</b> da etiqueta — o que tem (17) validade e (10) lote.</div>` };
   if (!id.codigo && /^\d{8,14}$/.test(txt)) return { ean: true, html: `<div class="ct">⚠ Código EAN da embalagem</div><div class="mono">${esc(txt)}</div><div class="cs av">Esse código não tem o lote. Mire no outro código de barras — o comprido, com (01)…(17)…(10)… embaixo.</div>` };
@@ -1429,6 +1466,7 @@ function descreverLeitura(txt) {
 }
 function confirmarLeitura(txt, origem = 'camera') {
   if (!ui.inv || ui.inv.status !== 'aberto') return;
+  const idg = idGFde(txt); if (idg && !_gfMapa.has(idg) && !(ui.inv.esperado || []).some(x => (x.ids || []).includes(idg))) { _pend = txt; garantirGF(txt).then(() => { _pend = null; confirmarLeitura(txt, origem); }); return; }
   clearTimeout(_feitoTimer);
   const d = descreverLeitura(txt), c = $('cam-conf');
   _pend = txt; c.className = 'on'; bipe(d.som || 'av');
@@ -1602,7 +1640,7 @@ $('f-fotos').onchange = async e => {
   const res = [], conta = new Map(); _ocrLote = [];
   for (let i = 0; i < files.length; i++) {
     $('fotos-prog').textContent = `📷 Lendo foto ${i + 1} de ${files.length}…`;
-    const txt = await lerCodigoFoto(files[i]); _ocrLote[i] = _ultOCR; _ultOCR = null; const id = txt ? identificar(txt, ui.inv.esperado || [], codDoGtin) : null;
+    const txt = await lerCodigoFoto(files[i]); _ocrLote[i] = _ultOCR; _ultOCR = null; if (txt) await garantirGF(txt); const id = txt ? identificar(txt, ui.inv.esperado || [], codDoGtin) : null;
     let r = null;
     if (id?.codigo) {
       const a0 = apurar(), cand = (id.cands || []).find(x => { const r0 = a0.linhas.find(y => y.cod === x.cod && y.lote === x.lote); return r0 && r0.bip + (conta.get(x.cod + '|' + x.lote) || 0) < r0.saldo; }) || id.cands[0];
@@ -1659,6 +1697,7 @@ function agruparVarios(achados) {
     if (!id.codigo && soGtin(d.raw)) { d.tipo = 'ign'; ign.gtin++; continue; }
     if (!id.codigo && /^\d{8,14}$/.test(d.raw)) { d.tipo = 'ign'; ign.ean++; continue; }
     if (!id.codigo && !id.lote && !id.gtin) { d.tipo = 'ign'; ign.fora++; continue; }
+    if (gfSemCadastro(d.raw, id)) { d.tipo = 'ign'; ign.gf = (ign.gf || 0) + 1; continue; }
     const k = id.codigo ? 'R|' + norm(id.lote) + '|' + (id.cands || []).map(x => x.cod).concat(id.codigo).sort().join(',') : 'F|' + (id.gtin || '') + '|' + norm(id.lote || '');
     if (!grupos.has(k)) grupos.set(k, { id, raw: d.raw, ds: [] });
     const G = grupos.get(k); G.ds.push(d); if (/\(?10\)?|\x1d/.test(d.raw) && d.raw.length > G.raw.length) G.raw = d.raw;
@@ -1699,10 +1738,11 @@ $('f-varios').onchange = async e => {
   $('var-prog').textContent = '⏳ Abrindo a foto…';
   let img; try { img = await createImageBitmap(file); } catch (er) { $('var-prog').textContent = '⚠ Não consegui abrir a foto.'; return; }
   const achados = await codigosDaFoto(img, (i, n) => { $('var-prog').textContent = `🔎 Procurando códigos na foto… ${Math.round(i / n * 100)}%`; });
+  for (const d of achados) await garantirGF(d.raw);
   const { lista, ign } = agruparVarios(achados);
   desenharVarios(img, achados);
   const tot = lista.filter(x => x.r).reduce((s, x) => s + x.n, 0), sob = lista.filter(x => !x.r).reduce((s, x) => s + x.n, 0);
-  const extra = [ign.gtin ? `${ign.gtin} código(s) só do produto (sem lote) ignorados` : '', ign.ean ? `${ign.ean} EAN sem lote ignorado(s)` : '', ign.fora ? `${ign.fora} código(s) que não são de etiqueta` : ''].filter(Boolean).join(' · ');
+  const extra = [ign.gtin ? `${ign.gtin} código(s) só do produto (sem lote) ignorados` : '', ign.ean ? `${ign.ean} EAN sem lote ignorado(s)` : '', ign.fora ? `${ign.fora} código(s) que não são de etiqueta` : '', ign.gf ? `${ign.gf} etiqueta(s) GF com código ainda não importado` : ''].filter(Boolean).join(' · ');
   if (!lista.length) { $('var-prog').innerHTML = `⚠ <b>Nenhuma etiqueta com lote encontrada</b> na foto${achados.length ? ' (' + esc(extra) + ')' : ''}. Chegue mais perto, com luz e as etiquetas viradas para a câmera — ou tire em partes.`; bipe(false); return; }
   bipe(sob ? 'av' : 'ok');
   $('var-prog').innerHTML = `Achei <b>${tot + sob} embalage${tot + sob === 1 ? 'm' : 'ns'}</b> na foto: ✅ ${tot} no relatório${sob ? ` · ➕ ${sob} fora do relatório (sobra)` : ''}${extra ? '<br><span style="font-size:.75rem">' + esc(extra) + '</span>' : ''}`;
@@ -2056,7 +2096,7 @@ window.baixarAjuste = () => {
   XLSX.writeFile(wb, `Ajuste de estoque ${ui.inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
 };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.inv) carregarLeituras().then(desenharInv); });
-const VERSAO = '2026-11-05.131520';
+const VERSAO = '2026-11-05.132829';
 async function conferirVersao() {
   try {
     const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];
