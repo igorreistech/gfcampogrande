@@ -1631,8 +1631,10 @@ async function codigosDaFoto(img, prog) {
   const junta = (r, ox, oy, k) => { for (const b of r || []) {
     const raw = String(b.rawValue || '').replace(/[\r\n]+/g, '').trim(), bb = b.boundingBox || {}; if (!raw) continue;
     const x = ox + (bb.x || 0) / k, y = oy + (bb.y || 0) / k, w = (bb.width || 0) / k, hh = (bb.height || 0) / k, cx = x + w / 2, cy = y + hh / 2;
-    if (achados.some(a => a.raw === raw && Math.hypot(a.cx - cx, a.cy - cy) < Math.max(a.w, a.h, w, hh, 20) * 0.5)) continue;   // o mesmo código achado em dois pedaços
-    achados.push({ raw, fmt: b.format || '', x, y, w, h: hh, cx, cy });
+    // o mesmo código achado duas vezes (pedaços diferentes, ou o leitor do celular + o reserva, que escrevem "(01)…" com ou sem parênteses/separador)
+    const nk = raw.replace(/^\][A-Za-z]\d/, '').replace(/[^0-9A-Za-z]/g, '').toUpperCase();
+    if (achados.some(a => (a.nk === nk || a.raw === raw) && Math.hypot(a.cx - cx, a.cy - cy) < Math.max(a.w, a.h, w, hh, 20) * 0.6)) continue;
+    achados.push({ raw, nk, fmt: b.format || '', x, y, w, h: hh, cx, cy });
   } };
   const pedacos = [[0, 0, W, H]];
   for (const n of [2, 3]) { const tw = Math.min(W, W / n * 1.35), th = Math.min(H, H / n * 1.35); for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) pedacos.push([(W - tw) * i / (n - 1), (H - th) * j / (n - 1), tw, th]); }
@@ -1660,7 +1662,8 @@ function agruparVarios(achados) {
   for (const G of grupos.values()) {
     const et = [];   // etiquetas: no máximo 1 código linear + 1 código 2D por etiqueta
     for (const d of G.ds) {
-      const e = et.find(e => !e.some(o => COD2D(o.fmt) === COD2D(d.fmt)) && e.some(o => Math.hypot(o.cx - d.cx, o.cy - d.cy) < Math.max(o.w, o.h, d.w, d.h) * 1.5));
+      const perto = (o, f) => Math.hypot(o.cx - d.cx, o.cy - d.cy) < Math.max(o.w, o.h, d.w, d.h, 20) * f;
+      const e = et.find(e => e.some(o => perto(o, 0.6))) || et.find(e => !e.some(o => COD2D(o.fmt) === COD2D(d.fmt)) && e.some(o => perto(o, 1.5)));   // no mesmo lugar = o mesmo código
       e ? e.push(d) : et.push([d]);
     }
     const id = G.id; let r = null;
@@ -2048,7 +2051,7 @@ window.baixarAjuste = () => {
   XLSX.writeFile(wb, `Ajuste de estoque ${ui.inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
 };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.inv) carregarLeituras().then(desenharInv); });
-const VERSAO = '2026-11-05.112201';
+const VERSAO = '2026-11-05.120624';
 async function conferirVersao() {
   try {
     const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];
