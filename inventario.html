@@ -46,6 +46,7 @@ button{font-family:inherit}
 .top .tit small{display:block;font-family:var(--mono);font-size:.58rem;color:var(--text3);letter-spacing:.08em;text-transform:uppercase;font-weight:400}
 .top a,.top .lk{font-size:.72rem;color:var(--text2);text-decoration:none;border:1px solid var(--border);border-radius:8px;padding:5px 9px;background:var(--bg);cursor:pointer}
 html.embed .top .so-solto{display:none}
+.top .voltar{font-family:inherit;font-weight:700;color:#fff;background:var(--accent);border-color:var(--accent);white-space:nowrap;flex-shrink:0;padding:6px 11px}
 .wrap{max-width:1200px;margin:0 auto;padding:16px}
 .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 13px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:.78rem;font-weight:600;cursor:pointer;text-decoration:none;white-space:nowrap}
 .btn:hover{border-color:var(--accent)}
@@ -206,7 +207,8 @@ body:not(.fechado) .so-fechado{display:none!important}
   .so-cel{display:inline}
   .wrap{padding:10px}
   .top{padding:7px 10px;gap:6px;flex-wrap:nowrap}
-  .top img{width:26px;height:26px}
+  .top img{display:none}
+  .top .voltar{padding:7px 9px}
   .top .tit{font-size:.82rem;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
   .top .tit small{font-size:.52rem}
   .top .user{max-width:34vw;font-size:.68rem;padding:5px 7px}
@@ -270,6 +272,7 @@ body:not(.fechado) .so-fechado{display:none!important}
 </div>
 
 <div class="top">
+  <button type="button" class="lk voltar" id="b-voltar" onclick="voltarTela()">⬅ Voltar</button>
   <img src="logo.jpg" alt="GF Medical">
   <div class="tit"><span id="tit-tipo">📋 Inventário</span><small id="filial-lbl">—</small></div>
   <span class="lk" id="troca-tipo" onclick="trocarTipo()" title="Trocar entre inventário de consignado e de estoque"></span>
@@ -299,7 +302,6 @@ body:not(.fechado) .so-fechado{display:none!important}
 </div>
 
 <div class="wrap" id="v-inv" style="display:none">
-  <div style="margin-bottom:10px"><a href="#" class="btn" onclick="voltarLista();return false">⬅ Inventários</a></div>
   <div class="card">
     <div class="cab">
       <div style="flex:1;min-width:220px">
@@ -758,7 +760,7 @@ const doTipo = i => !TIPO || (TIPO === 'estoque') === ehEstoque(i);
 // ───────── Lista de inventários ─────────
 async function carregarLista() {
   ui.inv = null; pararTempoReal(); pararCamera();
-  $('v-inv').style.display = 'none'; $('v-lista').style.display = '';
+  $('v-inv').style.display = 'none'; $('v-lista').style.display = ''; rotVoltar();
   const { data, error } = await supabase.from('inventarios').select('id,cliente,fornecedor,relatorio_data,status,criado_por,criado_em,fechado_em,esperado,obs').eq('filial', FILIAL).order('criado_em', { ascending: false }).limit(200);
   if (error && erroRede(error)) { try { ui.invs = JSON.parse(localStorage.getItem('gf_inv_lista_' + FILIAL) || '[]'); } catch (e) { ui.invs = []; } toast('📶 Sem internet: mostrando a última lista salva neste aparelho.', 'info'); ui.contagem = new Map(); desenharLista(); return; }
   if (error) { if (semTabela(error)) pedirSql(); else toast('Erro ao carregar: ' + error.message, 'err'); ui.invs = []; desenharLista(); return; }
@@ -801,7 +803,30 @@ function desenharLista() {
 }
 document.querySelectorAll('[data-fl]').forEach(b => b.onclick = () => { ui.fl = b.dataset.fl; desenharLista(); });
 $('busca-inv').oninput = e => { ui.buscaInv = e.target.value; desenharLista(); };
-window.voltarLista = () => { const u = new URL(location.href); u.searchParams.delete('inv'); u.searchParams.delete('cam'); if (TIPO) u.searchParams.set('tipo', TIPO); history.replaceState(null, '', u.href); carregarLista(); };
+window.voltarLista = () => { if (history.state?.inv) return history.back(); const u = new URL(location.href); u.searchParams.delete('inv'); u.searchParams.delete('cam'); if (TIPO) u.searchParams.set('tipo', TIPO); history.replaceState(null, '', u.href); carregarLista(); };
+
+// ⬅ voltar uma tela: janela aberta → inventário → lista → GF Hub (botão do topo e voltar do celular/navegador)
+function rotVoltar() {
+  const b = $('b-voltar'), emb = document.documentElement.classList.contains('embed');
+  b.textContent = ui.inv ? '⬅ Inventários' : '⬅ GF Hub'; b.title = ui.inv ? 'Voltar para a lista de inventários' : 'Voltar para o GF Hub';
+  b.style.display = !ui.inv && emb ? 'none' : '';
+}
+// fecha o que está por cima (o aviso de vencido só fecha confirmando que separou)
+function fecharPorCima() {
+  const abertas = [...document.querySelectorAll('.ov.open')];
+  if (abertas.some(o => o.id === 'm-venc')) return true;
+  if (abertas.length) { abertas[abertas.length - 1].classList.remove('open'); return true; }
+  if ($('cam').classList.contains('cheia')) { pararCamera(); return true; }
+  return false;
+}
+window.voltarTela = () => { if (fecharPorCima()) return; if (ui.inv) return voltarLista(); location.href = 'index.html?hub=1'; };
+addEventListener('popstate', () => {
+  const u = new URL(location.href), id = u.searchParams.get('inv');
+  // voltar do celular com janela aberta: fecha só a janela e continua no inventário
+  if (ui.inv && !id && fecharPorCima()) { const v = new URL(location.href); v.searchParams.set('inv', ui.inv.id); history.pushState({ inv: ui.inv.id }, '', v.href); return; }
+  if (ui.inv && !id) return carregarLista();
+  if (id && ui.inv?.id !== id) abrirInv(id);
+});
 
 // ───────── Novo inventário (PDF C457) ─────────
 async function linhasPdf(file) {
@@ -923,8 +948,9 @@ window.abrirInv = async (id, comCamera) => {
   if (error || !data) { toast(error ? 'Erro: ' + error.message : 'Inventário não encontrado', 'err'); if (error && semTabela(error)) pedirSql(); return carregarLista(); }
   ui.inv = data; ui.filtro = ''; ui.busca = ''; $('busca').value = ''; ui.leit = offline ? offline.leit || [] : []; ui.hist = null; ui.cruz = null; ui.antes = null;
   try { $('local-bip').value = sessionStorage.getItem('gf_inv_local_' + id) || ''; } catch (e) {}
-  const u = new URL(location.href); u.searchParams.set('inv', id); u.searchParams.delete('cam'); history.replaceState(null, '', u.href);
-  $('v-lista').style.display = 'none'; $('v-inv').style.display = '';
+  const u = new URL(location.href), jaNoLink = u.searchParams.get('inv') === id; u.searchParams.set('inv', id); u.searchParams.delete('cam');
+  if (jaNoLink) history.replaceState(history.state, '', u.href); else history.pushState({ inv: id }, '', u.href);
+  $('v-lista').style.display = 'none'; $('v-inv').style.display = ''; rotVoltar();
   await carregarLeituras(); desenharInv(); iniciarTempoReal();
   if (!offline) { carregarHistorico(); cruzarEstoque(); carregarAnterior(); }
   if (comCamera && data.status === 'aberto') alternarCamera(); else focarBip();
@@ -2059,7 +2085,7 @@ window.baixarAjuste = () => {
   XLSX.writeFile(wb, `Ajuste de estoque ${ui.inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
 };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.inv) carregarLeituras().then(desenharInv); });
-const VERSAO = '2026-11-05.132830';
+const VERSAO = '2026-11-05.132831';
 async function conferirVersao() {
   try {
     const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];
