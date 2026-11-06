@@ -688,7 +688,7 @@ function pedirSql() { $('sql-txt').value = SQL; $('sql-abrir').href = `https://s
 let _user = null, _role = null, _operador = null;
 const contaCompartilhada = () => /^comercial(mt)?@gfmedical/i.test(_user?.email || '');
 const OPERADORES_CONTA = {
-  'comercialmt@gfmedical.net': ['Beatriz Helena Calil Barbosa','Cristina Luzia','Izabela Crozetta','Kauana da Silva Feitoza','Marcio Benedito Queiroz','Murilo Julio Sant Ana Pereira','Renata Franco de Lima','Roberto Alex Cândido','Starley Santos Silva','Wilson Cordeiro'],
+  'comercialmt@gfmedical.net': ['Beatriz Helena Calil Barbosa','Cristina Luzia','Igor dos Reis Silva','Izabela Crozetta','Kauana da Silva Feitoza','Marcio Benedito Queiroz','Murilo Julio Sant Ana Pereira','Renata Franco de Lima','Roberto Alex Cândido','Starley Santos Silva','Wilson Cordeiro'],
   'comercial@gfmedical.net': ['Eva Diana de Araujo','Gabriely Amorim Dias','Guido de Andrade Gandini','Igor dos Reis Silva','Jeferson Rodrigues Cruz','Larissa Amanda Bernardo do Valle','Luis Felipe Moura Braga','Marcella Fernandes Ricci','Marcos Gonçalves da Silva','Paulo Vitor Leite da Silva','Regiane da Silva Ramos','Thayz Benites Leonel','Tiago da Silva Siqueira'],
 };
 const quemSou = () => _operador ? `${_operador} (${_user?.email || ''})` : (_user?.user_metadata?.nome || _user?.user_metadata?.full_name || _user?.email || '');
@@ -2087,7 +2087,7 @@ window.baixarAjuste = () => {
   XLSX.writeFile(wb, `Ajuste de estoque ${ui.inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
 };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.inv) carregarLeituras().then(desenharInv); });
-const VERSAO = '2026-11-05.132832';
+const VERSAO = '2026-11-05.132833';
 async function conferirVersao() {
   try {
     const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];
