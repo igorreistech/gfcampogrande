@@ -626,6 +626,18 @@
         if (erros.length) return alert('⚠️ ' + erros.join('\n'));
         prompt(`Nova senha provisória de ${email}. Copie e passe para a pessoa (não aparece de novo):`, senha);
       };
+      window.doAdminRenomear = async function(email) {
+        if (!window._podeGerenciarUsuarios()) return alert('Somente o Admin pode alterar usuários.');
+        const atual = email.replace('@' + window.GF_LOGIN_DOMINIO, ''), txt = prompt(`Novo nome de usuário para ${atual}:\n(letras, números e ponto; a senha continua a mesma)`, atual);
+        if (txt === null) return;
+        const novo = txt.trim().toLowerCase();
+        if (novo === atual) return;
+        if (!novo.includes('@') && !/^[a-z0-9][a-z0-9._-]{2,}$/.test(novo)) return alert('Usuário inválido: use letras, números e ponto, sem espaços.');
+        const erros = await window._chamarLogin({ acao: 'usuario', email, novo: window.gfLoginEmail(novo) });
+        if (erros.length) return alert('⚠️ ' + erros.join('\n').replace(/Ação desconhecida\./g, 'a função gerenciar-login precisa ser publicada de novo no Supabase para alterar usuários.'));
+        doAdminLoadUsers();
+        alert(`✅ Agora ${novo} entra com esse usuário e a mesma senha. Avise a pessoa.`);
+      };
       window.doAdminBloquear = async function(email) {
         if (!window._podeGerenciarUsuarios()) return alert('Somente o Admin pode bloquear usuários.');
         if (!confirm(`Bloquear ${email}?\n\nA pessoa não consegue mais entrar. Para liberar, aprove o perfil dela de novo nesta lista.`)) return;
@@ -658,6 +670,7 @@
               <div><div class="admin-user-name">${u.nome||u.email}${u.role === 'pendente' ? ' <span style="font-size:.7rem;color:#b45309;font-weight:800">⏳ aguardando aprovação</span>' : u.role === 'recusado' ? ' <span style="font-size:.7rem;color:#b91c1c;font-weight:800">⛔ recusado</span>' : ''}</div><div class="admin-user-email">${String(u.email || '').endsWith('@' + window.GF_LOGIN_DOMINIO) ? 'usuário: ' + u.email.split('@')[0] : u.email}</div></div>
               ${acoes}
               <span data-usr-id="${id}" data-usr-email="${u.email || ''}" style="display:none"></span>
+              ${isMe || /^(comercial(mt)?|demo)@/.test(u.email || '') ? '' : `<button class="admin-btn-del" onclick="doAdminRenomear('${u.email}')" title="Altera o nome de usuário; a senha continua a mesma" style="color:#6d28d9;border-color:#6d28d9">✏️ Usuário</button>`}
               ${isMe ? '' : `<button class="admin-btn-del" onclick="doAdminNovaSenha('${u.email}')" title="Gera uma senha provisória; a pessoa cria a dela ao entrar" style="color:#0e7490;border-color:#0e7490">🔑 Nova senha</button>`}
               ${isMe || u.role === 'recusado' ? '' : `<button class="admin-btn-del" onclick="doAdminBloquear('${u.email}')" title="A pessoa não consegue mais entrar">🚫 Bloquear</button>`}
               <button class="admin-btn-del" onclick="doAdminDeleteUser('${id}')" ${isMe?'disabled title="Não pode remover a si mesmo"':''}>🗑 Excluir</button>

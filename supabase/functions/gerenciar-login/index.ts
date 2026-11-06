@@ -7,6 +7,7 @@
 //   { acao: 'senha', email, senha }              → nova senha provisória
 //   { acao: 'bloquear', email }                  → não entra mais e o perfil fica "recusado"
 //   { acao: 'desbloquear', email }               → libera a entrada (o perfil é definido pelo admin na tela)
+//   { acao: 'usuario', email, novo }             → troca o nome de usuário (login); a senha continua a mesma
 //
 // Deploy: supabase functions deploy gerenciar-login --project-ref <ref>
 // (SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY são injetadas pelo Supabase.)
@@ -65,6 +66,16 @@ Deno.serve(async req => {
     const { error } = await admin.auth.admin.updateUserById(alvo.id, { ban_duration: acao === 'bloquear' ? '876000h' : 'none' });
     if (error) return resp({ error: error.message }, 400);
     if (acao === 'bloquear') await admin.from('usuarios').update({ role: 'recusado' }).eq('id', alvo.id);
+    return resp({ ok: true });
+  }
+  if (acao === 'usuario') {
+    const novo = String(body.novo || '').trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(novo)) return resp({ error: 'Usuário inválido.' }, 400);
+    if (/^comercial(mt)?@/.test(email)) return resp({ error: 'As contas compartilhadas não podem ser renomeadas.' }, 400);
+    const { error } = await admin.auth.admin.updateUserById(alvo.id, { email: novo, email_confirm: true });
+    if (error) return resp({ error: /registered|exists|already/i.test(error.message) ? 'Esse usuário já existe.' : error.message }, 400);
+    const { error: errPerfil } = await admin.from('usuarios').update({ email: novo }).eq('id', alvo.id);
+    if (errPerfil) { await admin.auth.admin.updateUserById(alvo.id, { email, email_confirm: true }); return resp({ error: errPerfil.message }, 400); }
     return resp({ ok: true });
   }
   return resp({ error: 'Ação desconhecida.' }, 400);
