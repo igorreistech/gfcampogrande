@@ -643,7 +643,7 @@
           const snap = await getDocs(collection(db, 'usuarios'));
           if (snap.empty) { lista.innerHTML = '<div style="color:var(--text-dim);font-size:0.85rem;padding:12px 0;">Nenhum usuário cadastrado.</div>'; return; }
           lista.innerHTML = snap.docs.map(d => ({ id: d.id, u: d.data() }))
-            .sort((a, b) => (b.u.role === 'pendente') - (a.u.role === 'pendente'))
+            .sort((a, b) => (b.u.role === 'pendente') - (a.u.role === 'pendente') || String(a.u.nome || a.u.email || '').localeCompare(String(b.u.nome || b.u.email || ''), 'pt-BR'))
             .map(({ id, u }) => {
             const isMe = u.email === (window._currentUser?.email||'').toLowerCase();
             const roleLabel = u.role === 'operador' ? 'Operador' : u.role === 'admin' ? 'Admin' : u.role === 'visualizacao' ? 'Somente Visualização' : u.role === 'pendente' ? '⏳ Aguardando aprovação' : u.role === 'recusado' ? '⛔ Recusado' : 'Agendador';
@@ -655,7 +655,7 @@
                   ${[['operador','Operador'],['agendador','Agendador'],['visualizacao','Somente Visualização'],['admin','Admin']].map(([v, t]) => `<option value="${v}" ${u.role === v ? 'selected' : ''}>${t}</option>`).join('')}
                 </select>`;
             return `<div class="admin-user-row" ${(u.role === 'pendente' || u.role === 'recusado') ? 'style="flex-wrap:wrap;background:rgba(245,158,11,.08);border-radius:10px;padding:10px 8px"' : ''}>
-              <div><div class="admin-user-name">${u.nome||u.email}${u.role === 'pendente' ? ' <span style="font-size:.7rem;color:#b45309;font-weight:800">⏳ aguardando aprovação</span>' : u.role === 'recusado' ? ' <span style="font-size:.7rem;color:#b91c1c;font-weight:800">⛔ recusado</span>' : ''}</div><div class="admin-user-email">${u.email}</div></div>
+              <div><div class="admin-user-name">${u.nome||u.email}${u.role === 'pendente' ? ' <span style="font-size:.7rem;color:#b45309;font-weight:800">⏳ aguardando aprovação</span>' : u.role === 'recusado' ? ' <span style="font-size:.7rem;color:#b91c1c;font-weight:800">⛔ recusado</span>' : ''}</div><div class="admin-user-email">${String(u.email || '').endsWith('@' + window.GF_LOGIN_DOMINIO) ? 'usuário: ' + u.email.split('@')[0] : u.email}</div></div>
               ${acoes}
               <span data-usr-id="${id}" data-usr-email="${u.email || ''}" style="display:none"></span>
               ${isMe ? '' : `<button class="admin-btn-del" onclick="doAdminNovaSenha('${u.email}')" title="Gera uma senha provisória; a pessoa cria a dela ao entrar" style="color:#0e7490;border-color:#0e7490">🔑 Nova senha</button>`}
@@ -3107,11 +3107,12 @@
             overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.18);
         }
         .admin-modal-title { font-family: 'Space Grotesk', sans-serif; font-size: 1.15rem; font-weight: 700; color: var(--text); margin-bottom: 20px; }
-        .admin-user-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border2); }
+        .admin-user-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 10px 0; border-bottom: 1px solid var(--border2); }
         .admin-user-row:last-child { border-bottom: none; }
-        .admin-user-row > div { flex: 1; min-width: 0; }
-        .admin-user-name { font-size: 0.9rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .admin-user-email { font-family: var(--mono); font-size: 0.72rem; color: var(--text-dim); }
+        .admin-user-row > div { flex: 1 1 100%; min-width: 0; }
+        .admin-user-row select, .admin-user-row button { flex: 0 0 auto; white-space: nowrap; }
+        .admin-user-name { font-size: 0.9rem; font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+        .admin-user-email { font-family: var(--mono); font-size: 0.72rem; color: var(--text-dim); overflow-wrap: anywhere; }
         .admin-role-badge { padding: 3px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; font-family: var(--mono); white-space: nowrap; }
         .role-admin { background: rgba(75,180,210,0.12); color: #2a9fbf; }
         .role-agendador { background: rgba(77,184,122,0.12); color: #3aa066; }
