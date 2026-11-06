@@ -338,6 +338,7 @@
           if (e.message === 'timeout-login')                     msg = 'O servidor demorou para responder. Confira a internet e tente de novo.';
           if (/email not confirmed/i.test(e.message || ''))      msg = '📧 Confirme seu e-mail: abra o link enviado no cadastro (veja também o spam) e tente de novo.';
           err.textContent = msg; err.style.display = 'block';
+          if (/Failed to fetch/.test(e.message || '') || e.message === 'timeout-login') err.insertAdjacentHTML('beforeend', '<br><a href="inventario.html" style="font-weight:700">📋 Sem internet? Abrir o inventário salvo neste aparelho</a>');
           document.getElementById('loginPass').value = '';
           const box = document.querySelector('.login-box');
           if (box) { box.style.transform='translateX(-8px)'; setTimeout(()=>{box.style.transform='translateX(8px)';},80); setTimeout(()=>{box.style.transform='translateX(-5px)';},160); setTimeout(()=>{box.style.transform='translateX(0)';},240); }
@@ -670,6 +671,7 @@
               <div><div class="admin-user-name">${u.nome||u.email}${u.role === 'pendente' ? ' <span style="font-size:.7rem;color:#b45309;font-weight:800">⏳ aguardando aprovação</span>' : u.role === 'recusado' ? ' <span style="font-size:.7rem;color:#b91c1c;font-weight:800">⛔ recusado</span>' : ''}</div><div class="admin-user-email">${String(u.email || '').endsWith('@' + window.GF_LOGIN_DOMINIO) ? 'usuário: ' + u.email.split('@')[0] : u.email}</div></div>
               ${acoes}
               <span data-usr-id="${id}" data-usr-email="${u.email || ''}" style="display:none"></span>
+              ${/^(comercial(mt)?|demo)@/.test(u.email || '') ? '' : `<button class="admin-btn-del" data-id="${id}" data-email="${String(u.email || '').replace(/"/g, '&quot;')}" data-nome="${String(u.nome || '').replace(/"/g, '&quot;')}" onclick="doAdminNome(this)" title="Altera o nome completo que aparece no GF Hub" style="color:#047857;border-color:#047857">👤 Nome</button>`}
               ${isMe || /^(comercial(mt)?|demo)@/.test(u.email || '') ? '' : `<button class="admin-btn-del" onclick="doAdminRenomear('${u.email}')" title="Altera o nome de usuário; a senha continua a mesma" style="color:#6d28d9;border-color:#6d28d9">✏️ Usuário</button>`}
               ${isMe ? '' : `<button class="admin-btn-del" onclick="doAdminNovaSenha('${u.email}')" title="Gera uma senha provisória; a pessoa cria a dela ao entrar" style="color:#0e7490;border-color:#0e7490">🔑 Nova senha</button>`}
               ${isMe || u.role === 'recusado' ? '' : `<button class="admin-btn-del" onclick="doAdminBloquear('${u.email}')" title="A pessoa não consegue mais entrar">🚫 Bloquear</button>`}
@@ -715,6 +717,50 @@
       window.closeAdminModal = function() {
         const m = document.getElementById('adminModal');
         if (m) m.style.display = 'none';
+      };
+
+      // nome completo em todas as páginas: o cadastro manda; quem só tem o nome de usuário informa o nome uma vez
+      window._sincronizarNome = function (user, perfil) {
+        const em = String(user.email || '').toLowerCase(), m = user.user_metadata || {};
+        if (/^(comercial(mt)?|demo)@/.test(em)) return;
+        const bom = [perfil.nome, m.nome, m.full_name, m.name].find(n => window.gfNomeBom(n, em));
+        if (!bom) { setTimeout(() => window._abrirNomeCompleto(user), 700); return; }
+        const nome = String(bom).trim(); window._currentUser.nome = nome;
+        if (m.nome !== nome) auth.updateUser({ data: { nome } }).catch(() => {});
+        if (perfil.nome !== nome) window._supabase?.from('usuarios').update({ nome }).eq('id', user.id).then(() => {}, () => {});
+      };
+      window._abrirNomeCompleto = function (user) {
+        if (document.getElementById('nomeCompletoOv')) return;
+        if (document.getElementById('novaSenhaOv')) return void setTimeout(() => window._abrirNomeCompleto(user), 800);   // primeiro a senha
+        const ov = document.createElement('div'); ov.id = 'nomeCompletoOv';
+        ov.style.cssText = 'position:fixed;inset:0;z-index:200001;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px';
+        ov.innerHTML = `<form style="background:var(--surface,#f0faf3);border-radius:18px;padding:22px 20px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);border-top:3px solid #14b8a6">
+          <div style="font-weight:800;font-size:1.05rem;margin-bottom:6px">👤 Qual é o seu nome completo?</div>
+          <div style="font-size:.8rem;color:var(--text-dim,#555);margin-bottom:12px">É o nome que aparece no GF Hub e nos registros. Você continua entrando com o seu usuário e senha.</div>
+          <input name="n" autocomplete="name" placeholder="Nome e sobrenome" style="width:100%;box-sizing:border-box;padding:11px 12px;border-radius:10px;border:1px solid var(--border,#b8dfc4);font-size:.95rem">
+          <div data-e style="display:none;color:#b91c1c;font-size:.78rem;margin-top:8px"></div>
+          <button style="width:100%;margin-top:12px;padding:11px;border:none;border-radius:12px;background:linear-gradient(135deg,#2a9fbf,#4db87a);color:#fff;font-weight:800;cursor:pointer">Salvar</button></form>`;
+        document.body.appendChild(ov);
+        const f = ov.querySelector('form'), er = ov.querySelector('[data-e]');
+        f.onsubmit = async e => {
+          e.preventDefault(); const nome = f.n.value.trim().replace(/\s+/g, ' ');
+          if (!window.gfNomeBom(nome, user.email)) { er.textContent = 'Digite nome e sobrenome.'; er.style.display = 'block'; return; }
+          f.querySelector('button').disabled = true;
+          const { error } = await auth.updateUser({ data: { nome } });
+          if (error) { er.textContent = 'Não salvou: ' + error.message; er.style.display = 'block'; f.querySelector('button').disabled = false; return; }
+          try { await window._supabase.from('usuarios').update({ nome }).eq('id', user.id); } catch (e2) {}
+          location.reload();
+        };
+        setTimeout(() => f.n.focus(), 50);
+      };
+      window.doAdminNome = async function (el) {
+        if (!window._podeGerenciarUsuarios()) return alert('Somente o Admin pode alterar usuários.');
+        const id = el.dataset.id, email = el.dataset.email, n = prompt(`Nome completo de ${email.replace('@' + window.GF_LOGIN_DOMINIO, '')}:`, el.dataset.nome || ''); if (n == null) return;
+        const nome = n.trim().replace(/\s+/g, ' ');
+        if (!window.gfNomeBom(nome, email)) return alert('Digite nome e sobrenome.');
+        const { error } = await window._supabase.from('usuarios').update({ nome }).eq('id', id);
+        if (error) return alert('⚠️ ' + error.message);
+        window.doAdminLoadUsers && window.doAdminLoadUsers();
       };
 
       auth.onAuthStateChange((_event, session) => {
@@ -773,6 +819,7 @@
             window._acessoBloqueado = null;
 
             window._currentUser = { uid: user.id, email: user.email, nome: perfil.nome || user.email, role: perfil.role, operador: _ehOperador };
+            window._sincronizarNome(user, perfil);
             // Independe do "role" que a conta demo@test.com tiver no banco —
             // seja qual for a visão que essa conta cai (admin, visualização,
             // etc.), a primeira impressão do demo tem que ser sempre a mesma.
@@ -823,7 +870,7 @@
               if (agendView) {
                 agendView.style.display = 'flex';
                 const nomeEl = document.getElementById('agendador-nome');
-                if (nomeEl) nomeEl.textContent = (window._currentUser.nome||'').split(' ')[0] || user.email;
+                if (nomeEl) nomeEl.textContent = window._currentUser.nome || user.email;
               }
               window._renderAgendadorRetry && window._renderAgendadorRetry();
             } else if (perfil.role === 'visualizacao') {

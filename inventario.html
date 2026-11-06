@@ -681,6 +681,7 @@ notify pgrst, 'reload schema';`;
 const semTabela = e => /inventario|relation|schema cache|PGRST205|42P01/i.test(String(e?.message || e?.code || e)) && /does not exist|could not find|schema cache|PGRST205|42P01/i.test(String(e?.message || '') + (e?.code || ''));
 const semColuna = e => /extra|local/i.test(String(e?.message || '')) && /column|schema cache|PGRST204|42703/i.test(String(e?.message || '') + (e?.code || ''));
 // sem internet: o supabase devolve "Failed to fetch" / "Load failed" / NetworkError
+const comTempo = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r({ data: null, error: { message: 'timeout' } }), ms))]);   // sinal ruim: desiste e usa o aparelho
 const erroRede = e => !navigator.onLine || /fetch|network|load failed|offline|timeout|ERR_INTERNET/i.test(String(e?.message || e || ''));
 function pedirSql() { $('sql-txt').value = SQL; $('sql-abrir').href = `https://supabase.com/dashboard/project/${BR.ref}/sql/new`; $('m-sql').classList.add('open'); }
 
@@ -691,8 +692,10 @@ const OPERADORES_CONTA = {
   'comercialmt@gfmedical.net': ['Beatriz Helena Calil Barbosa','Cristina Luzia','Igor dos Reis Silva','Izabela Crozetta','Kauana da Silva Feitoza','Marcio Benedito Queiroz','Murilo Julio Sant Ana Pereira','Renata Franco de Lima','Roberto Alex Cândido','Starley Santos Silva','Wilson Cordeiro'],
   'comercial@gfmedical.net': ['Eva Diana de Araujo','Gabriely Amorim Dias','Guido de Andrade Gandini','Igor dos Reis Silva','Jeferson Rodrigues Cruz','Larissa Amanda Bernardo do Valle','Luis Felipe Moura Braga','Marcella Fernandes Ricci','Marcos Gonçalves da Silva','Paulo Vitor Leite da Silva','Regiane da Silva Ramos','Thayz Benites Leonel','Tiago da Silva Siqueira'],
 };
-const quemSou = () => _operador ? `${_operador} (${_user?.email || ''})` : (_user?.user_metadata?.nome || _user?.user_metadata?.full_name || _user?.email || '');
-const nomeCurto = () => _operador || _user?.user_metadata?.nome || _user?.user_metadata?.full_name || (_user?.email || '').split('@')[0];
+const quemSou = () => _operador ? `${_operador} (${_user?.email || ''})` : (_user ? window.gfNomeDe(_user) : '');
+const nomeCurto = () => _operador || window.gfNomeDe(_user);
+// nome de quem bipou: registros antigos têm "igor.reis" ou o e-mail
+const nomeDe = s => { const t = String(s || '').replace(/\s*\(.*\)$/, '').trim(), k = t.toLowerCase(), e = String(_user?.email || '').toLowerCase(); if (!_operador && e && (k === e || k === e.split('@')[0])) return nomeCurto(); return window.gfNomeDoLogin(t); };
 const mostrarOperador = () => { $('user-nm').textContent = '👤 ' + (nomeCurto() || '—'); };
 window.pedirOperador = () => {
   if (!contaCompartilhada()) return;
@@ -711,9 +714,11 @@ window.doLogin = async () => {
   if (error) { $('l-err').textContent = 'E-mail ou senha incorretos.'; $('l-err').style.display = 'block'; }
 };
 window.doLogout = async () => { try { sessionStorage.removeItem('gf_fretes_operador'); } catch (e) {} await auth.signOut(); location.reload(); };
+// o Supabase só apaga a sessão guardada quando ela é inválida: sessão nula com a guardada presente = não conseguiu renovar por falta de sinal
+const sessaoGuardada = () => { try { const k = window._filialFixa ? 'sb-' + new URL(BR.url).hostname.split('.')[0] + '-auth-token' : 'sb-' + BRANCH + '-auth', s = JSON.parse(localStorage.getItem(k) || 'null'); return s?.user || s?.currentSession?.user || null; } catch (e) { return null; } };
 auth.onAuthStateChange((_e, session) => {
   if (window.gfExigeTrocaSenha(session?.user)) return;
-  const u = session?.user ?? null;
+  const u = session?.user ?? (_e === 'SIGNED_OUT' ? null : sessaoGuardada());
   if (u?.id === _user?.id) return;
   _user = u;
   if (!u) { $('login').style.display = 'flex'; return; }
@@ -721,7 +726,9 @@ auth.onAuthStateChange((_e, session) => {
   try { _operador = contaCompartilhada() ? sessionStorage.getItem('gf_fretes_operador') || sessionStorage.getItem('_nomeComercialCGR') : null; } catch (e) {}
   if (contaCompartilhada() && !_operador) setTimeout(pedirOperador, 300);
   mostrarOperador();
-  supabase.from('usuarios').select('role').eq('id', u.id).maybeSingle().then(({ data: p }) => {
+  window.gfCarregarNomes(supabase, () => { if (ui.inv) desenharInv(); });
+  supabase.from('usuarios').select('role,nome').eq('id', u.id).maybeSingle().then(({ data: p }) => {
+    window._gfNomePerfil = p?.nome || null; mostrarOperador();
     if (p?.role === 'pendente' || p?.role === 'recusado') { location.href = 'index.html'; return; }
     _role = p?.role === 'operador' ? 'admin' : (p?.role || null); if (ui.inv) desenharInv();
   });
@@ -763,7 +770,7 @@ const doTipo = i => !TIPO || (TIPO === 'estoque') === ehEstoque(i);
 async function carregarLista() {
   ui.inv = null; pararTempoReal(); pararCamera();
   $('v-inv').style.display = 'none'; $('v-lista').style.display = ''; rotVoltar();
-  const { data, error } = await supabase.from('inventarios').select('id,cliente,fornecedor,relatorio_data,status,criado_por,criado_em,fechado_em,esperado,obs').eq('filial', FILIAL).order('criado_em', { ascending: false }).limit(200);
+  const { data, error } = await comTempo(supabase.from('inventarios').select('id,cliente,fornecedor,relatorio_data,status,criado_por,criado_em,fechado_em,esperado,obs').eq('filial', FILIAL).order('criado_em', { ascending: false }).limit(200), 10000);
   if (error && erroRede(error)) { try { ui.invs = JSON.parse(localStorage.getItem('gf_inv_lista_' + FILIAL) || '[]'); } catch (e) { ui.invs = []; } toast('📶 Sem internet: mostrando a última lista salva neste aparelho.', 'info'); ui.contagem = new Map(); desenharLista(); return; }
   if (error) { if (semTabela(error)) pedirSql(); else toast('Erro ao carregar: ' + error.message, 'err'); ui.invs = []; desenharLista(); return; }
   ui.invs = data || [];
@@ -771,7 +778,7 @@ async function carregarLista() {
   const abertos = ui.invs.filter(i => i.status === 'aberto').map(i => i.id);
   ui.contagem = new Map();
   if (abertos.length) {
-    const { data: l } = await supabase.from('inventario_leituras').select('inventario_id,qtd,codigo').in('inventario_id', abertos).limit(20000);
+    const { data: l } = await comTempo(supabase.from('inventario_leituras').select('inventario_id,qtd,codigo').in('inventario_id', abertos).limit(20000), 8000);
     (l || []).forEach(r => { if (r.codigo) ui.contagem.set(r.inventario_id, (ui.contagem.get(r.inventario_id) || 0) + Number(r.qtd || 0)); });
   }
   desenharLista();
@@ -800,7 +807,7 @@ function desenharLista() {
       <div style="display:flex;gap:8px;align-items:flex-start"><h3 style="flex:1">${esc(i.cliente)}</h3>${ehEstoque(i) ? '<span class="tag" style="background:#ede9fe;color:#6d28d9">🏬 estoque</span> ' : ''}<span class="tag ${i.status === 'aberto' ? 'ab' : 'fe'}">${i.status === 'aberto' ? 'em andamento' : 'encerrado'}</span></div>
       <div class="muted">${rotEscopo(i) ? `<b style="color:${ehGeral(i) ? '#0e7490' : '#b45309'}">${rotEscopo(i)}</b> · ` : ''}${esc(i.fornecedor || 'Todos os fornecedores')} · relatório de ${dataBR(i.relatorio_data)}</div>
       ${i.status === 'aberto' ? `<div class="barra"><i style="width:${pct}%"></i></div><div class="muted">${qtd(bip)} de ${qtd(esp)} un. conferidas (${pct}%)</div>` : `<div class="muted" style="margin-top:8px">${qtd(esp)} un. no relatório · encerrado em ${dataHoraBR(i.fechado_em)}</div>`}
-      <div class="muted" style="margin-top:4px">Iniciado por ${esc(i.criado_por || '—')} · ${dataHoraBR(i.criado_em)}</div></div>`;
+      <div class="muted" style="margin-top:4px">Iniciado por ${esc(nomeDe(i.criado_por) || '—')} · ${dataHoraBR(i.criado_em)}</div></div>`;
   }).join('') : `<div class="muted" style="padding:20px">${ui.invs.length ? 'Nenhum inventário neste filtro.' : 'Nenhum inventário ainda. Importe o relatório C457 (consignado) ou S013 (estoque) do cliente para começar.'}</div>`;
 }
 document.querySelectorAll('[data-fl]').forEach(b => b.onclick = () => { ui.fl = b.dataset.fl; desenharLista(); });
@@ -945,7 +952,7 @@ drop.addEventListener('drop', e => importarPdfs(e.dataTransfer.files));
 
 // ───────── Inventário aberto ─────────
 window.abrirInv = async (id, comCamera) => {
-  let { data, error } = await supabase.from('inventarios').select('*').eq('id', id).maybeSingle(), offline = null;
+  let { data, error } = await comTempo(supabase.from('inventarios').select('*').eq('id', id).maybeSingle(), 8000), offline = null;
   if (error && erroRede(error)) { try { offline = JSON.parse(localStorage.getItem(cacheK(id)) || 'null'); } catch (e) {} if (offline) { data = offline.inv; error = null; toast('📶 Sem internet: abri a cópia salva neste aparelho. O que bipar fica guardado e sobe quando a conexão voltar.', 'info'); } }
   if (error || !data) { toast(error ? 'Erro: ' + error.message : 'Inventário não encontrado', 'err'); if (error && semTabela(error)) pedirSql(); return carregarLista(); }
   ui.inv = data; ui.filtro = ''; ui.busca = ''; $('busca').value = ''; ui.leit = offline ? offline.leit || [] : []; ui.hist = null; ui.cruz = null; ui.antes = null;
@@ -954,32 +961,37 @@ window.abrirInv = async (id, comCamera) => {
   if (jaNoLink) history.replaceState(history.state, '', u.href); else history.pushState({ inv: id }, '', u.href);
   $('v-lista').style.display = 'none'; $('v-inv').style.display = ''; rotVoltar();
   await carregarLeituras(); desenharInv(); iniciarTempoReal();
-  if (!offline) { carregarHistorico(); cruzarEstoque(); carregarAnterior(); }
+  if (!offline) { carregarHistorico(); cruzarEstoque(); carregarAnterior(); setTimeout(() => { if (navigator.serviceWorker?.controller && navigator.onLine) fetch(EXCELJS_URL).catch(() => {}); }, 6000); }
   if (comCamera && data.status === 'aberto') alternarCamera(); else focarBip();
 };
 async function carregarLeituras() {
   if (!ui.inv) return;
-  const id = ui.inv.id, { data, error } = await supabase.from('inventario_leituras').select('*').eq('inventario_id', id).order('criado_em', { ascending: true }).limit(20000);
+  const id = ui.inv.id, { data, error } = await comTempo(supabase.from('inventario_leituras').select('*').eq('inventario_id', id).order('criado_em', { ascending: true }).limit(20000), 12000);
   if (ui.inv?.id !== id) return;
   if (error && !erroRede(error)) toast('Erro ao carregar leituras: ' + error.message, 'err');
   // as guardadas no aparelho (sem internet) continuam aparecendo até subir
-  const fila = lerFila().filter(x => x.reg.inventario_id === id).map(x => ({ ...x.reg, id: x.tid, _tmp: true, _fila: true, criado_em: x.em }));
-  const tmp = ui.leit.filter(l => l._tmp && !l._fila && l.inventario_id === id);
-  ui.leit = [...(error ? ui.leit.filter(l => !l._tmp) : data || []), ...tmp, ...fila];
+  const noBanco = new Set((data || []).map(l => l.id));
+  const fila = lerFila().filter(x => x.reg.inventario_id === id && !noBanco.has(x.tid)).map(x => ({ ...x.reg, id: x.tid, _tmp: true, _fila: true, criado_em: x.em }));
+  const tmp = ui.leit.filter(l => l._tmp && !l._fila && l.inventario_id === id && !noBanco.has(l.id));
+  ui.leit = corrigirLeiturasGF([...(error ? ui.leit.filter(l => !l._tmp) : data || []), ...tmp, ...fila]);
   if (!error) guardarCache();
+  resolverLeiturasGF();
 }
 // ───────── Sem internet: leituras guardadas no aparelho e cópia do inventário ─────────
 const FILA_K = 'gf_inv_fila_' + BRANCH, cacheK = id => 'gf_inv_cache_' + id;
 const lerFila = () => { try { return JSON.parse(localStorage.getItem(FILA_K) || '[]'); } catch (e) { return []; } };
 const gravarFila = f => { try { localStorage.setItem(FILA_K, JSON.stringify(f)); } catch (e) { toast('Memória do aparelho cheia — não consegui guardar a leitura.', 'err'); } };
 let _cacheT = null;
+function marcarCopia(t) { let d = $('off-copia'); if (!d) { d = document.createElement('div'); d.id = 'off-copia'; d.className = 'muted'; d.style.cssText = 'font-size:.7rem;margin-top:6px'; $('i-info').after(d); } d.textContent = t; }
 function guardarCache() {
   clearTimeout(_cacheT); _cacheT = setTimeout(() => { if (!ui.inv) return; try {
-    const { fotos, ...ex } = EX();   // fotos não (pesadas)
-    localStorage.setItem(cacheK(ui.inv.id), JSON.stringify({ inv: { ...ui.inv, extra: ex }, leit: ui.leit.filter(l => !l._tmp), em: Date.now() }));
-    const ks = JSON.parse(localStorage.getItem('gf_inv_cache_ids') || '[]').filter(x => x !== ui.inv.id); ks.unshift(ui.inv.id);
-    ks.slice(5).forEach(x => localStorage.removeItem(cacheK(x))); localStorage.setItem('gf_inv_cache_ids', JSON.stringify(ks.slice(0, 5)));
-  } catch (e) {} }, 1500);
+    const { fotos, anterior, ...ex } = EX(), txt = JSON.stringify({ inv: { ...ui.inv, extra: ex }, leit: ui.leit.filter(l => !l._tmp), em: Date.now() });   // fotos e arquivo anterior não (pesados)
+    let ks = []; try { ks = JSON.parse(localStorage.getItem('gf_inv_cache_ids') || '[]').filter(x => x !== ui.inv.id); } catch (e) {}
+    // sem espaço: apaga a cópia mais antiga e tenta de novo
+    for (;;) { try { localStorage.setItem(cacheK(ui.inv.id), txt); break; } catch (e) { const v = ks.pop(); if (!v) throw e; localStorage.removeItem(cacheK(v)); } }
+    ks.unshift(ui.inv.id); ks.slice(5).forEach(x => localStorage.removeItem(cacheK(x))); localStorage.setItem('gf_inv_cache_ids', JSON.stringify(ks.slice(0, 5)));
+    marcarCopia(`📶 Cópia salva neste aparelho às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}: abre e bipa sem internet.`);
+  } catch (e) { marcarCopia('⚠ Sem espaço para salvar a cópia deste inventário no aparelho: sem internet ele não abre de novo.'); } }, _stream || _h5 ? 6000 : 1500);
 }
 async function inserirLeitura(reg) {
   let r = await supabase.from('inventario_leituras').insert(reg).select('*').single();
@@ -996,10 +1008,11 @@ window.enviarFila = async () => {
   _enviando = true; let ok = 0;
   try {
     for (const x of f) {
-      const { data, error } = await inserirLeitura(x.reg);
+      const { data, error } = await comTempo(inserirLeitura(x.reg), 10000);
       if (error && erroRede(error)) break;
       gravarFila(lerFila().filter(y => y.tid !== x.tid));
       const i = ui.leit.findIndex(l => l.id === x.tid);
+      if (error?.code === '23505') { ok++; if (i >= 0) { delete ui.leit[i]._fila; delete ui.leit[i]._tmp; } continue; }   // já tinha chegado ao banco
       if (error) { if (i >= 0) ui.leit.splice(i, 1); toast('Uma leitura guardada não foi aceita: ' + error.message, 'err'); continue; }
       ok++; if (i >= 0) ui.leit[i] = data;
     }
@@ -1008,7 +1021,7 @@ window.enviarFila = async () => {
   avisoFila();
 };
 function avisoFila() { const n = lerFila().length; $('fila-aviso').classList.toggle('on', n > 0); $('fila-n').textContent = n; }
-addEventListener('online', () => enviarFila()); addEventListener('offline', avisoFila); setInterval(() => enviarFila(), 20000);
+addEventListener('online', () => { for (const [k, v] of _gfMapa) if (v === null) _gfMapa.delete(k); enviarFila(); }); addEventListener('offline', avisoFila); setInterval(() => enviarFila(), 20000);
 // compara o relatório com o que foi bipado
 const kL = (cod, lote) => norm(cod) + '|' + norm(lote);
 function apurar(inv = ui.inv, leit = ui.leit) {
@@ -1021,7 +1034,7 @@ function apurar(inv = ui.inv, leit = ui.leit) {
     // recontagem: as leituras de antes da recontagem desse lote ficam guardadas, mas vale a contagem nova
     if (r) { const t = rc[kL(r.cod, r.lote)]; if (t && !l._tmp && String(l.criado_em || '') < t) r.antes += Number(l.qtd || 0); else r.bip += Number(l.qtd || 0); return; }
     const k = (l.gtin || '') + '|' + norm(l.lote || l.bruto);
-    const s = sobras.get(k) || { tipo: 'sobra', cod: l.codigo || '', produto: l.produto || '', gtin: l.gtin, lote: l.lote || '', validade: l.validade, venc: diasAte(l.validade), saldo: 0, vunit: 0, nfs: [], bip: 0 };
+    const s = sobras.get(k) || { tipo: 'sobra', cod: l.codigo || l._cod || '', produto: l.produto || '', gtin: l.gtin, lote: l.lote || '', validade: l.validade, venc: diasAte(l.validade), saldo: 0, vunit: 0, nfs: [], bip: 0 };
     s.bip += Number(l.qtd || 0); sobras.set(k, s);
   });
   linhas.forEach(r => { r.st = r.bip === r.saldo ? 'ok' : r.bip < r.saldo ? 'falta' : 'exc'; });
@@ -1048,12 +1061,33 @@ async function garantirGF(txt) {
   if (_gfMapa.has(id)) return;
   _gfMapa.set(id, null);
   try {
-    const { data } = await supabase.from('inventarios').select('esperado').contains('esperado', JSON.stringify([{ ids: [id] }])).order('criado_em', { ascending: false }).limit(3);
+    const { data } = await comTempo(supabase.from('inventarios').select('esperado').contains('esperado', JSON.stringify([{ ids: [id] }])).order('criado_em', { ascending: false }).limit(3), 4000);
     const e = (data || []).flatMap(r => r.esperado || []).find(x => (x.ids || []).includes(id));
     if (e) return void _gfMapa.set(id, { cod: e.cod, produto: e.produto, lote: e.lote, validade: e.validade });
-    const { data: d2 } = await supabase.from('inventarios').select('extra').contains('extra', JSON.stringify({ idsGF: { [id]: [] } })).order('criado_em', { ascending: false }).limit(1);
+    const { data: d2 } = await comTempo(supabase.from('inventarios').select('extra').contains('extra', JSON.stringify({ idsGF: { [id]: [] } })).order('criado_em', { ascending: false }).limit(1), 4000);
     const x = d2?.[0]?.extra?.idsGF?.[id]; if (x) _gfMapa.set(id, deArr(x));
   } catch (er) {}
+}
+// leitura antiga de etiqueta GF gravada como sobra: mostra e conta pelo produto e lote certos (o bipe original fica em "bruto")
+function corrigirLeiturasGF(leit, inv = ui.inv) {
+  const esp = inv?.esperado || [];
+  for (const l of leit) {
+    if (l.codigo || l._gf) continue;
+    const id = idGFde(l.bruto); if (!id) continue;
+    const e = esp.find(x => (x.ids || []).includes(id)), a = inv?.extra?.idsGF?.[id], m = _gfMapa.get(id);
+    const v = e ? { cod: e.cod, produto: e.produto, lote: e.lote, validade: e.validade } : Array.isArray(a) ? { cod: a[0], produto: a[1], lote: a[2], validade: a[3] } : m;
+    if (!v) continue;
+    const alvo = e || esp.find(x => norm(x.cod) === norm(v.cod) && norm(x.lote) === norm(v.lote));
+    l._gf = id; l.gtin = null; l.lote = v.lote; l.validade = v.validade || l.validade;
+    if (alvo) { l.codigo = alvo.cod; l.produto = alvo.produto; } else { l._cod = v.cod; l.produto = v.produto; }
+  }
+  return leit;
+}
+async function resolverLeiturasGF() {
+  const faltam = [...new Set(ui.leit.filter(l => !l.codigo && !l._gf && idGFde(l.bruto) && !_gfMapa.has(idGFde(l.bruto))).map(l => l.bruto))];
+  if (!faltam.length) return;
+  for (const b of faltam) await garantirGF(b);
+  corrigirLeiturasGF(ui.leit); desenharInv();
 }
 const gfSemCadastro = (txt, id) => !!idGFde(txt) && !id.codigo && !id.produtoCod;
 const MSG_GF = n => `🏷 Etiqueta GF Medical · código <b class="mono">${esc(n)}</b> — não achei esse código ${ehEstoque(ui.inv) ? 'no S013' : 'no C457'} deste inventário nem nos outros. Importe o S013 / C457 em que ele aparece (Id.Lote / Cód. Lote) — a partir daí todos os inventários reconhecem.`;
@@ -1092,7 +1126,10 @@ const faixa = v => v == null ? null : v < 0 ? 'v0' : v <= 30 ? 'v30' : v <= 60 ?
 const ROT_FX = { v0: '⛔ Vencidos', v30: '⌛ Vencem em até 30 dias', v60: '⌛ 31 a 60 dias', v90: '⌛ 61 a 90 dias' };
 const relNome = inv => ehEstoque(inv) ? 'S013 - Estoque' : 'C457';
 const ST_TXT = { ok: '✅ Conferido', falta: '⚠ Faltando', exc: '➕ A mais', sobra: '➕ Fora do relatório' };
+let _desenharDepois = false;
 function desenharInv() {
+  if ((_stream || _h5) && $('cam').classList.contains('cheia')) { _desenharDepois = true; return; }   // câmera em tela cheia: a lista está escondida; desenha ao fechar
+  _desenharDepois = false;
   const inv = ui.inv; if (!inv) return;
   document.body.classList.toggle('fechado', inv.status === 'fechado');
   $('qtd-box').style.display = ehEstoque(inv) ? '' : 'none';
@@ -1107,7 +1144,7 @@ function desenharInv() {
   $('i-cli').textContent = inv.cliente;
   $('i-info').innerHTML = `${rotEscopo(inv) ? '<b>' + rotEscopo(inv) + '</b> · ' : ''}${esc(inv.fornecedor || 'Todos os fornecedores')} · relatório ${relNome(inv)} de ${dataBR(inv.relatorio_data)}<br>Iniciado por ${esc(inv.criado_por || '—')} em ${dataHoraBR(inv.criado_em)}${(() => { const A = EX().ass || {}; return A.cli || A.gf ? `<br>✍️ Assinado: ${[A.cli && 'cliente (' + esc(A.cli.nome) + ')', A.gf && 'GF Medical (' + esc(A.gf.nome) + ')'].filter(Boolean).join(' · ')}` : ''; })()}`;
   $('i-status').className = 'tag ' + (inv.status === 'aberto' ? 'ab' : 'fe'); $('i-status').textContent = inv.status === 'aberto' ? 'em andamento' : 'encerrado';
-  $('i-fechado-info').textContent = inv.status === 'fechado' ? `✔ Encerrado por ${inv.fechado_por || '—'} em ${dataHoraBR(inv.fechado_em)}. Reabra para bipar de novo.` : '';
+  $('i-fechado-info').textContent = inv.status === 'fechado' ? `✔ Encerrado por ${nomeDe(inv.fechado_por) || '—'} em ${dataHoraBR(inv.fechado_em)}. Reabra para bipar de novo.` : '';
   $('b-excluir').style.display = _role === 'admin' ? '' : 'none';
   const a = apurar(), pct = a.esp ? Math.round(a.conf / a.esp * 100) : 0;
   const k = (f, cls, rot, val, sub) => `<div class="kpi ${cls} ${ui.filtro === f ? 'on' : ''}" data-f="${f}"><span>${rot}</span><b>${val}</b>${sub ? `<small>${sub}</small>` : ''}</div>`;
@@ -1159,8 +1196,10 @@ function desenharInv() {
 }
 $('busca').oninput = e => { ui.busca = e.target.value; desenharInv(); };
 // 👤 quem bipou: em cada produto da lista e na faixa "quem está bipando" (bipou nos últimos 3 min = agora)
-const nomeLeit = l => String(l.usuario || '').replace(/\s*\(.*\)$/, '').trim() || '—';
-const leitDaLinha = r => ui.leit.filter(l => r.tipo === 'esp' ? norm(l.codigo) === norm(r.cod) && norm(l.lote) === norm(r.lote) : !l.codigo && (l.gtin || '') === (r.gtin || '') && norm(l.lote || l.bruto) === norm(r.lote || l.bruto));
+const nomeLeit = l => nomeDe(l.usuario) || '—';
+let _idxLeit = null, _idxDe = null, _idxN = -1;
+const idxLeit = () => { if (_idxDe !== ui.leit || _idxN !== ui.leit.length) { _idxLeit = new Map(); ui.leit.forEach(l => { if (!l.codigo) return; const k = norm(l.codigo) + '|' + norm(l.lote), a = _idxLeit.get(k); a ? a.push(l) : _idxLeit.set(k, [l]); }); _idxDe = ui.leit; _idxN = ui.leit.length; } return _idxLeit; };
+const leitDaLinha = r => r.tipo === 'esp' ? idxLeit().get(norm(r.cod) + '|' + norm(r.lote)) || [] : ui.leit.filter(l => r.tipo === 'esp' ? false : !l.codigo && (l.gtin || '') === (r.gtin || '') && norm(l.lote || l.bruto) === norm(r.lote || l.bruto));
 function quemNaLinha(r) { const m = new Map(); leitDaLinha(r).forEach(l => m.set(nomeLeit(l), (m.get(nomeLeit(l)) || 0) + Number(l.qtd || 0))); return [...m].map(([n, q]) => `${n} (${qtd(q)})`).join(' · '); }
 function desenharEquipe() {
   const el = $('equipe'); if (!el) return;
@@ -1338,7 +1377,7 @@ async function registrar(bruto, origem, forcarCod, qtdForcada) {
     ultimo(`📦 Lido só o código do <b>produto</b> (${n ? esc(n.codigo + ' · ' + n.produto) : 'GTIN <span class="mono">' + esc(sg) + '</span>'}). Falta o <b>lote</b>: bipe agora o outro código da etiqueta, o que tem (17) validade e (10) lote.`, 'av'); bipe('av');
     return false;
   }
-  if (!id.gtin && _gtinPend && Date.now() - _gtinPend.em < 60000) id.gtin = _gtinPend.gtin;
+  if (!id.gtin && !id.idGF && _gtinPend && Date.now() - _gtinPend.em < 60000) id.gtin = _gtinPend.gtin;
   _gtinPend = null;
   // fora do relatório: entra sozinho como sobra (precisa ter lote ou GTIN); sem isso só avisa (não grava)
   if (!id.codigo) {
@@ -1350,10 +1389,10 @@ async function registrar(bruto, origem, forcarCod, qtdForcada) {
     if (id.gtin && !id.produto) { const n = await nomeDoGtin(id.gtin); if (n) id.produto = [n.codigo, n.produto].filter(Boolean).join(' · '); }
   }
   if (origem === 'leitor') _ultBip = { txt: bruto, em: Date.now() };
-  const reg = { inventario_id: ui.inv.id, bruto: bruto.slice(0, 300), gtin: id.gtin, lote: id.lote, validade: id.validade, serie: id.serie, codigo: id.codigo, produto: id.produtoCod && id.produto ? (id.produtoCod + ' · ' + id.produto).slice(0, 200) : id.produto, qtd: qtdForcada || qtdDoCodigo(bruto) || (ehEstoque(ui.inv) && origem === 'leitor' ? qtdAtual() : 1), origem, usuario: quemSou() };
+  const reg = { id: crypto.randomUUID(), inventario_id: ui.inv.id, bruto: bruto.slice(0, 300), gtin: id.gtin, lote: id.lote, validade: id.validade, serie: id.serie, codigo: id.codigo, produto: id.produtoCod && id.produto ? (id.produtoCod + ' · ' + id.produto).slice(0, 200) : id.produto, qtd: qtdForcada || qtdDoCodigo(bruto) || (ehEstoque(ui.inv) && origem === 'leitor' ? qtdAtual() : 1), origem, usuario: quemSou() };
   const loc = ehEstoque(ui.inv) ? $('local-bip').value.trim() : ''; if (loc) reg.local = loc.slice(0, 60);
   if (reg.qtd > 1) toast(`📦 ${reg.qtd} unidades de uma vez (caixa fechada)`, 'info');
-  const tmp = { ...reg, id: 'tmp' + Math.random().toString(36).slice(2), _tmp: true, criado_em: new Date().toISOString() };
+  const tmp = { ...reg, _tmp: true, criado_em: new Date().toISOString() };
   ui.leit.push(tmp);
   const a = apurar(), r = id.codigo ? a.linhas.find(x => norm(x.cod) === norm(id.codigo) && norm(x.lote) === norm(id.lote)) : null;
   const vtxt = id.validade ? ` · val. ${dataVal(id.validade)}${diasAte(id.validade) < 0 ? ' ⛔ VENCIDO' : diasAte(id.validade) <= 90 ? ' ⌛' : ''}` : '';
@@ -1373,7 +1412,7 @@ async function registrar(bruto, origem, forcarCod, qtdForcada) {
     }
   }
   desenharInv();
-  const { data, error } = navigator.onLine ? await inserirLeitura(reg) : { error: { message: 'offline' } };
+  const { data, error } = navigator.onLine ? await comTempo(inserirLeitura(reg), 6000) : { error: { message: 'offline' } };
   const i = ui.leit.indexOf(tmp);
   if (error && erroRede(error)) {   // sem internet: guarda no aparelho e envia depois
     tmp._fila = true; gravarFila([...lerFila(), { tid: tmp.id, reg, em: tmp.criado_em }]); avisoFila(); desenharInv();
@@ -1466,7 +1505,7 @@ const lidoCamera = txt => { const agora = Date.now(); _camDesde = agora; $('cam-
 function contadorCam() { if (!ui.inv) return; const a = apurar(); $('cam-cont').textContent = cega() ? `🔫 ${qtd(a.bip)} contados` : `✅ ${qtd(a.conf)}/${qtd(a.esp)} · 🔫 ${qtd(a.bip)}`; }
 function descreverLeitura(txt) {
   const id = identificar(txt, ui.inv?.esperado || [], codDoGtin), a = apurar();
-  if (!id.gtin && _gtinPend && Date.now() - _gtinPend.em < 60000) id.gtin = _gtinPend.gtin;
+  if (!id.gtin && !id.idGF && _gtinPend && Date.now() - _gtinPend.em < 60000) id.gtin = _gtinPend.gtin;
   const r = id.codigo ? a.linhas.find(x => norm(x.cod) === norm(id.codigo) && norm(x.lote) === norm(id.lote)) : null;
   const val = id.validade ? `Validade <b>${dataVal(id.validade)}</b>${diasAte(id.validade) < 0 ? ' ⛔ VENCIDO' : diasAte(id.validade) <= 90 ? ' ⌛ vence em ' + diasAte(id.validade) + ' dias' : ''}` : '';
   if (gfSemCadastro(txt, id)) return { ean: true, html: `<div class="ct">🏷 Etiqueta GF Medical</div><div class="cs av">${MSG_GF(idGFde(txt))}</div>` };
@@ -1526,6 +1565,7 @@ async function pararCamera() {
   if (_h5) { try { await _h5.stop(); } catch (e) {} try { _h5.clear(); } catch (e) {} _h5 = null; }
   _pend = null; clearTimeout(_feitoTimer); $('cam-conf').className = ''; document.body.style.overflow = '';
   $('cam-v').srcObject = null; $('cam').classList.remove('on', 'nativo', 'cheia'); $('b-cam').textContent = '📷 Câmera deste aparelho';
+  if (_desenharDepois && ui.inv) desenharInv();
 }
 window.alternarCamera = async () => {
   if (_stream || _h5) return pararCamera();
@@ -1535,7 +1575,7 @@ window.alternarCamera = async () => {
   const det = await detectorNativo();
   try {
     if (det) {
-      _stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 3840 }, height: { ideal: 2160 } } });
+      _stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 2560 }, height: { ideal: 1440 } } });
       const v = $('cam-v'); v.srcObject = _stream; $('cam').classList.add('nativo'); await v.play().catch(() => {});
       const tr = _stream.getVideoTracks()[0], cap = tr.getCapabilities ? tr.getCapabilities() : {};
       try { if ((cap.focusMode || []).includes('continuous')) await tr.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch (e) {}
@@ -1544,19 +1584,22 @@ window.alternarCamera = async () => {
       _camDesde = Date.now();
       $('cam-zoom').style.display = cap.zoom && cap.zoom.max >= 2 ? '' : 'none'; $('cam-luz').style.display = cap.torch ? '' : 'none';
       const zx = await detectorZx(), nativo = det !== zx && !(window.BarcodeDetectionAPI && det instanceof BarcodeDetectionAPI.BarcodeDetector);
-      const modos = [[det, 'v'], [det, 'c'], [det, 'q'], ...(zx && zx.constructor !== det.constructor ? [[zx, 'c'], [zx, 'q'], [zx, 'v']] : [])];
+      // o reserva (zxing) roda na mesma linha da tela: junto com o nativo entra só de vez em quando e sempre em recorte
+      const comZx = zx && zx.constructor !== det.constructor, modos = comZx ? [[det, 'v'], [det, 'c'], [det, 'q'], [det, 'c'], [zx, 'c'], [det, 'v'], [det, 'c'], [det, 'q'], [det, 'c'], [zx, 'q']] : [[det, 'c'], [det, 'q'], [det, 'v']];
+      const cvM = document.createElement('canvas'), menor = () => { const k = Math.min(1, 1600 / Math.max(v.videoWidth, v.videoHeight)); cvM.width = v.videoWidth * k; cvM.height = v.videoHeight * k; cvM.getContext('2d').drawImage(v, 0, 0, cvM.width, cvM.height); return cvM; };
       _quadros = 0;
       const ciclo = async () => {
         if (!_stream) return;
+        const t0 = performance.now();
         try {
-          if (v.readyState >= 2 && !_pend) {
-            const [d, onde] = modos[_quadros++ % modos.length], fonte = onde === 'c' ? recorteMira(v) || v : onde === 'q' ? recorteCentro(v) || v : v;
+          if (v.readyState >= 2 && !_pend && !document.hidden) {
+            const [d, onde] = modos[_quadros++ % modos.length], fonte = onde === 'c' ? recorteMira(v) || v : onde === 'q' ? recorteCentro(v) || v : nativo ? v : menor();
             const r = await d.detect(fonte); if (r && r.length) lidoCamera(melhorCodigo(r));
             if (_camDesde && Date.now() - _camDesde > 6000 && !$('cam-foto-bt').classList.contains('pisca')) { $('cam-foto-bt').classList.add('pisca'); toast('Não está lendo? Toque em 📸 Capturar: tira a foto em resolução cheia e lê o código (ou o LOT escrito).', 'info'); }
             if (_quadros % 10 === 0) $('cam-diag').textContent = `leitor: ${nativo ? 'nativo' : 'zxing'}${zx && zx.constructor !== det.constructor ? ' + zxing' : ''} · ${v.videoWidth}×${v.videoHeight} · ${_quadros} quadros`;
           }
         } catch (e) { $('cam-diag').textContent = '⚠ ' + (e?.message || e); }
-        _loop = setTimeout(ciclo, 60);
+        _loop = setTimeout(ciclo, Math.max(60, Math.min(500, performance.now() - t0)));   // celular lento: dá tempo à tela entre uma leitura e outra
       };
       ciclo();
     } else {
@@ -1772,19 +1815,23 @@ window.abrirCelular = () => {
 
 // leituras dos outros aparelhos: tempo real + conferência a cada 8 s
 let _canal = null, _poll = null;
+let _atualizando = false, _ultAtu = 0, _atuT = null;
 function iniciarTempoReal() {
   pararTempoReal();
   const id = ui.inv.id, atualizar = async () => {
-    if (!ui.inv || ui.inv.id !== id || document.hidden || !navigator.onLine) return;
+    if (!ui.inv || ui.inv.id !== id || document.hidden || !navigator.onLine || _atualizando) return;
+    _atualizando = true; _ultAtu = Date.now();
+    try { await atualizar2(); } finally { _atualizando = false; }
+  }, agendar = () => { const falta = (_stream || _h5 ? 20000 : 3000) - (Date.now() - _ultAtu); clearTimeout(_atuT); if (falta <= 0) atualizar(); else _atuT = setTimeout(atualizar, falta); }, atualizar2 = async () => {
     const antes = ui.leit.length; await carregarLeituras(); let mud = ui.leit.length !== antes;
-    const { data: x } = await supabase.from('inventarios').select('cega:extra->cega,recont:extra->recont,just:extra->just').eq('id', id).maybeSingle();
+    const { data: x } = await comTempo(supabase.from('inventarios').select('cega:extra->cega,recont:extra->recont,just:extra->just').eq('id', id).maybeSingle(), 8000);
     if (x && 'cega' in x && ui.inv?.id === id) { const ex = EX(), n = JSON.stringify([x.cega || false, x.recont || {}, x.just || {}]); if (n !== JSON.stringify([ex.cega || false, ex.recont || {}, ex.just || {}])) { ui.inv.extra = { ...ex, cega: x.cega || false, recont: x.recont || {}, just: x.just || {} }; mud = true; } }
     if (mud) desenharInv();
   };
-  _canal = supabase.channel('inv-' + id).on('postgres_changes', { event: '*', schema: 'public', table: 'inventario_leituras', filter: 'inventario_id=eq.' + id }, () => atualizar()).subscribe();
-  _poll = setInterval(atualizar, 8000);
+  _canal = supabase.channel('inv-' + id).on('postgres_changes', { event: '*', schema: 'public', table: 'inventario_leituras', filter: 'inventario_id=eq.' + id }, () => agendar()).subscribe();
+  _poll = setInterval(agendar, 8000);
 }
-function pararTempoReal() { if (_canal) { try { supabase.removeChannel(_canal); } catch (e) {} _canal = null; } clearInterval(_poll); }
+function pararTempoReal() { clearTimeout(_atuT); if (_canal) { try { supabase.removeChannel(_canal); } catch (e) {} _canal = null; } clearInterval(_poll); }
 
 // ───────── Encerrar / reabrir / excluir ─────────
 window.encerrar = async () => {
@@ -2027,8 +2074,7 @@ window.abrirFaltantes = () => {
   $('m-falta').classList.add('open');
 };
 // planilha: Resumo · Faltando · No local (encontrado) · Vencidos · Conferência completa · Leituras — cada aba com linha de TOTAL
-window.baixarExcel = () => {
-  if (semCega()) return;
+const baixarExcelSimples = () => {
   const inv = ui.inv, a = apurar(), gf = GF[FILIAL] || GF.CGR;
   const jc = r => { const j = justDe(r); return { 'Motivo / justificativa': j ? [j.m, j.o].filter(Boolean).join(' — ') : '' }; };
   const ord = l => [...l].sort((x, y) => String(x.cod).localeCompare(String(y.cod)) || String(x.lote).localeCompare(String(y.lote)));
@@ -2038,7 +2084,7 @@ window.baixarExcel = () => {
   const local = ord([...a.linhas.filter(r => r.bip > 0), ...a.sobras]).map(r => ({ ...base(r), 'Saldo relatório': r.tipo === 'esp' ? r.saldo : 0, 'Fisicamente no local': r.bip, 'A mais que o saldo': Math.max(0, r.bip - (r.tipo === 'esp' ? r.saldo : 0)), 'Valor unitário': r.vunit || 0, 'Valor no local': r.bip * (r.vunit || 0) }));
   const venc = a.linhas.filter(r => r.venc != null && r.venc <= 90).sort((x, y) => x.venc - y.venc).map(r => ({ ...base(r), 'Dias': r.venc, 'Saldo relatório': r.saldo, 'Encontrado (separar p/ devolução se vencido)': r.bip, 'Valor saldo': r.saldo * r.vunit }));
   const tudo = ord([...a.linhas, ...a.sobras]).map(r => ({ 'Situação': ST_TXT[r.st].replace(/^\S+\s/, ''), ...base(r), 'GTIN': r.gtin || '', 'Saldo relatório': r.tipo === 'esp' ? r.saldo : 0, 'Bipado': r.bip, 'Diferença': r.bip - (r.tipo === 'esp' ? r.saldo : 0), 'Valor unitário': r.vunit || 0, 'Valor da diferença': (r.bip - (r.tipo === 'esp' ? r.saldo : 0)) * (r.vunit || 0) }));
-  const leit = ui.leit.filter(l => !l._tmp).map(l => ({ 'Quando': dataHoraBR(l.criado_em), 'Quem': l.usuario || '', 'Como': { camera: 'Câmera', manual: 'Manual (+1)', foto: 'Foto', varios: 'Foto (vários)' }[l.origem] || 'Leitor', 'Qtd': Number(l.qtd || 1), 'Local': l.local || '', 'Código': l.codigo || '', 'Produto': l.produto || '', 'GTIN': l.gtin || '', 'Lote': l.lote || '', 'Validade': dataVal(l.validade), 'Lido': l.bruto }));
+  const leit = ui.leit.filter(l => !l._tmp).map(l => ({ 'Quando': dataHoraBR(l.criado_em), 'Quem': nomeLeit(l), 'Como': { camera: 'Câmera', manual: 'Manual (+1)', foto: 'Foto', varios: 'Foto (vários)' }[l.origem] || 'Leitor', 'Qtd': Number(l.qtd || 1), 'Local': l.local || '', 'Código': l.codigo || '', 'Produto': l.produto || '', 'GTIN': l.gtin || '', 'Lote': l.lote || '', 'Validade': dataVal(l.validade), 'Lido': l.bruto }));
   const vencLocal = a.linhas.filter(r => r.bip > 0 && r.venc != null && r.venc < 0);
   const resumo = [
     [ehEstoque(inv) ? 'Inventário do estoque' : 'Inventário de material consignado'], [], [ehEstoque(inv) ? 'Estoque' : 'Cliente', inv.cliente], ['Fornecedor', inv.fornecedor || 'Todos'], [`Relatório ${relNome(inv)} de`, dataBR(inv.relatorio_data)],
@@ -2076,9 +2122,7 @@ function linhasAjuste(a) {
   });
 }
 const comTotalAj = l => [...l, {}, { 'Código': 'TOTAL', 'Produto': `${l.length} lote(s) · ${l.filter(r => r['Ajuste'] > 0).length} entrada(s) · ${l.filter(r => r['Ajuste'] < 0).length} saída(s)`, 'Ajuste': l.reduce((s, r) => s + r['Ajuste'], 0), 'Valor do ajuste': Math.round(l.reduce((s, r) => s + r['Valor do ajuste'], 0) * 100) / 100 }];
-window.baixarAjuste = () => {
-  if (semCega()) return;
-  const l = linhasAjuste(apurar()); if (!l.length) return toast('Sem diferenças entre o contado e o sistema — nada para ajustar 👍', 'info');
+const baixarAjusteSimples = l => {
   const wb = XLSX.utils.book_new(), larg = [12, 42, 14, 13, 14, 10, 9, 17, 13, 14, 40].map(w => ({ wch: w })), aba = rows => { const ws = XLSX.utils.json_to_sheet(rows); ws['!cols'] = larg; return ws; };
   const sai = l.filter(r => r['Ajuste'] < 0), ent = l.filter(r => r['Ajuste'] > 0);
   XLSX.utils.book_append_sheet(wb, aba(comTotalAj(l)), 'Ajuste');
@@ -2086,8 +2130,134 @@ window.baixarAjuste = () => {
   if (ent.length) XLSX.utils.book_append_sheet(wb, aba(comTotalAj(ent)), 'Entradas (sobras)');
   XLSX.writeFile(wb, `Ajuste de estoque ${ui.inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
 };
+// ───────── 📊 Excel formatado: títulos, filtros, linha congelada, datas e valores de verdade, cores por situação, totais que acompanham o filtro ─────────
+const EXCELJS_URL = 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';
+let _xjs = null;
+const carregarExcelJS = () => _xjs || (_xjs = new Promise((ok, ko) => { if (window.ExcelJS) return ok(); const s = document.createElement('script'); s.src = EXCELJS_URL; s.onload = ok; s.onerror = () => { _xjs = null; ko(new Error('sem internet')); }; document.head.appendChild(s); }));
+const XC = { esc: 'FF14532D', med: 'FF15803D', cla: 'FFDCFCE7', zeb: 'FFF6FBF7', ver: 'FFFEE2E2', tver: 'FFB91C1C', amb: 'FFFEF3C7', tamb: 'FF92400E', lar: 'FFFFEDD5', tlar: 'FFC2410C', grn: 'FFD1FAE5', tgrn: 'FF065F46', bor: 'FFD1D5DB', cin: 'FF6B7280' };
+const xFill = c => ({ type: 'pattern', pattern: 'solid', fgColor: { argb: c } });
+const xBorda = { top: { style: 'thin', color: { argb: XC.bor } }, bottom: { style: 'thin', color: { argb: XC.bor } }, left: { style: 'thin', color: { argb: XC.bor } }, right: { style: 'thin', color: { argb: XC.bor } } };
+const xFmt = { int: '#,##0;[Red]-#,##0;0', brl: '"R$" #,##0.00;[Red]-"R$" #,##0.00', data: 'dd/mm/yyyy', dh: 'dd/mm/yyyy hh:mm', pct: '0.0%' };
+const xData = iso => { const m = /^(\d{4})-(\d\d)-(\d\d)/.exec(iso || ''); return m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])) : null; };
+const xDH = iso => { const d = new Date(iso); return isNaN(d) ? null : new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes())); };
+const xLetra = n => { let s = ''; for (; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + (n - 1) % 26) + s; return s; };
+const xSub = inv => `${inv.cliente} · ${inv.fornecedor || 'Todos os fornecedores'} · relatório ${relNome(inv)} de ${dataBR(inv.relatorio_data)} · gerado em ${dataHoraBR(new Date().toISOString())}`;
+// cols: { h: título, k: campo, w: largura, t: int|brl|data|dh, tot: soma no fim }; pinta(linha, cor): devolve { campo ou '*': [fundo, texto] }
+function xAba(wb, nome, corAba, titulo, inv, cols, linhas, pinta, vazio) {
+  const ws = wb.addWorksheet(nome, { properties: { tabColor: { argb: corAba } }, views: [{ state: 'frozen', ySplit: 3, showGridLines: false }],
+    pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, printTitlesRow: '3:3', margins: { left: .4, right: .4, top: .5, bottom: .5, header: .2, footer: .2 } }, headerFooter: { oddFooter: '&LGF Medical&CPágina &P de &N&R' + nome } });
+  cols.forEach((c, i) => { ws.getColumn(i + 1).width = c.w || 12; });
+  const n = cols.length, ult = xLetra(n);
+  ws.mergeCells(`A1:${ult}1`); ws.mergeCells(`A2:${ult}2`);
+  Object.assign(ws.getCell('A1'), { value: titulo, font: { bold: true, size: 14, color: { argb: 'FFFFFFFF' } }, fill: xFill(XC.esc), alignment: { vertical: 'middle', indent: 1 } }); ws.getRow(1).height = 26;
+  Object.assign(ws.getCell('A2'), { value: xSub(inv), font: { size: 9, italic: true, color: { argb: XC.tgrn } }, fill: xFill(XC.cla), alignment: { vertical: 'middle', indent: 1, wrapText: true } }); ws.getRow(2).height = 18;
+  const cab = ws.getRow(3); cab.height = 32;
+  cols.forEach((c, i) => Object.assign(cab.getCell(i + 1), { value: c.h, font: { bold: true, size: 10, color: { argb: 'FFFFFFFF' } }, fill: xFill(XC.med), border: xBorda, alignment: { vertical: 'middle', horizontal: c.t && c.t !== 'data' && c.t !== 'dh' ? 'right' : 'left', wrapText: true } }));
+  if (!linhas.length) { ws.mergeCells(`A4:${ult}4`); Object.assign(ws.getCell('A4'), { value: vazio || 'Nenhum item', font: { italic: true, color: { argb: XC.cin } }, alignment: { horizontal: 'center' } }); return ws; }
+  linhas.forEach((o, j) => {
+    const R = ws.getRow(4 + j), cor = pinta ? pinta(o) || {} : {};
+    cols.forEach((c, i) => {
+      const C = R.getCell(i + 1), v = o[c.k], par = cor[c.k] || cor['*'];
+      C.value = v === undefined || v === '' ? null : v; C.border = xBorda; C.font = { size: 10, ...(par?.[1] ? { color: { argb: par[1] }, bold: true } : {}) };
+      if (xFmt[c.t]) C.numFmt = xFmt[c.t];
+      C.alignment = { vertical: 'middle', wrapText: c.k === 'produto' || c.k === 'motivo' };
+      if (par?.[0]) C.fill = xFill(par[0]); else if (j % 2) C.fill = xFill(XC.zeb);
+    });
+  });
+  const iT = 4 + linhas.length, T = ws.getRow(iT);
+  ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: iT - 1, column: n } };
+  cols.forEach((c, i) => {
+    const C = T.getCell(i + 1), L = xLetra(i + 1); C.fill = xFill(XC.cla); C.border = xBorda; C.font = { bold: true, size: 10, color: { argb: XC.esc } };
+    if (c.tot) { C.value = { formula: `SUBTOTAL(109,${L}4:${L}${iT - 1})`, result: Math.round(linhas.reduce((s, o) => s + (Number(o[c.k]) || 0), 0) * 100) / 100 }; C.numFmt = xFmt[c.t] || xFmt.int; }
+  });
+  T.getCell(1).value = 'TOTAL'; if (cols[1] && !cols[1].tot) T.getCell(2).value = `${linhas.length} linha${linhas.length === 1 ? '' : 's'}`;
+  return ws;
+}
+const xVal = r => r.venc == null ? '' : r.venc < 0 ? 'VENCIDO' : r.venc <= 90 ? `Vence em ${r.venc} dias` : '';
+const xBase = r => ({ cod: r.cod || '', produto: r.produto || (r.gtin ? 'GTIN ' + r.gtin : ''), lote: r.lote || '', validade: xData(r.validade), sitval: xVal(r), nf: (r.nfs || []).map(n => n.nf).join(', '), vunit: r.vunit || 0 });
+const xColsBase = [{ h: 'Código', k: 'cod', w: 15 }, { h: 'Produto', k: 'produto', w: 46 }, { h: 'Lote', k: 'lote', w: 15 }, { h: 'Validade', k: 'validade', w: 12, t: 'data' }, { h: 'Situação da validade', k: 'sitval', w: 17 }, { h: 'NF', k: 'nf', w: 13 }];
+const xPintaVal = o => /VENCIDO/.test(o.sitval || '') ? { validade: [XC.ver, XC.tver], sitval: [XC.ver, XC.tver] } : o.sitval ? { validade: [XC.amb, XC.tamb], sitval: [XC.amb, XC.tamb] } : {};
+const xOrd = l => [...l].sort((x, y) => String(x.cod).localeCompare(String(y.cod)) || String(x.lote).localeCompare(String(y.lote)));
+const xNomeArq = t => `${t} ${ui.inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`;
+async function xBaixar(wb, nome) {
+  const buf = await wb.xlsx.writeBuffer(), url = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })), a = document.createElement('a');
+  a.href = url; a.download = nome; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+const xLinhasAjuste = a => xOrd([...a.linhas.filter(r => r.bip !== r.saldo), ...a.sobras.filter(s => s.cod)]).map(r => { const s = r.tipo === 'esp' ? r.saldo : 0, d = r.bip - s, j = justDe(r); return { cod: r.cod, produto: r.produto || '', lote: r.lote || '', validade: xData(r.validade), saldo: s, contado: r.bip, ajuste: d, mov: d > 0 ? 'ENTRADA (sobra)' : 'SAÍDA (falta)', vunit: r.vunit || 0, valor: Math.round(d * (r.vunit || 0) * 100) / 100, motivo: j ? [j.m, j.o].filter(Boolean).join(' — ') : '' }; });
+const xColsAjuste = [{ h: 'Código', k: 'cod', w: 15 }, { h: 'Produto', k: 'produto', w: 46 }, { h: 'Lote', k: 'lote', w: 15 }, { h: 'Validade', k: 'validade', w: 12, t: 'data' }, { h: 'Saldo no sistema (S013)', k: 'saldo', w: 12, t: 'int', tot: 1 }, { h: 'Contado', k: 'contado', w: 10, t: 'int', tot: 1 }, { h: 'Ajuste', k: 'ajuste', w: 9, t: 'int', tot: 1 }, { h: 'Movimento', k: 'mov', w: 18 }, { h: 'Valor unitário', k: 'vunit', w: 13, t: 'brl' }, { h: 'Valor do ajuste', k: 'valor', w: 14, t: 'brl', tot: 1 }, { h: 'Justificativa', k: 'motivo', w: 38 }];
+const xPintaAj = o => o.ajuste > 0 ? { mov: [XC.grn, XC.tgrn] } : { mov: [XC.ver, XC.tver] };
+function xResumo(wb, inv, a) {
+  const gf = GF[FILIAL] || GF.CGR, ws = wb.addWorksheet('Resumo', { properties: { tabColor: { argb: XC.esc } }, views: [{ showGridLines: false }], pageSetup: { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
+  [34, 15, 17, 18].forEach((w, i) => ws.getColumn(i + 1).width = w);
+  let y = 1;
+  const faixa = (t, cor, tam) => { ws.mergeCells(`A${y}:D${y}`); Object.assign(ws.getCell(`A${y}`), { value: t, font: { bold: true, size: tam, color: { argb: 'FFFFFFFF' } }, fill: xFill(cor), alignment: { vertical: 'middle', indent: 1 } }); ws.getRow(y).height = tam > 12 ? 30 : 20; y++; };
+  const info = (k, v) => { ws.getCell(`A${y}`).value = k; ws.getCell(`A${y}`).font = { bold: true, size: 10, color: { argb: XC.cin } }; ws.mergeCells(`B${y}:D${y}`); ws.getCell(`B${y}`).value = v; ws.getCell(`B${y}`).font = { size: 10 }; ws.getCell(`B${y}`).alignment = { wrapText: true, vertical: 'top' }; y++; };
+  const cab = cs => { cs.forEach((t, i) => Object.assign(ws.getCell(y, i + 1), { value: t, font: { bold: true, size: 10, color: { argb: 'FFFFFFFF' } }, fill: xFill(XC.med), border: xBorda, alignment: { horizontal: i ? 'right' : 'left', vertical: 'middle' } })); y++; };
+  const lin = (vs, fm, par) => { vs.forEach((v, i) => { const C = ws.getCell(y, i + 1); C.value = v === '' ? null : v; C.border = xBorda; C.font = { size: 10, ...(par?.[1] ? { bold: true, color: { argb: par[1] } } : {}) }; if (par?.[0]) C.fill = xFill(par[0]); if (i && fm?.[i - 1]) C.numFmt = xFmt[fm[i - 1]]; if (i) C.alignment = { horizontal: 'right' }; }); y++; };
+  faixa(ehEstoque(inv) ? 'Inventário do estoque' : 'Inventário de material consignado', XC.esc, 15);
+  y++;
+  info(ehEstoque(inv) ? 'Estoque' : 'Cliente', inv.cliente); info('Fornecedor', inv.fornecedor || 'Todos');
+  info(`Relatório ${relNome(inv)} de`, dataBR(inv.relatorio_data)); info('Iniciado em', `${dataHoraBR(inv.criado_em)} por ${nomeDe(inv.criado_por) || '—'}`);
+  info('Situação', inv.status === 'fechado' ? `Encerrado em ${dataHoraBR(inv.fechado_em)} por ${nomeDe(inv.fechado_por) || '—'}` : 'Em andamento');
+  y++;
+  const confVal = a.linhas.reduce((s, r) => s + Math.min(r.bip, r.saldo) * r.vunit, 0), vl = a.linhas.filter(r => r.bip > 0 && r.venc != null && r.venc < 0), vv = a.linhas.filter(r => r.venc != null && r.venc >= 0 && r.venc <= 90);
+  faixa('Resultado', XC.med, 11);
+  cab(['', 'Unidades', 'Valor', '% do saldo']);
+  const pc = q => a.esp ? q / a.esp : 0, f = ['int', 'brl', 'pct'];
+  lin(['Saldo no relatório', a.esp, a.espVal, 1], f);
+  lin(['Conferido (do saldo)', a.conf, confVal, pc(a.conf)], f, [XC.grn, XC.tgrn]);
+  lin(['Faltando', a.falta, a.faltaVal, pc(a.falta)], f, a.falta ? [XC.ver, XC.tver] : null);
+  lin(['A mais que o saldo / fora do relatório', a.exc, '', pc(a.exc)], f, a.exc ? [XC.lar, XC.tlar] : null);
+  lin(['Fisicamente no local', a.bip, a.fisVal, ''], f);
+  lin(['Vencidos encontrados (separar)', vl.reduce((s, r) => s + r.bip, 0), vl.reduce((s, r) => s + r.bip * r.vunit, 0), ''], f, vl.length ? [XC.ver, XC.tver] : null);
+  lin(['Vencem em até 90 dias (saldo)', vv.reduce((s, r) => s + r.saldo, 0), vv.reduce((s, r) => s + r.saldo * r.vunit, 0), ''], f, vv.length ? [XC.amb, XC.tamb] : null);
+  y++;
+  const pes = new Map(); ui.leit.filter(l => !l._tmp).forEach(l => { const n = nomeLeit(l), x = pes.get(n) || { q: 0, n: 0, u: null }; x.q += Number(l.qtd || 0); x.n++; if (!x.u || String(l.criado_em) > x.u) x.u = String(l.criado_em); pes.set(n, x); });
+  if (pes.size) { faixa('Quem contou', XC.med, 11); cab(['Nome', 'Unidades', 'Leituras', 'Última leitura']); [...pes].sort((p, q) => q[1].q - p[1].q).forEach(([n, x]) => lin([n, x.q, x.n, xDH(x.u)], ['int', 'int', 'dh'])); y++; }
+  const loc = new Map(); ui.leit.filter(l => !l._tmp && l.local).forEach(l => loc.set(l.local, (loc.get(l.local) || 0) + Number(l.qtd || 0)));
+  if (loc.size) { faixa('Por local', XC.med, 11); cab(['Local', 'Unidades', '', '']); [...loc].sort((p, q) => q[1] - p[1]).forEach(([n, q]) => lin([n, q, '', ''], ['int'])); y++; }
+  const top = a.linhas.filter(r => r.saldo > r.bip && r.vunit).sort((x, z) => (z.saldo - z.bip) * z.vunit - (x.saldo - x.bip) * x.vunit).slice(0, 10);
+  if (top.length) { faixa('Maiores faltas em valor', XC.tver, 11); cab(['Produto', 'Lote', 'Faltando', 'Valor']); top.forEach(r => lin([`${r.cod} · ${r.produto}`, r.lote, r.saldo - r.bip, (r.saldo - r.bip) * r.vunit], [null, 'int', 'brl'])); y++; }
+  Object.assign(ws.getCell(`A${y}`), { value: `Gerado por ${nomeCurto()} · ${gf.razao} · CNPJ ${gf.cnpj} · ${dataHoraBR(new Date().toISOString())}`, font: { size: 8, italic: true, color: { argb: XC.cin } } });
+}
+window.baixarExcel = async () => {
+  if (semCega()) return;
+  try { await carregarExcelJS(); } catch (e) { toast('📶 Sem internet para o Excel formatado: baixei a versão simples.', 'info'); return baixarExcelSimples(); }
+  toast('📊 Montando o Excel…', 'info');
+  const inv = ui.inv, a = apurar(), wb = new ExcelJS.Workbook(), jc = r => { const j = justDe(r); return j ? [j.m, j.o].filter(Boolean).join(' — ') : ''; };
+  wb.creator = 'GF Hub'; wb.created = new Date();
+  xResumo(wb, inv, a);
+  const q = t => ({ w: 11, t: 'int', tot: 1, ...t }), val = t => ({ w: 14, t: 'brl', tot: 1, ...t });
+  xAba(wb, 'Faltando', XC.tver, '⚠ Faltando: saldo do relatório que não foi encontrado', inv, [...xColsBase, q({ h: 'Saldo relatório', k: 'saldo' }), q({ h: 'Encontrado', k: 'bip' }), q({ h: 'Faltando', k: 'falta' }), { h: 'Valor unitário', k: 'vunit', w: 13, t: 'brl' }, val({ h: 'Valor faltando', k: 'vfalta' }), { h: 'Motivo / justificativa', k: 'motivo', w: 34 }],
+    xOrd(a.linhas.filter(r => r.saldo - r.bip > 0)).map(r => ({ ...xBase(r), saldo: r.saldo, bip: r.bip, falta: r.saldo - r.bip, vfalta: (r.saldo - r.bip) * r.vunit, motivo: jc(r) })), o => ({ ...xPintaVal(o), falta: [XC.ver, XC.tver] }), 'Nada faltando 👍');
+  xAba(wb, 'No local', XC.med, '✅ Encontrado no local', inv, [...xColsBase, q({ h: 'Saldo relatório', k: 'saldo' }), q({ h: 'No local', k: 'bip' }), q({ h: 'A mais que o saldo', k: 'mais' }), { h: 'Valor unitário', k: 'vunit', w: 13, t: 'brl' }, val({ h: 'Valor no local', k: 'vbip' })],
+    xOrd([...a.linhas.filter(r => r.bip > 0), ...a.sobras]).map(r => { const s = r.tipo === 'esp' ? r.saldo : 0; return { ...xBase(r), saldo: s, bip: r.bip, mais: Math.max(0, r.bip - s), vbip: r.bip * (r.vunit || 0) }; }), o => ({ ...xPintaVal(o), ...(o.mais ? { mais: [XC.lar, XC.tlar] } : {}) }), 'Nenhuma leitura ainda');
+  const cV = [...xColsBase, { h: 'Dias', k: 'dias', w: 8, t: 'int' }, q({ h: 'Saldo relatório', k: 'saldo' }), q({ h: 'Encontrado', k: 'bip' }), val({ h: 'Valor do saldo', k: 'vsaldo' })], mV = r => ({ ...xBase(r), dias: r.venc, saldo: r.saldo, bip: r.bip, vsaldo: r.saldo * r.vunit }), oV = l => [...l].sort((x, y) => x.venc - y.venc);
+  xAba(wb, 'Vencidos', XC.tver, '⛔ Vencidos: separar para devolução', inv, cV, oV(a.linhas.filter(r => r.venc != null && r.venc < 0)).map(mV), xPintaVal, 'Nenhum lote vencido 👍');
+  xAba(wb, 'Próximos a vencer', XC.tamb, '⌛ Vencem em até 90 dias', inv, cV, oV(a.linhas.filter(r => r.venc != null && r.venc >= 0 && r.venc <= 90)).map(mV), xPintaVal, 'Nenhum lote vence em até 90 dias');
+  const SC = { ok: [XC.grn, XC.tgrn], falta: [XC.ver, XC.tver], exc: [XC.amb, XC.tamb], sobra: [XC.lar, XC.tlar] };
+  xAba(wb, 'Conferência completa', XC.esc, '📋 Conferência completa: todos os lotes', inv, [{ h: 'Situação', k: 'sit', w: 17 }, ...xColsBase, { h: 'GTIN', k: 'gtin', w: 16 }, q({ h: 'Saldo relatório', k: 'saldo' }), q({ h: 'Bipado', k: 'bip' }), q({ h: 'Diferença', k: 'dif' }), { h: 'Valor unitário', k: 'vunit', w: 13, t: 'brl' }, val({ h: 'Valor da diferença', k: 'vdif' }), { h: 'Motivo / justificativa', k: 'motivo', w: 30 }],
+    xOrd([...a.linhas, ...a.sobras]).map(r => { const s = r.tipo === 'esp' ? r.saldo : 0; return { ...xBase(r), sit: ST_TXT[r.st].replace(/^\S+\s/, ''), st: r.st, gtin: r.gtin || '', saldo: s, bip: r.bip, dif: r.bip - s, vdif: (r.bip - s) * (r.vunit || 0), motivo: jc(r) }; }), o => ({ ...xPintaVal(o), sit: SC[o.st] }));
+  if (ehEstoque(inv)) xAba(wb, 'Ajuste de estoque', XC.tamb, '🧾 Ajuste de estoque: pronto para lançar no ERP', inv, xColsAjuste, xLinhasAjuste(a), xPintaAj, 'Sem diferenças entre o contado e o sistema 👍');
+  if (ui.antes?.ant) { const c = ui.antes.c, b = (e, sit, antes, depois) => ({ sit, cod: e.cod, produto: e.produto || '', lote: e.lote || '', validade: xData(e.validade), antes, depois, dif: depois - antes });
+    xAba(wb, 'Antes x depois', XC.cin, `📂 Comparado com ${ui.antes.ant.arquivos || 'o arquivo anterior'} de ${dataBR(ui.antes.ant.relatorio_data)}`, inv, [{ h: 'Situação', k: 'sit', w: 16 }, { h: 'Código', k: 'cod', w: 15 }, { h: 'Produto', k: 'produto', w: 46 }, { h: 'Lote', k: 'lote', w: 15 }, { h: 'Validade', k: 'validade', w: 12, t: 'data' }, q({ h: 'Saldo antes', k: 'antes' }), q({ h: 'Saldo depois', k: 'depois' }), q({ h: 'Diferença', k: 'dif' })],
+      [...c.entrou.map(e => b(e, 'Lote novo', 0, Number(e.saldo))), ...c.saiu.map(e => b(e, 'Saiu', Number(e.saldo), 0)), ...c.mudou.map(e => b(e, 'Mudou o saldo', e.antes, Number(e.saldo)))], null, 'Sem diferença para o arquivo anterior'); }
+  xAba(wb, 'Leituras', XC.cin, '🔫 Todas as leituras', inv, [{ h: 'Quando', k: 'qd', w: 16, t: 'dh' }, { h: 'Quem', k: 'quem', w: 28 }, { h: 'Como', k: 'como', w: 13 }, { h: 'Qtd', k: 'qtd', w: 7, t: 'int', tot: 1 }, { h: 'Local', k: 'local', w: 18 }, { h: 'Código', k: 'cod', w: 15 }, { h: 'Produto', k: 'produto', w: 42 }, { h: 'GTIN', k: 'gtin', w: 16 }, { h: 'Lote', k: 'lote', w: 15 }, { h: 'Validade', k: 'validade', w: 12, t: 'data' }, { h: 'Código lido', k: 'lido', w: 44 }],
+    ui.leit.filter(l => !l._tmp).map(l => ({ qd: xDH(l.criado_em), quem: nomeLeit(l), como: { camera: 'Câmera', manual: 'Manual (+1)', foto: 'Foto', varios: 'Foto (vários)' }[l.origem] || 'Leitor', qtd: Number(l.qtd || 1), local: l.local || '', cod: l.codigo || l._cod || '', produto: l.produto || '', gtin: l.gtin || '', lote: l.lote || '', validade: xData(l.validade), lido: l.bruto })), null, 'Nenhuma leitura');
+  await xBaixar(wb, xNomeArq('Inventário'));
+};
+window.baixarAjuste = async () => {
+  if (semCega()) return;
+  const l = linhasAjuste(apurar()); if (!l.length) return toast('Sem diferenças entre o contado e o sistema — nada para ajustar 👍', 'info');
+  try { await carregarExcelJS(); } catch (e) { toast('📶 Sem internet para o Excel formatado: baixei a versão simples.', 'info'); return baixarAjusteSimples(l); }
+  const wb = new ExcelJS.Workbook(), X = xLinhasAjuste(apurar()), sai = X.filter(r => r.ajuste < 0), ent = X.filter(r => r.ajuste > 0);
+  xAba(wb, 'Ajuste', XC.tamb, '🧾 Ajuste de estoque: pronto para lançar no ERP', ui.inv, xColsAjuste, X, xPintaAj);
+  if (sai.length) xAba(wb, 'Saídas (faltas)', XC.tver, 'Saídas (faltas)', ui.inv, xColsAjuste, sai, xPintaAj);
+  if (ent.length) xAba(wb, 'Entradas (sobras)', XC.tgrn, 'Entradas (sobras)', ui.inv, xColsAjuste, ent, xPintaAj);
+  await xBaixar(wb, xNomeArq('Ajuste de estoque'));
+};
 document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.inv) carregarLeituras().then(desenharInv); });
-const VERSAO = '2026-11-05.132833';
+const VERSAO = '2026-11-06.125536';
 async function conferirVersao() {
   try {
     const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];

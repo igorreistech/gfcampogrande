@@ -999,7 +999,9 @@ auth.onAuthStateChange((_event, session) => {
     mostrarOperador();
     // Escrita de papel "visualizacao" já é barrada no banco (RLS); aqui só
     // esconde os botões para não gerar erro confuso.
-    supabase.from('usuarios').select('role').eq('id', u.id).maybeSingle().then(({ data: p }) => {
+    window.gfCarregarNomes(supabase);
+    supabase.from('usuarios').select('role,nome').eq('id', u.id).maybeSingle().then(({ data: p }) => {
+      window._gfNomePerfil = p?.nome || null;
       if (p?.role === 'pendente' || p?.role === 'recusado') { location.href = 'index.html'; return; }
       _role = p?.role === 'operador' ? 'admin' : (p?.role || null);
       _readOnly = p?.role === 'visualizacao';
@@ -1113,10 +1115,10 @@ const OPERADORES = {
 };
 let _operador = null;
 const contaCompartilhada = () => /^comercial(mt)?@gfmedical/i.test(_user?.email || '');
-const quemSou = () => _operador ? `${_operador} (${_user?.email || ''})` : (_user?.email || null);
-const nomeQuem = u => !u ? '—' : / \(/.test(u) ? u.split(' (')[0] : /^comercial(mt)?@gfmedical/i.test(u) ? u.split('@')[0] + ' (sem operador registrado)' : u.split('@')[0];
+const quemSou = () => _operador ? `${_operador} (${_user?.email || ''})` : (_user ? window.gfNomeDe(_user) : null);
+const nomeQuem = u => !u ? '—' : / \(/.test(u) ? u.split(' (')[0] : /^comercial(mt)?@gfmedical/i.test(u) ? u.split('@')[0] + ' (sem operador registrado)' : window.gfNomeDoLogin(u) !== u ? window.gfNomeDoLogin(u) : u.split('@')[0];
 function mostrarOperador() {
-  const nome = _operador || (_user?.email || '').split('@')[0];
+  const nome = _operador || window.gfNomeDe(_user);
   $('user-nm').textContent = nome || '—';
   $('user-av').textContent = (nome || '?').split(/\s+/).map(x => x[0]).join('').slice(0, 2).toUpperCase();
   $('user-nm').title = contaCompartilhada() ? `Conta ${_user?.email} — clique para trocar o operador` : (_user?.email || '');
@@ -1987,7 +1989,7 @@ function renderAuditoria() {
 // Cobrança/revisão para a transportadora, separada pelo tipo de problema:
 // 1) acima do combinado (tabela/cotação) → desconto; 2) NF em mais de um CT-e → confirmar/cancelar;
 // 3) acima do habitual (histórico) → pedir explicação/revisão, sem exigir valor.
-const assinaturaGF = () => `${_operador || (_user?.email || '').split('@')[0]} – GF Medical ${FILIAL_LABEL.replace(' · ', '/')}`;
+const assinaturaGF = () => `${_operador || window.gfNomeDe(_user)} – GF Medical ${FILIAL_LABEL.replace(' · ', '/')}`;
 function textoAuditoria(t, email = false) {
   const itens = auditoria(ctesFiltrados({ ignorarFiltrosTabela: true })).filter(x => (x.c.transportadora || '—') === t);
   if (!itens.length) return null;
@@ -5261,7 +5263,7 @@ function renderCalcHistorico() {
       const dt = new Date(c.criado_em);
       return `<tr>
         <td class="td-mono">${dt.toLocaleDateString('pt-BR')} ${dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</td>
-        <td class="td-mono">${esc((c.criado_por || '—').split('@')[0])}</td>
+        <td class="td-mono">${esc(window.gfNomeDoLogin(c.criado_por) !== c.criado_por ? window.gfNomeDoLogin(c.criado_por) : (c.criado_por || '—').split('@')[0])}</td>
         <td class="num">${brl(c.valor_mercadoria)}</td>
         <td>${(c.opcoes || []).map(o => `<span class="calc-hist-op">${esc(o.transportadora || '—')}: ${brl(o.frete)} ${pctHTML(o.pct)}</span>`).join('')}</td>
         <td>${c.melhor_transportadora ? `<b>${esc(c.melhor_transportadora)}</b> ${pctHTML(Number(c.melhor_pct))}` : '—'}</td>
