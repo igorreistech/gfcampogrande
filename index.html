@@ -4951,7 +4951,7 @@ html.modo-demo .header-text h1::after{content:" · Demonstração";font-size:0.5
 <div id="adminModal">
     <div class="admin-modal-box">
         <div class="admin-modal-title">Gerenciar Usuários</div>
-        <button type="button" onclick="window.abrirCriarLogins()" style="margin-bottom:10px;padding:8px 14px;border-radius:9px;border:1px solid #0e7490;background:rgba(14,116,144,.1);color:#0e7490;font-weight:800;cursor:pointer">➕ Criar logins da equipe</button>
+        <button type="button" onclick="window.abrirCriarLogins()" style="margin-bottom:10px;padding:8px 14px;border-radius:9px;border:1px solid #0e7490;background:rgba(14,116,144,.1);color:#0e7490;font-weight:800;cursor:pointer">➕ Criar logins e senhas em lote</button>
         <div id="admin-users-list"></div>
         <div class="admin-add-form">
             <div>
@@ -9474,7 +9474,7 @@ window._htmlOperadoresCompartilhados = function () {
     return `<div style="margin-top:14px;padding-top:6px;border-top:1px dashed var(--border)">
       ${bloco('comercialmt@gfmedical.net', NOMES_CONTA_COMERCIALMT)}${bloco('comercial@gfmedical.net', NOMES_CONTA_COMERCIAL)}</div>`;
 };
-// ─── ➕ Criar logins da equipe: um usuário e uma senha provisória para cada nome da lista de operadores ───
+// ─── ➕ Criar logins e senhas em lote: um usuário e uma senha provisória para cada nome da lista de operadores ───
 window._sugerirUsuario = function (nome, usados) {
     const p = String(nome).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).filter(x => x && !/^(de|da|do|dos|das|e)$/.test(x));
     const op = [p.slice(0, 1).concat(p.slice(-1)).join('.'), p.slice(0, 2).join('.'), p.join('.')];
@@ -9488,35 +9488,59 @@ window.abrirCriarLogins = async function () {
     const usados = new Set(perfis.map(p => String(p.email || '').split('@')[0].toLowerCase())), nomes = [...new Set(_nomesOperadorAtivos())];
     const papelDe = n => (window.ADMIN_TITULARES || []).includes(n) ? 'admin' : ADMIN_OPERADORES.includes(n) ? 'operador' : 'agendador';
     const e = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-    const L = nomes.map(n => { const ja = perfis.find(p => p.nome === n && !/^comercial(mt)?@/.test(p.email || '')); return { n, ja, u: ja ? '' : window._sugerirUsuario(n, usados), r: papelDe(n) }; });
+    const fixa = em => /^(comercial(mt)?|demo)@/.test(em || ''), curto = em => String(em || '').replace('@' + window.GF_LOGIN_DOMINIO, '');
+    const ROT = { admin: 'Admin', operador: 'Operador', agendador: 'Agendador', visualizacao: 'Visualização' };
+    const novoItem = (n, r) => ({ n, u: window._sugerirUsuario(n, usados), r: r || papelDe(n), s: window._senhaProvisoria() });
+    const L = nomes.map(n => { const ja = perfis.find(p => p.nome === n && !fixa(p.email)); return ja ? { n, ja, s: window._senhaProvisoria() } : novoItem(n); });
+    perfis.filter(p => !fixa(p.email) && !['pendente', 'recusado'].includes(p.role) && !L.some(x => x.ja === p)).forEach(p => L.push({ n: p.nome || p.email, ja: p, s: window._senhaProvisoria() }));
     const ov = document.createElement('div'); ov.id = 'criarLoginsOv';
     ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100001;display:flex;align-items:center;justify-content:center;padding:16px';
-    const cx = 'background:var(--surface,#fff);color:var(--text,#111);border-radius:16px;padding:18px;width:min(720px,100%);max-height:90vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)';
+    const cx = 'background:var(--surface,#fff);color:var(--text,#111);border-radius:16px;padding:18px;width:min(860px,100%);max-height:90vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)';
     const inp = 'padding:6px 8px;border:1px solid var(--border,#ccc);border-radius:8px;background:var(--bg,#fff);color:var(--text);font-size:.78rem';
     const bt = 'padding:8px 14px;border-radius:9px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-weight:700;cursor:pointer';
-    ov.innerHTML = `<div style="${cx}"><div style="font-weight:800;font-size:1rem;margin-bottom:4px">➕ Criar logins da equipe</div>
-      <div style="font-size:.76rem;color:var(--text-dim,#555);margin-bottom:10px">Cada pessoa recebe um usuário e uma senha provisória, e cria a própria senha no primeiro acesso. A conta compartilhada continua funcionando até você desligá-la.</div>
-      <table style="width:100%;border-collapse:collapse;font-size:.78rem"><thead><tr><th style="width:26px"></th><th style="text-align:left;padding:4px">Nome</th><th style="text-align:left;padding:4px">Usuário</th><th style="text-align:left;padding:4px">Perfil</th></tr></thead><tbody>
-      ${L.map((x, i) => `<tr style="border-top:1px solid var(--border,#eee)"><td><input type="checkbox" data-cl="${i}" ${x.ja ? 'disabled' : 'checked'}></td><td style="padding:5px 4px">${e(x.n)}</td>
-        <td style="padding:5px 4px">${x.ja ? `<span style="color:var(--text-dim)">já tem: ${e(x.ja.email)}</span>` : `<input data-clu="${i}" value="${e(x.u)}" style="${inp};width:170px;font-family:var(--mono)">`}</td>
-        <td style="padding:5px 4px">${x.ja ? '' : `<select data-clr="${i}" style="${inp}">${[['agendador', 'Agendador'], ['operador', 'Operador'], ['admin', 'Admin']].map(([v, t]) => `<option value="${v}" ${x.r === v ? 'selected' : ''}>${t}</option>`).join('')}</select>`}</td></tr>`).join('')}</tbody></table>
-      <div data-clmsg style="font-size:.78rem;margin-top:10px">${L.some(x => !x.ja) ? '' : '<b>✅ Todos desta lista já têm login.</b> Quem perdeu a senha provisória recebe outra em 🔑 Nova senha, na lista de usuários.'}</div>
-      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button type="button" data-clx style="${bt}">Fechar</button><button type="button" data-clok style="${bt};background:#111827;color:#fff;border-color:#111827;${L.some(x => !x.ja) ? '' : 'display:none'}">Criar logins</button></div></div>`;
+    const linha = (x, i) => `<tr style="border-top:1px solid var(--border,#eee)"><td style="padding:5px 4px"><input type="checkbox" data-cl="${i}" ${x.ja ? '' : 'checked'}></td><td style="padding:5px 4px">${e(x.n)}</td>
+        <td style="padding:5px 4px">${x.ja ? `<span style="font-family:var(--mono)">${e(curto(x.ja.email))}</span><div style="font-size:.66rem;color:var(--text-dim)">já tem login: marque para trocar a senha</div>` : `<input data-clu="${i}" value="${e(x.u)}" style="${inp};width:150px;font-family:var(--mono)">`}</td>
+        <td style="padding:5px 4px">${x.ja ? `<span style="color:var(--text-dim)">${e(ROT[x.ja.role] || x.ja.role || '')}</span>` : `<select data-clr="${i}" style="${inp}">${Object.entries(ROT).map(([v, t]) => `<option value="${v}" ${x.r === v ? 'selected' : ''}>${t}</option>`).join('')}</select>`}</td>
+        <td style="padding:5px 4px"><input data-cls="${i}" value="${e(x.s)}" style="${inp};width:125px;font-family:var(--mono)"></td></tr>`;
+    ov.innerHTML = `<div style="${cx}"><div style="font-weight:800;font-size:1rem;margin-bottom:4px">➕ Criar logins e senhas em lote</div>
+      <div data-clintro style="font-size:.76rem;color:var(--text-dim,#555);margin-bottom:10px">Marque as pessoas e confira usuário, perfil e senha provisória (a senha pode ser editada, mínimo de 8 caracteres). Quem já tem login vem desmarcado: marcando, recebe a senha da linha e a anterior deixa de valer. No primeiro acesso, cada um cria a própria senha.</div>
+      <details style="margin-bottom:10px;font-size:.78rem"><summary style="cursor:pointer;font-weight:700">➕ Adicionar outras pessoas</summary>
+        <textarea data-clnovos rows="4" placeholder="Uma pessoa por linha: Nome completo; perfil (opcional)&#10;Ex.: Maria da Silva; operador" style="${inp};width:100%;margin-top:6px;box-sizing:border-box"></textarea>
+        <button type="button" data-cladd style="${bt};margin-top:6px;padding:6px 12px">Adicionar à lista</button></details>
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.78rem"><thead><tr><th style="width:26px"><input type="checkbox" data-clall title="Marcar todos"></th><th style="text-align:left;padding:4px">Nome</th><th style="text-align:left;padding:4px">Usuário</th><th style="text-align:left;padding:4px">Perfil</th><th style="text-align:left;padding:4px">Senha provisória</th></tr></thead><tbody data-cltb>${L.map(linha).join('')}</tbody></table></div>
+      <div data-clmsg style="font-size:.78rem;margin-top:10px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:12px"><button type="button" data-clx style="${bt}">Fechar</button><button type="button" data-clok style="${bt};background:#111827;color:#fff;border-color:#111827"></button></div></div>`;
     document.body.appendChild(ov);
-    const $ = s => ov.querySelector(s), fim = [];
+    const $ = s => ov.querySelector(s), fim = [], marcados = () => L.map((x, i) => ({ ...x, i })).filter(x => $(`[data-cl="${x.i}"]`)?.checked);
+    const rot = () => { const m = marcados(), c = m.filter(x => !x.ja).length, t = m.length - c, b = $('[data-clok]'); if (!b) return; b.disabled = !m.length; b.textContent = !m.length ? 'Marque alguém' : [c ? `Criar ${c} login${c === 1 ? '' : 's'}` : '', t ? `trocar ${t} senha${t === 1 ? '' : 's'}` : ''].filter(Boolean).join(' e '); };
+    ov.addEventListener('change', ev => { if (ev.target.matches('[data-clall]')) ov.querySelectorAll('[data-cl]').forEach(c => { c.checked = ev.target.checked; }); rot(); });
+    rot();
+    $('[data-cladd]').onclick = () => {
+        const lin = $('[data-clnovos]').value.split(/\n+/).map(s => s.trim()).filter(Boolean); let n = 0;
+        for (const t of lin) {
+            const [nome, perfil] = t.split(/[;\t]/).map(s => s.trim()); if (!nome || L.some(x => x.n.toLowerCase() === nome.toLowerCase())) continue;
+            const r = /admin/i.test(perfil) ? 'admin' : /oper/i.test(perfil) ? 'operador' : /visual/i.test(perfil) ? 'visualizacao' : 'agendador';
+            const x = novoItem(nome, r); L.push(x); $('[data-cltb]').insertAdjacentHTML('beforeend', linha(x, L.length - 1)); n++;
+        }
+        $('[data-clnovos]').value = ''; $('[data-clmsg]').textContent = n ? `${n} pessoa(s) adicionada(s) ao fim da lista.` : 'Nenhum nome novo para adicionar.'; rot();
+    };
     $('[data-clx]').onclick = () => { if (fim.some(x => x.senha) && !confirm('As senhas provisórias não aparecem de novo. Já copiou?')) return; ov.remove(); window.doAdminLoadUsers && window.doAdminLoadUsers(); };
     $('[data-clok]').onclick = async () => {
-        const marcados = L.map((x, i) => ({ ...x, i })).filter(x => !x.ja && $(`[data-cl="${x.i}"]`).checked); if (!marcados.length) return;
+        const M = marcados(); if (!M.length) return;
+        const trocas = M.filter(x => x.ja);
+        if (trocas.length && !confirm(`Trocar a senha de ${trocas.length} pessoa(s)?\n\n${trocas.map(x => x.n).join('\n')}\n\nA senha atual delas deixa de valer.`)) return;
         const b = $('[data-clok]'); b.disabled = true; let k = 0;
-        for (const x of marcados) {
-            const u = String($(`[data-clu="${x.i}"]`).value || '').trim().toLowerCase(), r = $(`[data-clr="${x.i}"]`).value; b.textContent = `Criando ${++k} de ${marcados.length}…`;
-            if (!/^[a-z0-9][a-z0-9._-]{2,}$/.test(u)) { fim.push({ n: x.n, u, erro: 'usuário inválido (use letras, números e ponto)' }); continue; }
-            const senha = window._senhaProvisoria(), erros = await window._chamarLogin({ acao: 'criar', email: window.gfLoginEmail(u), nome: x.n, role: r, senha });
-            fim.push(erros.length ? { n: x.n, u, erro: erros.join(' · ') } : { n: x.n, u, senha });
+        for (const x of M) {
+            const senha = String($(`[data-cls="${x.i}"]`).value || ''), u = x.ja ? curto(x.ja.email) : String($(`[data-clu="${x.i}"]`).value || '').trim().toLowerCase(); b.textContent = `Processando ${++k} de ${M.length}…`;
+            if (senha.length < 8) { fim.push({ n: x.n, u, erro: 'a senha precisa ter pelo menos 8 caracteres' }); continue; }
+            if (!x.ja && !/^[a-z0-9][a-z0-9._-]{2,}$/.test(u)) { fim.push({ n: x.n, u, erro: 'usuário inválido (use letras, números e ponto)' }); continue; }
+            const erros = await window._chamarLogin(x.ja ? { acao: 'senha', email: x.ja.email, senha } : { acao: 'criar', email: window.gfLoginEmail(u), nome: x.n, role: $(`[data-clr="${x.i}"]`).value, senha });
+            fim.push(erros.length ? { n: x.n, u, erro: erros.join(' · ') } : { n: x.n, u, senha, troca: !!x.ja });
         }
         const ok = fim.filter(x => x.senha), txt = ok.map(x => `${x.n}: usuário ${x.u} · senha provisória ${x.senha}`).join('\n');
+        ['[data-clintro]', 'details'].forEach(s => $(s)?.remove());
         $('table').outerHTML = `<table style="width:100%;border-collapse:collapse;font-size:.8rem"><thead><tr><th style="text-align:left;padding:4px">Nome</th><th style="text-align:left;padding:4px">Usuário</th><th style="text-align:left;padding:4px">Senha provisória</th></tr></thead><tbody>${fim.map(x => `<tr style="border-top:1px solid var(--border,#eee)"><td style="padding:5px 4px">${e(x.n)}</td><td style="padding:5px 4px;font-family:var(--mono)">${e(x.u)}</td><td style="padding:5px 4px;font-family:var(--mono)">${x.senha ? e(x.senha) : `<span style="color:#b91c1c">⚠ ${e(x.erro)}</span>`}</td></tr>`).join('')}</tbody></table>`;
-        $('[data-clmsg]').innerHTML = `<b>${ok.length} login(s) criado(s).</b> Copie agora e passe a cada pessoa individualmente: as senhas provisórias não aparecem de novo.`;
+        $('[data-clmsg]').innerHTML = `<b>${ok.length} de ${fim.length} concluído(s).</b> Copie agora e passe a cada pessoa individualmente: as senhas provisórias não aparecem de novo.`;
         b.remove();
         if (ok.length) { const c = document.createElement('button'); c.type = 'button'; c.style.cssText = bt; c.textContent = '📋 Copiar a lista'; c.onclick = () => navigator.clipboard.writeText(txt).then(() => { c.textContent = '✅ Copiada'; }); $('[data-clx]').before(c); }
     };
