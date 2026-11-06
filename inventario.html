@@ -322,9 +322,7 @@ body:not(.fechado) .so-fechado{display:none!important}
       </div>
       <div class="bts-bip">
         <button class="btn b" id="b-cam" type="button" onclick="alternarCamera()">📷 Câmera deste aparelho</button>
-        <label class="btn" for="f-fotos" title="Escolha várias fotos de etiquetas de uma vez: cada foto conta 1 embalagem">🖼 Fotos em lote</label><input type="file" id="f-fotos" accept="image/*" multiple style="display:none">
-        <label class="btn" for="f-varios" title="Uma foto com várias embalagens enfileiradas (etiquetas viradas para cima): lê todos os códigos de uma vez">🧩 Vários de uma vez</label><input type="file" id="f-varios" accept="image/*" capture="environment" style="display:none">
-        <label class="btn" for="f-foto" title="Tira uma foto da etiqueta e lê o código (bom quando a câmera ao vivo não pega)">📸 Foto da etiqueta</label><input type="file" id="f-foto" accept="image/*" capture="environment" style="display:none">
+        <label class="btn" for="f-foto" title="Tire ou escolha uma ou várias fotos, com uma ou várias etiquetas em cada: lê todos os códigos (sem código de barras, tenta o LOT escrito) e mostra para conferir antes de incluir">📸 Foto</label><input type="file" id="f-foto" accept="image/*" multiple style="display:none">
         <button class="btn so-pc" type="button" onclick="abrirCelular()">📱 Bipar com outro celular</button>
         <span class="muted dica-bip">Bipe <b>uma etiqueta por embalagem</b> (as caixas têm várias etiquetas iguais).</span>
       </div>
@@ -377,20 +375,13 @@ body:not(.fechado) .so-fechado{display:none!important}
 </div></div>
 
 <div class="ov" id="m-varios"><div class="mod" style="max-width:760px">
-  <div class="mh"><span>🧩 Vários de uma vez</span><button class="x" onclick="fecharModal('m-varios')">✕</button></div>
+  <div class="mh"><span>📸 Fotos das etiquetas</span><button class="x" onclick="fecharModal('m-varios')">✕</button></div>
   <div class="mb"><div id="var-prog" class="muted" style="margin-bottom:8px"></div>
     <div id="var-img" style="position:relative;margin-bottom:10px"></div>
     <div class="tw"><table id="var-tb"></table></div>
-    <div class="muted" style="margin-top:8px">Cada etiqueta encontrada conta <b>1 embalagem</b> (o código comprido e o quadradinho da mesma etiqueta contam 1 só). <b>Confira com as embalagens da foto</b> e corrija a quantidade se precisar — se ficou alguma de fora, chegue mais perto ou tire em 2 partes. Dica: enfileire de 10 a 20 embalagens, uma etiqueta à mostra em cada.</div></div>
-  <div class="mf"><button class="btn" onclick="fecharModal('m-varios')">Cancelar</button><label class="btn" for="f-varios">📸 Outra foto</label><button class="btn p" id="var-ok" disabled>Incluir</button></div>
+    <div class="muted" style="margin-top:8px">Cada etiqueta encontrada conta <b>1 embalagem</b> (o código comprido e o quadradinho da mesma etiqueta contam 1 só). <b>Confira com as embalagens da foto</b> e corrija a quantidade se precisar — se ficou alguma de fora, toque em 📸 Mais fotos. Dica: enfileire de 10 a 20 embalagens, uma etiqueta à mostra em cada. A mesma embalagem em duas fotos conta 2: corrija a quantidade.</div></div>
+  <div class="mf"><button class="btn" onclick="fecharModal('m-varios')">Cancelar</button><label class="btn" for="f-foto">📸 Mais fotos</label><button class="btn p" id="var-ok" disabled>Incluir</button></div>
 </div></div>
-<div class="ov" id="m-fotos"><div class="mod" style="max-width:720px">
-  <div class="mh"><span>🖼 Fotos das etiquetas em lote</span><button class="x" onclick="fecharModal('m-fotos')">✕</button></div>
-  <div class="mb"><div id="fotos-prog" class="muted" style="margin-bottom:8px"></div><div class="tw"><table id="fotos-tb"></table></div>
-    <div class="muted" style="margin-top:8px">Cada foto conta <b>1 embalagem</b>. Só entram as marcadas (as que estão no relatório). Sem código de barras, o lote é lido do texto <b>LOT</b> impresso (demora uns segundos por foto).</div></div>
-  <div class="mf"><button class="btn" onclick="fecharModal('m-fotos')">Cancelar</button><button class="btn p" id="fotos-ok" disabled>Incluir</button></div>
-</div></div>
-
 <div class="ov" id="m-falta"><div class="mod" style="max-width:640px">
   <div class="mh"><span>📤 Itens faltando — enviar por WhatsApp / e-mail</span><button class="x" onclick="fecharModal('m-falta')">✕</button></div>
   <div class="mb">
@@ -1547,7 +1538,7 @@ window.alternarCamera = async () => {
       await _h5.start({ facingMode: 'environment' }, { fps: 15, qrbox: (w, h) => ({ width: Math.floor(w * 0.96), height: Math.floor(Math.max(90, h * 0.42)) }), videoConstraints: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } } }, lidoCamera, () => {});
     }
     $('cam').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  } catch (e) { pararCamera(); ultimo('⚠ Não foi possível abrir a câmera: ' + esc(e?.message || e) + '. Permita o acesso à câmera e tente de novo — ou use 📸 Foto da etiqueta.', 'er'); }
+  } catch (e) { pararCamera(); ultimo('⚠ Não foi possível abrir a câmera: ' + esc(e?.message || e) + '. Permita o acesso à câmera e tente de novo — ou use 📸 Foto.', 'er'); }
 };
 // zoom: deixa segurar o celular mais longe (perto demais a câmera não foca no código fino)
 $('cam-zoom').onclick = async () => {
@@ -1570,27 +1561,6 @@ $('cam-foto-bt').onclick = async () => {
   bipe(false);
 };
 $('cam-luz').onclick = async () => { const tr = _stream?.getVideoTracks()[0]; if (!tr) return; _luz = !_luz; try { await tr.applyConstraints({ advanced: [{ torch: _luz }] }); } catch (e) {} };
-// foto da etiqueta: lê o código na foto em resolução cheia
-// foto fora da câmera ao vivo: mostra a mesma confirmação, com o painel por cima da tela
-function fotoLida(txt) {
-  ultimo('📸 Código lido na foto — confirme abaixo.', '');
-  if (!$('cam').classList.contains('on')) { $('cam').classList.add('on', 'cheia', 'foto'); $('cam').style.background = 'rgba(10,42,24,.55)'; document.body.style.overflow = 'hidden';
-    const so = () => { if (!_pend && !_stream && !_h5) { $('cam').classList.remove('on', 'cheia', 'foto'); $('cam').style.background = ''; document.body.style.overflow = ''; } else setTimeout(so, 300); };
-    setTimeout(so, 300); }
-  contadorCam(); confirmarLeitura(txt);
-}
-async function lerFoto(file) {
-  if (!file) return;
-  ultimo('⏳ Lendo o código na foto…');
-  try {
-    const det = await detectorNativo();
-    if (det) { const r = await det.detect(await createImageBitmap(file)); if (r && r.length) return fotoLida(melhorCodigo(r)); }
-    if (window.Html5Qrcode) { const h5 = new Html5Qrcode('cam-foto', { verbose: false }); try { return fotoLida(await h5.scanFile(file, false)); } catch (e) {} finally { try { h5.clear(); } catch (e) {} } }
-  } catch (e) {}
-  ultimo('🔤 Sem código de barras na foto — lendo o texto da etiqueta (LOT)…', 'av');
-  const lt = await lerTextoEtiqueta(file); if (lt) return fotoLida(lt);
-  ultimo('⚠ Não achei código de barras na foto.' + msgOCR() + ' Tire de novo com o "LOT" reto, de perto e bem iluminado — ou digite o lote.', 'er'); bipe(false);
-}
 // 🔤 etiqueta sem código de barras (só "REF … LOT …" impresso): lê o texto da foto e procura o lote no relatório
 let _tess = null, _ultOCR = null;
 async function ocr(fonte) {
@@ -1618,8 +1588,8 @@ async function lerTextoEtiqueta(fonte) {
   return _ultOCR.lote;
 }
 const msgOCR = () => _ultOCR?.erro ? ` (leitor de texto: ${esc(_ultOCR.erro)})` : _ultOCR?.lido ? ` Li na etiqueta o lote <b class="mono">${esc(_ultOCR.lido)}</b>${_ultOCR.ref ? ' · REF ' + esc(_ultOCR.ref) : ''}, mas <b>esse lote não está no relatório</b> deste ${ehEstoque(ui.inv) ? 'estoque' : 'cliente'} (${esc(ui.inv?.fornecedor || '')}) — não incluí.` : ' Também não consegui ler o lote escrito.';
-// várias fotos: lê o código de cada uma (foto inteira e recortes do centro, com os dois leitores) e mostra a lista para confirmar
-let _cvF = null, _ocrLote = [];
+// reserva da foto que não deu nenhuma etiqueta: recortes do centro (código pequeno), leitor reserva e o texto LOT
+let _cvF = null;
 function recorteImg(img, frac) {
   const w = img.width, hh = img.height, lado = Math.min(w, hh) * frac, k = Math.min(2.5, 1400 / lado);
   const c = _cvF || (_cvF = document.createElement('canvas')); c.width = c.height = Math.round(lado * k);
@@ -1631,42 +1601,10 @@ async function lerCodigoFoto(file) {
   for (const f of [img, () => recorteImg(img, 0.6), () => recorteImg(img, 0.35)]) for (const d of dets) {
     try { const r = await d.detect(typeof f === 'function' ? f() : f); if (r && r.length) return melhorCodigo(r); } catch (e) {}
   }
+  if (window.Html5Qrcode) { const h5 = new Html5Qrcode('cam-foto', { verbose: false }); try { return await h5.scanFile(file, false); } catch (e) {} finally { try { h5.clear(); } catch (e) {} } }
   return await lerTextoEtiqueta(file);   // sem código de barras: o "LOT" impresso
 }
-$('f-fotos').onchange = async e => {
-  const files = [...e.target.files]; e.target.value = ''; if (!files.length || !ui.inv) return;
-  if (ui.inv.status !== 'aberto') return toast('Inventário encerrado — reabra para incluir.', 'err');
-  $('fotos-ok').disabled = true; $('fotos-tb').innerHTML = ''; $('m-fotos').classList.add('open');
-  const res = [], conta = new Map(); _ocrLote = [];
-  for (let i = 0; i < files.length; i++) {
-    $('fotos-prog').textContent = `📷 Lendo foto ${i + 1} de ${files.length}…`;
-    const txt = await lerCodigoFoto(files[i]); _ocrLote[i] = _ultOCR; _ultOCR = null; if (txt) await garantirGF(txt); const id = txt ? identificar(txt, ui.inv.esperado || [], codDoGtin) : null;
-    let r = null;
-    if (id?.codigo) {
-      const a0 = apurar(), cand = (id.cands || []).find(x => { const r0 = a0.linhas.find(y => y.cod === x.cod && y.lote === x.lote); return r0 && r0.bip + (conta.get(x.cod + '|' + x.lote) || 0) < r0.saldo; }) || id.cands[0];
-      r = a0.linhas.find(y => y.cod === cand.cod && y.lote === cand.lote); const k = r.cod + '|' + r.lote; conta.set(k, (conta.get(k) || 0) + 1);
-    }
-    res.push({ nome: files[i].name, txt, id, r, n: r ? r.bip + conta.get(r.cod + '|' + r.lote) : 0 });
-  }
-  const ok = res.filter(x => x.r);
-  $('fotos-prog').textContent = `${files.length} foto(s) · ✅ ${ok.length} no relatório · ❌ ${res.length - ok.length} sem código ou fora do relatório`;
-  $('fotos-tb').innerHTML = `<thead><tr><th></th><th>Foto</th><th>Resultado</th></tr></thead><tbody>${res.map((x, i) => `<tr>
-    <td>${x.r ? `<input type="checkbox" data-foto="${i}" checked>${ehEstoque(ui.inv) ? `<br><input type="number" min="1" value="${qtdDoCodigo(x.txt) || 1}" data-fq="${i}" title="Quantidade (caixa fechada)" style="width:54px;margin-top:4px;padding:3px;border:1px solid #8b5cf6;border-radius:6px;text-align:center">` : ''}` : ''}</td><td class="mono" style="font-size:.66rem;word-break:break-all">${esc(x.nome)}</td>
-    <td>${x.r ? `✅ <b class="mono">${esc(x.r.cod)}</b> ${esc(x.r.produto)}<br>Lote <b class="mono">${esc(x.r.lote || '—')}</b> · val. ${dataVal(x.id.validade || x.r.validade)}${diasAte(x.id.validade || x.r.validade) < 0 ? ' <span class="venc">⛔ VENCIDO — separar</span>' : ''}${cega() ? '' : ` · fica <b>${qtd(x.n)}/${qtd(x.r.saldo)}</b>${x.n > x.r.saldo ? ' <span class="venc">a mais que o saldo</span>' : ''}`}${(x.id.cands || []).length > 1 ? ' <span style="color:var(--warn-c)">⚠ lote também em outro produto — confira</span>' : ''}`
-      : !x.txt && _ocrLote[i]?.lido ? `❌ Sem código de barras. Li na etiqueta o lote <b class="mono">${esc(_ocrLote[i].lido)}</b>, mas ele <b>não está no relatório</b> deste ${ehEstoque(ui.inv) ? 'estoque' : 'cliente'}`
-      : x.txt ? `❌ Código lido, mas não está no relatório <span class="mono" style="font-size:.66rem">${esc(String(x.txt).slice(0, 60))}</span>` : '⚠ Nenhum código de barras nem lote legível na foto'}</td></tr>`).join('')}</tbody>`;
-  const marcadas = () => [...$('fotos-tb').querySelectorAll('[data-foto]:checked')].map(c => res[+c.dataset.foto]);
-  const rot = () => { const n = marcadas().length; $('fotos-ok').textContent = `Incluir ${n} embalage${n === 1 ? 'm' : 'ns'}`; $('fotos-ok').disabled = !n; };
-  $('fotos-tb').querySelectorAll('[data-foto]').forEach(c => c.onchange = rot); rot();
-  $('fotos-ok').onclick = async () => {
-    const sel = marcadas(); $('fotos-ok').disabled = true; let n = 0;
-    for (const x of sel) { $('fotos-ok').textContent = `Incluindo ${++n} de ${sel.length}…`; const fq = $('fotos-tb').querySelector(`[data-fq="${res.indexOf(x)}"]`); await registrar(x.txt, 'foto', x.r.cod, fq ? Math.max(1, Math.floor(Number(fq.value)) || 1) : 1); }
-    fecharModal('m-fotos'); toast(`✅ ${sel.length} embalage${sel.length === 1 ? 'm incluída' : 'ns incluídas'} pelas fotos`);
-    const venc = sel.filter(x => diasAte(x.id.validade || x.r.validade) < 0);
-    if (venc.length) { $('venc-desc').innerHTML = venc.map(x => `<b class="mono">${esc(x.r.cod)}</b> · lote <b class="mono">${esc(x.r.lote)}</b>`).join('<br>'); $('venc-acao').innerHTML = ehEstoque(ui.inv) ? 'Separe estas embalagens na <u>área de vencidos</u>.' : 'Separe estas embalagens para <u>devolver ao estoque da GF Medical</u>.'; $('m-venc').classList.add('open'); }
-  };
-};
-// 🧩 vários de uma vez: uma foto com várias embalagens — acha TODOS os códigos (foto inteira + pedaços ampliados, os dois leitores)
+// 📸 fotos das etiquetas: uma ou várias fotos, cada uma com uma ou várias embalagens — acha TODOS os códigos (foto inteira + pedaços ampliados, os dois leitores)
 const COD2D = f => /data_matrix|qr_code|aztec|pdf417/.test(f || '');
 async function codigosDaFoto(img, prog) {
   const dets = [await detectorNativo(), await detectorZx()].filter((d, i, a) => d && a.findIndex(x => x && x.constructor === d.constructor) === i);
@@ -1706,7 +1644,7 @@ function agruparVarios(achados) {
   for (const G of grupos.values()) {
     const et = [];   // etiquetas: no máximo 1 código linear + 1 código 2D por etiqueta
     for (const d of G.ds) {
-      const perto = (o, f) => Math.hypot(o.cx - d.cx, o.cy - d.cy) < Math.max(o.w, o.h, d.w, d.h, 20) * f;
+      const perto = (o, f) => o.foto === d.foto && Math.hypot(o.cx - d.cx, o.cy - d.cy) < Math.max(o.w, o.h, d.w, d.h, 20) * f;
       const e = et.find(e => e.some(o => perto(o, 0.6))) || et.find(e => !e.some(o => COD2D(o.fmt) === COD2D(d.fmt)) && e.some(o => perto(o, 1.5)));   // no mesmo lugar = o mesmo código
       e ? e.push(d) : et.push([d]);
     }
@@ -1719,38 +1657,61 @@ function agruparVarios(achados) {
   lista.forEach((x, i) => x.ds.forEach(d => { d.tipo = x.r ? 'ok' : 'sobra'; d.g = i + 1; }));
   return { lista, ign };
 }
-function desenharVarios(img, achados) {
-  const cv = document.createElement('canvas'), s = Math.min(1, 1400 / Math.max(img.width, img.height)); cv.width = Math.round(img.width * s); cv.height = Math.round(img.height * s);
-  cv.style.cssText = 'width:100%;height:auto;border-radius:10px;display:block;max-height:52vh;object-fit:contain;background:#111';
-  const g = cv.getContext('2d'); g.drawImage(img, 0, 0, cv.width, cv.height);
-  const cor = { ok: '#16a34a', sobra: '#f59e0b', ign: '#9ca3af' }, lw = Math.max(3, cv.width / 260);
-  for (const d of achados) {
-    g.strokeStyle = cor[d.tipo] || '#dc2626'; g.lineWidth = lw; g.strokeRect(d.x * s, d.y * s, Math.max(6, d.w * s), Math.max(6, d.h * s));
-    if (d.g) { const f = Math.max(16, cv.width / 45); g.font = `bold ${f}px sans-serif`; const t = String(d.g), tw = g.measureText(t).width + f * 0.5;
-      g.fillStyle = cor[d.tipo]; g.fillRect(d.x * s, d.y * s - f * 1.15, tw, f * 1.15); g.fillStyle = '#fff'; g.fillText(t, d.x * s + f * 0.25, d.y * s - f * 0.22); }
-  }
-  $('var-img').innerHTML = ''; $('var-img').appendChild(cv);
+function miniFoto(img, total) {
+  const cv = document.createElement('canvas'), s = Math.min(1, (total > 1 ? 800 : 1400) / Math.max(img.width, img.height)); cv.width = Math.round(img.width * s); cv.height = Math.round(img.height * s);
+  cv.style.cssText = 'width:100%;height:auto;border-radius:10px;display:block;max-height:52vh;object-fit:contain;background:#111'; cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+  return { cv, s };
 }
-$('f-varios').onchange = async e => {
-  const file = e.target.files[0]; e.target.value = ''; if (!file || !ui.inv) return;
+function desenharVarios(fotos, achados) {
+  const cor = { ok: '#16a34a', sobra: '#f59e0b', ign: '#9ca3af' }, box = $('var-img');
+  box.innerHTML = ''; box.style.cssText = fotos.length > 1 ? 'display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;margin-bottom:10px' : 'position:relative;margin-bottom:10px';
+  fotos.forEach((F, i) => {
+    const g = F.cv.getContext('2d'), s = F.s, lw = Math.max(3, F.cv.width / 260);
+    for (const d of achados.filter(x => x.foto === i && x.w)) {
+      g.strokeStyle = cor[d.tipo] || '#dc2626'; g.lineWidth = lw; g.strokeRect(d.x * s, d.y * s, Math.max(6, d.w * s), Math.max(6, d.h * s));
+      if (d.g) { const f = Math.max(16, F.cv.width / 45); g.font = `bold ${f}px sans-serif`; const t = String(d.g), tw = g.measureText(t).width + f * 0.5;
+        g.fillStyle = cor[d.tipo]; g.fillRect(d.x * s, d.y * s - f * 1.15, tw, f * 1.15); g.fillStyle = '#fff'; g.fillText(t, d.x * s + f * 0.25, d.y * s - f * 0.22); }
+    }
+    box.appendChild(F.cv);
+  });
+}
+let _fx = { fotos: [], achados: [], falhas: [] };   // o que já foi lido nesta janela ("Mais fotos" soma)
+$('f-foto').onchange = async e => {
+  const files = [...e.target.files]; e.target.value = ''; if (!files.length || !ui.inv) return;
   if (ui.inv.status !== 'aberto') return toast('Inventário encerrado — reabra para incluir.', 'err');
-  $('var-ok').disabled = true; $('var-ok').textContent = 'Incluir'; $('var-tb').innerHTML = ''; $('var-img').innerHTML = ''; $('m-varios').classList.add('open');
-  $('var-prog').textContent = '⏳ Abrindo a foto…';
-  let img; try { img = await createImageBitmap(file); } catch (er) { $('var-prog').textContent = '⚠ Não consegui abrir a foto.'; return; }
-  const achados = await codigosDaFoto(img, (i, n) => { $('var-prog').textContent = `🔎 Procurando códigos na foto… ${Math.round(i / n * 100)}%`; });
-  for (const d of achados) await garantirGF(d.raw);
+  if (!$('m-varios').classList.contains('open')) _fx = { fotos: [], achados: [], falhas: [] };
+  $('var-ok').disabled = true; $('var-ok').textContent = 'Incluir'; $('var-tb').innerHTML = ''; $('m-varios').classList.add('open');
+  for (let i = 0; i < files.length; i++) {
+    const pre = files.length > 1 ? `📷 Foto ${i + 1} de ${files.length}: ` : '';
+    $('var-prog').textContent = pre + '⏳ abrindo…';
+    let img; try { img = await createImageBitmap(files[i]); } catch (er) { _fx.falhas.push(`${files[i].name}: não consegui abrir a foto`); continue; }
+    const achou = await codigosDaFoto(img, (a, n) => { $('var-prog').textContent = `${pre}🔎 procurando códigos… ${Math.round(a / n * 100)}%`; });
+    const nFoto = _fx.fotos.length; achou.forEach(d => { d.foto = nFoto; });
+    for (const d of achou) await garantirGF(d.raw);
+    // nenhuma etiqueta com lote: tenta os recortes do centro, o leitor reserva e o texto LOT
+    if (!agruparVarios(achou).lista.length) {
+      $('var-prog').textContent = pre + '🔤 sem código legível — lendo o texto da etiqueta (LOT)…';
+      _ultOCR = null; const txt = await lerCodigoFoto(files[i]);
+      if (txt) { await garantirGF(txt); achou.push({ raw: txt, nk: txt, fmt: 'foto', x: 0, y: 0, w: 0, h: 0, cx: 0, cy: 0, foto: nFoto }); }
+      if (!txt || !agruparVarios(achou).lista.length) _fx.falhas.push(`${files[i].name}: nenhuma etiqueta com lote.${msgOCR()}`);
+    }
+    _fx.fotos.push(miniFoto(img, Math.max(files.length, nFoto + 1))); try { img.close(); } catch (er) {}
+    _fx.achados.push(...achou);
+  }
+  const achados = _fx.achados;
   const { lista, ign } = agruparVarios(achados);
-  desenharVarios(img, achados);
+  desenharVarios(_fx.fotos, achados);
+  const falhas = _fx.falhas.length ? `<div style="margin-top:6px;font-size:.75rem;color:var(--warn-c)">⚠ ${_fx.falhas.length} foto(s) sem resultado:<br>${_fx.falhas.join('<br>')}</div>` : '';
   const tot = lista.filter(x => x.r).reduce((s, x) => s + x.n, 0), sob = lista.filter(x => !x.r).reduce((s, x) => s + x.n, 0);
   const extra = [ign.gtin ? `${ign.gtin} código(s) só do produto (sem lote) ignorados` : '', ign.ean ? `${ign.ean} EAN sem lote ignorado(s)` : '', ign.fora ? `${ign.fora} código(s) que não são de etiqueta` : '', ign.gf ? `${ign.gf} etiqueta(s) GF com código ainda não importado` : ''].filter(Boolean).join(' · ');
-  if (!lista.length) { $('var-prog').innerHTML = `⚠ <b>Nenhuma etiqueta com lote encontrada</b> na foto${achados.length ? ' (' + esc(extra) + ')' : ''}. Chegue mais perto, com luz e as etiquetas viradas para a câmera — ou tire em partes.`; bipe(false); return; }
+  if (!lista.length) { $('var-prog').innerHTML = `⚠ <b>Nenhuma etiqueta com lote encontrada</b>${achados.length ? ' (' + esc(extra) + ')' : ''}. Chegue mais perto, com luz e as etiquetas viradas para a câmera — ou tire em partes.${falhas}`; bipe(false); return; }
   bipe(sob ? 'av' : 'ok');
-  $('var-prog').innerHTML = `Achei <b>${tot + sob} embalage${tot + sob === 1 ? 'm' : 'ns'}</b> na foto: ✅ ${tot} no relatório${sob ? ` · ➕ ${sob} fora do relatório (sobra)` : ''}${extra ? '<br><span style="font-size:.75rem">' + esc(extra) + '</span>' : ''}`;
+  $('var-prog').innerHTML = `Achei <b>${tot + sob} embalage${tot + sob === 1 ? 'm' : 'ns'}</b> em ${_fx.fotos.length} foto${_fx.fotos.length === 1 ? '' : 's'}: ✅ ${tot} no relatório${sob ? ` · ➕ ${sob} fora do relatório (sobra)` : ''}${extra ? '<br><span style="font-size:.75rem">' + esc(extra) + '</span>' : ''}${falhas}`;
   const COR = r => r ? '#16a34a' : '#f59e0b';
   $('var-tb').innerHTML = `<thead><tr><th></th><th>Qtd</th><th>Etiqueta</th></tr></thead><tbody>${lista.map((x, i) => {
     const val = x.id.validade || x.r?.validade, venc = val && diasAte(val) < 0;
-    return `<tr><td><span style="display:inline-block;min-width:22px;text-align:center;border-radius:6px;color:#fff;font-weight:800;background:${COR(x.r)}">${i + 1}</span><br><input type="checkbox" data-vg="${i}" ${x.r ? 'checked' : ''} style="margin-top:6px"></td>
-    <td><input type="number" min="0" value="${x.n}" data-vq="${i}" style="width:58px;padding:4px;border:1px solid #8b5cf6;border-radius:6px;text-align:center;font-weight:700"></td>
+    return `<tr><td><span style="display:inline-block;min-width:22px;text-align:center;border-radius:6px;color:#fff;font-weight:800;background:${COR(x.r)}">${i + 1}</span><br><input type="checkbox" data-vg="${i}" checked style="margin-top:6px"></td>
+    <td><input type="number" min="0" value="${x.n * (ehEstoque(ui.inv) && qtdDoCodigo(x.raw) || 1)}" data-vq="${i}" style="width:58px;padding:4px;border:1px solid #8b5cf6;border-radius:6px;text-align:center;font-weight:700"></td>
     <td>${x.r ? `✅ <b class="mono">${esc(x.r.cod)}</b> ${esc(x.r.produto)}` : `➕ <b>Fora do relatório</b> — entra como sobra${x.id.produto ? ' · ' + esc(x.id.produto) : ''}${x.id.gtin ? ' · <span class="mono">GTIN ' + esc(x.id.gtin) + '</span>' : ''}`}
       <br>Lote <b class="mono">${esc(x.r?.lote || x.id.lote || '—')}</b>${val ? ' · val. ' + dataVal(val) : ''}${venc ? ' <span class="venc">⛔ VENCIDO — separar</span>' : ''}
       ${x.r && !cega() ? ` · <span data-vf="${i}"></span>` : ''}${x.varios ? ' <span style="color:var(--warn-c)">⚠ lote em mais de um produto</span>' : ''}</td></tr>`; }).join('')}</tbody>`;
@@ -1763,13 +1724,15 @@ $('f-varios').onchange = async e => {
   $('var-tb').querySelectorAll('input').forEach(c => c.oninput = c.onchange = rot); rot();
   $('var-ok').onclick = async () => {
     const S = sel(), tot = S.reduce((s, o) => s + o.q, 0); $('var-ok').disabled = true; let n = 0;
-    for (const { x, q: qq } of S) for (let k = 0; k < qq; k++) { $('var-ok').textContent = `Incluindo ${++n} de ${tot}…`; await registrar(x.raw, 'varios', x.varios ? undefined : x.r?.cod); }
-    fecharModal('m-varios'); toast(`✅ ${tot} embalage${tot === 1 ? 'm incluída' : 'ns incluídas'} pela foto`);
+    for (const { x, q: qq } of S) {
+      if (ehEstoque(ui.inv)) { n += qq; $('var-ok').textContent = `Incluindo ${n} de ${tot}…`; await registrar(x.raw, 'foto', x.varios ? undefined : x.r?.cod, qq); continue; }
+      for (let k = 0; k < qq; k++) { $('var-ok').textContent = `Incluindo ${++n} de ${tot}…`; await registrar(x.raw, 'foto', x.varios ? undefined : x.r?.cod); }
+    }
+    fecharModal('m-varios'); toast(`✅ ${tot} embalage${tot === 1 ? 'm incluída' : 'ns incluídas'} pelas fotos`);
     const venc = S.filter(o => { const v = o.x.id.validade || o.x.r?.validade; return v && diasAte(v) < 0; });
     if (venc.length) { $('venc-desc').innerHTML = venc.map(o => `<b class="mono">${esc(o.x.r?.cod || 'fora do relatório')}</b> · lote <b class="mono">${esc(o.x.r?.lote || o.x.id.lote || '—')}</b> (${o.q})`).join('<br>'); $('venc-acao').innerHTML = ehEstoque(ui.inv) ? 'Separe estas embalagens na <u>área de vencidos</u>.' : 'Separe estas embalagens para <u>devolver ao estoque da GF Medical</u>.'; $('m-venc').classList.add('open'); }
   };
 };
-$('f-foto').onchange = e => { const f = e.target.files[0]; e.target.value = ''; lerFoto(f); };
 window.abrirCelular = () => {
   const url = location.origin + location.pathname + '?inv=' + ui.inv.id + '&cam=1' + (window._filialFixa ? '' : '&filial=' + BRANCH);
   const q = qrcode(0, 'M'); q.addData(url); q.make();
@@ -2096,7 +2059,7 @@ window.baixarAjuste = () => {
   XLSX.writeFile(wb, `Ajuste de estoque ${ui.inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
 };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.inv) carregarLeituras().then(desenharInv); });
-const VERSAO = '2026-11-05.132829';
+const VERSAO = '2026-11-05.132830';
 async function conferirVersao() {
   try {
     const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];
