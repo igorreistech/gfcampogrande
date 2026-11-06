@@ -200,7 +200,6 @@
       // autenticada de verdade pra ler as tabelas.
       const DEMO_USER = {
         email: 'demo@test.com',
-        password: 'demo123',
       };
 
       // A marcação inicial de ?demo=1 já roda num script bloqueante no <head>
@@ -247,13 +246,6 @@
         document.body.appendChild(ov);
         ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
       }
-
-      window.entrarDemo = function() {
-        document.documentElement.classList.add('modo-demo');
-        document.getElementById('loginUser').value = DEMO_USER.email;
-        document.getElementById('loginPass').value = DEMO_USER.password;
-        window.doLogin();
-      };
 
       // ─── Depois do login: escolher Monitor, Fichas OPME ou Controle de Fretes ───
       // O login vale para as três páginas (mesma sessão salva no navegador).
@@ -861,9 +853,6 @@
       });
 
       window.addEventListener('DOMContentLoaded', () => {
-        if (new URLSearchParams(location.search).get('demo') === '1') {
-          window.entrarDemo();
-        }
         const { collection: col, onSnapshot: snap } = window._fbModules;
         snap(col(db, COLL), (snapshot) => {
           const dados = snapshot.docs.map(d => ({ _docId: d.id, ...d.data() }));
@@ -4848,9 +4837,6 @@ html.modo-demo .login-logo-img{display:none!important}
 html.modo-demo .marca-gf-brand{display:none!important}
 html.modo-demo .header-text h1::after{content:" · Demonstração";font-size:0.55em;font-weight:600;opacity:0.65;text-transform:none;letter-spacing:normal}
 /* Demo: só o botão de demonstração. Produção: só o login normal. */
-html.modo-demo #loginForm .login-group,
-html.modo-demo #loginForm #loginBtn{display:none!important}
-html:not(.modo-demo) #loginBtnDemo{display:none!important}
 .header-text h1{color:#2a9fbf!important;-webkit-text-fill-color:#2a9fbf!important}
 .header-text p{font-size:.82rem!important;letter-spacing:.12em!important;line-height:1.35!important;color:#56a884!important;max-width:560px}
 .header > div:last-child{display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:14px!important;flex-wrap:wrap!important}
@@ -4899,7 +4885,6 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
                     <input class="login-input" type="password" id="loginPass" name="password" placeholder="••••••••" autocomplete="current-password">
                 </div>
                         <button type="submit" class="login-btn" id="loginBtn">Entrar</button>
-                <button type="button" class="login-btn" id="loginBtnDemo" onclick="window.entrarDemo()" style="margin-top:8px;background:linear-gradient(135deg,#4db87a,#22c55e);">Entrar como demonstração</button>
             </form>
         </div>
 
