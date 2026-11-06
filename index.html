@@ -9,6 +9,7 @@
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="icon-192.png">
     <link rel="apple-touch-icon" href="icon-192.png">
+    <script src="gf-login.js"></script>
     <title>GF Hub · Campo Grande - MS</title>
     <meta name="description" content="Monitor Cirúrgico GF Medical — Campo Grande, MS. Acompanhamento em tempo real de procedimentos cirúrgicos.">
     <!-- Supabase SDK (migrado do Firebase) -->
@@ -316,11 +317,11 @@
       };
 
       window.doLogin = async function() {
-        const email = document.getElementById('loginUser').value.trim();
+        const email = window.gfLoginEmail(document.getElementById('loginUser').value);
         const pass  = document.getElementById('loginPass').value;
         const btn   = document.getElementById('loginBtn');
         const err   = document.getElementById('loginError');
-        if (!email || !pass) { err.textContent = 'Preencha e-mail e senha.'; err.style.display = 'block'; return; }
+        if (!email || !pass) { err.textContent = 'Preencha usuário e senha.'; err.style.display = 'block'; return; }
         btn.disabled = true; btn.textContent = 'Entrando...'; err.style.display = 'none'; window._acessoBloqueado = null;
 
         try {
@@ -338,8 +339,8 @@
           if (window._acessoBloqueado) return;
           if (email.toLowerCase() !== DEMO_USER.email) window._abrirEscolhaDestino(email, pass);
         } catch(e) {
-          let msg = 'E-mail ou senha incorretos.';
-          if (e.message?.includes('Invalid login credentials')) msg = 'E-mail ou senha incorretos.';
+          let msg = 'Usuário ou senha incorretos.';
+          if (e.message?.includes('Invalid login credentials')) msg = 'Usuário ou senha incorretos.';
           if (e.message?.includes('rate limit'))                msg = 'Muitas tentativas. Tente mais tarde.';
           if (e.message?.includes('Failed to fetch'))            msg = 'Erro de rede. Verifique sua conexão.';
           if (e.message === 'timeout-login')                     msg = 'O servidor demorou para responder. Confira a internet e tente de novo.';
@@ -435,7 +436,7 @@
         if (document.getElementById('esqueciSenhaOv')) return;
         const ov = _caixaSenha(`<div style="font-weight:800;font-size:1.02rem;margin-bottom:6px">🔑 Esqueci minha senha</div>
           <div style="font-size:.8rem;color:var(--text-dim,#555)">Informe seu e-mail de login. Você vai receber um link para criar uma nova senha.</div>
-          <input id="esqEmail" type="email" required placeholder="seu@email.com" autocomplete="email" style="${_inpSenha}">
+          <input id="esqEmail" type="text" required placeholder="seu@email.com" autocomplete="email" style="${_inpSenha}">
           <div id="esqMsg" style="display:none;margin-top:10px;font-size:.8rem;padding:9px 11px;border-radius:10px"></div>
           <button id="esqBtn" type="submit" style="${_btnSenha}">Enviar link</button>
           <button id="esqFechar" type="button" style="${_btnSec}">Fechar</button>`);
@@ -449,6 +450,7 @@
         ov.querySelector('form').onsubmit = async ev => {
           ev.preventDefault();
           const email = $e('esqEmail').value.trim().toLowerCase();
+          if (window.gfLoginEhUsuario(email)) return msg('Quem entra com nome de usuário não recebe e-mail: peça ao administrador uma nova senha provisória.');
           if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return msg('E-mail inválido.');
           const btn = $e('esqBtn'); btn.disabled = true; btn.textContent = 'Enviando…';
           const volta = location.origin + location.pathname + (typeof ACTIVE_BRANCH_CODE !== 'undefined' ? '?filial=' + ACTIVE_BRANCH_CODE : '');
@@ -465,28 +467,29 @@
         };
       };
       // Voltou pelo link do e-mail: pede a nova senha
-      window._abrirNovaSenha = function() {
+      window._abrirNovaSenha = function(primeiroAcesso) {
         if (document.getElementById('novaSenhaOv')) return;
         const ov = _caixaSenha(`<div style="font-weight:800;font-size:1.02rem;margin-bottom:6px">🔑 Crie sua nova senha</div>
-          <div style="font-size:.8rem;color:var(--text-dim,#555)">Digite a nova senha duas vezes.</div>
-          <input id="nsSenha" type="password" required placeholder="Nova senha (mínimo 6 caracteres)" autocomplete="new-password" style="${_inpSenha}">
+          <div style="font-size:.8rem;color:var(--text-dim,#555)">${primeiroAcesso ? 'Sua senha atual é provisória. Crie a sua para continuar: só você vai saber.' : 'Digite a nova senha duas vezes.'}</div>
+          <input id="nsSenha" type="password" required placeholder="Nova senha (mínimo 8 caracteres)" autocomplete="new-password" style="${_inpSenha}">
           <input id="nsSenha2" type="password" required placeholder="Confirmar nova senha" autocomplete="new-password" style="${_inpSenha}">
           <div id="nsMsg" style="display:none;margin-top:10px;font-size:.8rem;padding:9px 11px;border-radius:10px"></div>
           <button id="nsBtn" type="submit" style="${_btnSenha}">Salvar nova senha</button>`);
-        ov.id = 'novaSenhaOv';
+        ov.id = 'novaSenhaOv'; ov.style.zIndex = '200000';
         const $n = id => ov.querySelector('#' + id);
         const msg = (t, ok) => { const m = $n('nsMsg'); m.style.display = 'block'; m.textContent = t; m.style.background = ok ? 'rgba(77,184,122,.15)' : 'rgba(220,38,38,.1)'; m.style.color = ok ? '#166534' : '#b91c1c'; };
         $n('nsSenha').focus();
         ov.querySelector('form').onsubmit = async ev => {
           ev.preventDefault();
           const s1 = $n('nsSenha').value;
-          if (s1.length < 6) return msg('A senha precisa ter pelo menos 6 caracteres.');
+          if (s1.length < 8) return msg('A senha precisa ter pelo menos 8 caracteres.');
           if (s1 !== $n('nsSenha2').value) return msg('As senhas não conferem.');
           const btn = $n('nsBtn'); btn.disabled = true; btn.textContent = 'Salvando…';
           try {
-            const { error } = await auth.updateUser({ password: s1 });
+            const { error } = await auth.updateUser({ password: s1, data: { trocar_senha: false } });
             if (error) throw error;
-            ov.querySelector('form').innerHTML = `<div style="font-weight:800;font-size:1.02rem;margin-bottom:8px">✅ Senha alterada!</div><div style="font-size:.82rem;color:var(--text-dim,#555)">Da próxima vez, entre com o seu e-mail e a nova senha.</div><button type="button" style="${_btnSenha}" onclick="document.getElementById('novaSenhaOv').remove()">Continuar</button>`;
+            if (typeof IS_CONSOLIDADO !== 'undefined' && IS_CONSOLIDADO && window._gfConnections?.cba) { try { const { data: d2 } = await window._gfConnections.cba.auth.getSession(); if (d2?.session) await window._gfConnections.cba.auth.updateUser({ password: s1, data: { trocar_senha: false } }); } catch (e2) { console.warn('[senha] não trocou em Cuiabá:', e2.message); } }
+            ov.querySelector('form').innerHTML = `<div style="font-weight:800;font-size:1.02rem;margin-bottom:8px">✅ Senha alterada!</div><div style="font-size:.82rem;color:var(--text-dim,#555)">Da próxima vez, entre com o seu usuário (ou e-mail) e a nova senha.</div><button type="button" style="${_btnSenha}" onclick="document.getElementById('novaSenhaOv').remove()">Continuar</button>`;
           } catch (er) {
             const t = String(er?.message || er);
             msg(/session|expired|missing|jwt/i.test(t) ? 'O link expirou ou já foi usado. Peça um novo em "Esqueci minha senha".' : /same|different/i.test(t) ? 'A nova senha precisa ser diferente da atual.' : 'Não foi possível salvar: ' + t);
@@ -503,6 +506,7 @@
         if (!window._podeGerenciarUsuarios()) { alert('Somente o Admin pode alterar perfis de usuário.'); return; }
         try {
           await setDoc(doc(db, 'usuarios', docId), { role }, { merge: true });
+          if (role !== 'recusado') { const _alvo = document.querySelector(`[data-usr-email][data-usr-id="${docId}"]`)?.dataset.usrEmail; if (_alvo) window._chamarLogin({ acao: 'desbloquear', email: _alvo }).catch(() => {}); }
           if (['operador', 'agendador', 'admin', 'recusado'].includes(role)) {
             try { await window._supabase.from('operadores_email').update({ status: role === 'recusado' ? 'recusado' : 'aprovado', decidido_em: new Date().toISOString(), decidido_por: window._operadorNome || window._currentUser?.email || '' }).eq('user_id', docId).eq('status', 'pendente'); } catch (e) {}
           }
@@ -605,6 +609,39 @@
         tentativas.forEach(t => setTimeout(() => window.renderAgendadorLista && window.renderAgendadorLista(), t));
       };
 
+      // ─── Logins individuais (usuário + senha própria): criar, nova senha provisória e bloquear passam pela function gerenciar-login ───
+      window._alvosLogin = () => (typeof IS_CONSOLIDADO !== 'undefined' && IS_CONSOLIDADO && window._gfConnections?.cba)
+        ? [{ rot: 'Campo Grande', url: BRANCHES.cgr.url, auth: window._gfConnections.cgr.auth }, { rot: 'Cuiabá', url: BRANCHES.cba.url, auth: window._gfConnections.cba.auth }]
+        : [{ rot: '', url: SUPABASE_URL, auth }];
+      window._chamarLogin = async function(corpo) {
+        const erros = [];
+        for (const a of window._alvosLogin()) {
+          try {
+            const { data } = await a.auth.getSession();
+            if (!data?.session) throw new Error('sem sessão nesta unidade');
+            const r = await fetch(a.url + '/functions/v1/gerenciar-login', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + data.session.access_token }, body: JSON.stringify(corpo) });
+            const j = await r.json().catch(() => ({}));
+            if (!r.ok) throw new Error(r.status === 404 && !j.error ? 'a função gerenciar-login ainda não foi publicada no Supabase' : j.error || 'falha ' + r.status);
+          } catch (e) { erros.push((a.rot ? a.rot + ': ' : '') + (/fetch/i.test(e.message) ? 'a função gerenciar-login ainda não foi publicada no Supabase' : e.message)); }
+        }
+        return erros;
+      };
+      window._senhaProvisoria = () => { const L = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789', b = crypto.getRandomValues(new Uint8Array(10)); return Array.from(b, x => L[x % L.length]).join(''); };
+      window.doAdminNovaSenha = async function(email) {
+        if (!window._podeGerenciarUsuarios()) return alert('Somente o Admin pode trocar senhas.');
+        if (!confirm(`Gerar uma nova senha provisória para ${email}?\n\nA senha atual deixa de valer e a pessoa cria outra ao entrar.`)) return;
+        const senha = window._senhaProvisoria(), erros = await window._chamarLogin({ acao: 'senha', email, senha });
+        if (erros.length) return alert('⚠️ ' + erros.join('\n'));
+        prompt(`Nova senha provisória de ${email}. Copie e passe para a pessoa (não aparece de novo):`, senha);
+      };
+      window.doAdminBloquear = async function(email) {
+        if (!window._podeGerenciarUsuarios()) return alert('Somente o Admin pode bloquear usuários.');
+        if (!confirm(`Bloquear ${email}?\n\nA pessoa não consegue mais entrar. Para liberar, aprove o perfil dela de novo nesta lista.`)) return;
+        const erros = await window._chamarLogin({ acao: 'bloquear', email });
+        if (erros.length) alert('⚠️ ' + erros.join('\n'));
+        doAdminLoadUsers(); window._contarPendentes && window._contarPendentes();
+      };
+
       // Gerenciamento de usuários (admin)
       window.doAdminLoadUsers = async function() {
         const lista = document.getElementById('admin-users-list');
@@ -628,6 +665,9 @@
             return `<div class="admin-user-row" ${(u.role === 'pendente' || u.role === 'recusado') ? 'style="flex-wrap:wrap;background:rgba(245,158,11,.08);border-radius:10px;padding:10px 8px"' : ''}>
               <div><div class="admin-user-name">${u.nome||u.email}${u.role === 'pendente' ? ' <span style="font-size:.7rem;color:#b45309;font-weight:800">⏳ aguardando aprovação</span>' : u.role === 'recusado' ? ' <span style="font-size:.7rem;color:#b91c1c;font-weight:800">⛔ recusado</span>' : ''}</div><div class="admin-user-email">${u.email}</div></div>
               ${acoes}
+              <span data-usr-id="${id}" data-usr-email="${u.email || ''}" style="display:none"></span>
+              ${isMe ? '' : `<button class="admin-btn-del" onclick="doAdminNovaSenha('${u.email}')" title="Gera uma senha provisória; a pessoa cria a dela ao entrar" style="color:#0e7490;border-color:#0e7490">🔑 Nova senha</button>`}
+              ${isMe || u.role === 'recusado' ? '' : `<button class="admin-btn-del" onclick="doAdminBloquear('${u.email}')" title="A pessoa não consegue mais entrar">🚫 Bloquear</button>`}
               <button class="admin-btn-del" onclick="doAdminDeleteUser('${id}')" ${isMe?'disabled title="Não pode remover a si mesmo"':''}>🗑 Excluir</button>
             </div>`;
           }).join('');
@@ -639,33 +679,20 @@
         const emailEl = document.getElementById('admin-new-email');
         const roleEl  = document.getElementById('admin-new-role');
         const nomeEl  = document.getElementById('admin-new-nome');
-        const email   = (emailEl?.value||'').trim().toLowerCase();
+        const email   = window.gfLoginEmail(emailEl?.value);
         const role    = roleEl?.value || 'agendador';
         const nome    = (nomeEl?.value||'').trim();
         const senhaEl = document.getElementById('admin-new-senha');
         const senha   = senhaEl?.value || '';
         if (!email) { emailEl?.focus(); return; }
-        if (senha && senha.length < 6) { alert('A senha precisa ter pelo menos 6 caracteres.'); senhaEl?.focus(); return; }
-        try {
-          const { data: sessionData } = await auth.getSession();
-          const resp = await fetch(SUPABASE_URL + '/functions/v1/create-user', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: 'Bearer ' + sessionData.session.access_token,
-            },
-            body: JSON.stringify({ email, role, nome: nome || email, ...(senha ? { password: senha } : {}) }),
-          });
-          const result = await resp.json();
-          if (!resp.ok) throw new Error(result.error || 'Falha ao criar usuário.');
-          if (emailEl) emailEl.value = '';
-          if (nomeEl)  nomeEl.value  = '';
-          if (senhaEl) { senhaEl.value = ''; senhaEl.type = 'password'; }
-          if (senha && result.senha_definida) alert(`✅ Usuário criado com a senha que você definiu.\n\nLogin: ${email}`);
-          else if (senha) alert(`Usuário criado, mas o servidor ainda está com a versão antiga e gerou uma senha temporária: ${result.temp_password}\n\n(Publique a function create-user atualizada no Supabase para usar a senha escolhida.)`);
-          else alert(`Usuário criado. Senha temporária: ${result.temp_password}\n\nCompartilhe com a pessoa por um canal seguro.`);
-          doAdminLoadUsers();
-        } catch(e) { alert('Erro ao criar usuário: '+e.message); }
+        if (senha && senha.length < 8) { alert('A senha precisa ter pelo menos 8 caracteres.'); senhaEl?.focus(); return; }
+        const provisoria = senha || window._senhaProvisoria(), erros = await window._chamarLogin({ acao: 'criar', email, role, nome: nome || email, senha: provisoria });
+        if (erros.length) return alert('Erro ao criar usuário: ' + erros.join('\n'));
+        if (emailEl) emailEl.value = '';
+        if (nomeEl)  nomeEl.value  = '';
+        if (senhaEl) { senhaEl.value = ''; senhaEl.type = 'password'; }
+        prompt(`Login criado: ${email.replace('@' + window.GF_LOGIN_DOMINIO, '')}\nSenha provisória (a pessoa cria a dela ao entrar). Copie, não aparece de novo:`, provisoria);
+        doAdminLoadUsers();
       };
       window.doAdminDeleteUser = async function(docId) {
         if (!confirm('Remover este usuário?')) return;
@@ -754,6 +781,7 @@
             const mainCont  = document.querySelector('.container');
             if (logoutEl) logoutEl.style.display = 'block';
 
+            if (user.user_metadata?.trocar_senha) setTimeout(() => window._abrirNovaSenha(true), 300);
             const fabGroup = document.querySelector('.fab-group');
             if (isComercialUnico && perfil.role === 'admin') {
               let nomeOp = window._lerOperadorGF();
@@ -4863,8 +4891,8 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
         <div id="loginPanel">
             <form id="loginForm" onsubmit="doLogin(); return false;" autocomplete="on">
                 <div class="login-group">
-                    <label class="login-label">E-mail</label>
-                    <input class="login-input" type="email" id="loginUser" name="email" placeholder="seu@email.com" autocomplete="email">
+                    <label class="login-label">Usuário ou e-mail</label>
+                    <input class="login-input" type="text" id="loginUser" name="username" placeholder="seu.usuario" autocomplete="username" autocapitalize="none" spellcheck="false">
                 </div>
                 <div class="login-group">
                     <label class="login-label">Senha</label>
@@ -4937,6 +4965,7 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
 <div id="adminModal">
     <div class="admin-modal-box">
         <div class="admin-modal-title">Gerenciar Usuários</div>
+        <button type="button" onclick="window.abrirCriarLogins()" style="margin-bottom:10px;padding:8px 14px;border-radius:9px;border:1px solid #0e7490;background:rgba(14,116,144,.1);color:#0e7490;font-weight:800;cursor:pointer">➕ Criar logins da equipe</button>
         <div id="admin-users-list"></div>
         <div class="admin-add-form">
             <div>
@@ -4945,12 +4974,12 @@ html:not(.modo-demo) #loginBtnDemo{display:none!important}
             </div>
             <div>
                 <label>E-mail</label>
-                <input class="admin-add-input" type="email" id="admin-new-email" placeholder="usuario@empresa.com.br">
+                <input class="admin-add-input" type="text" id="admin-new-email" placeholder="usuário (ex.: igor.reis) ou e-mail" autocapitalize="none" spellcheck="false">
             </div>
             <div>
                 <label>Senha</label>
                 <div style="position:relative;">
-                    <input class="admin-add-input" type="password" id="admin-new-senha" placeholder="Mínimo 6 caracteres · em branco gera uma temporária" autocomplete="new-password" style="padding-right:44px;">
+                    <input class="admin-add-input" type="password" id="admin-new-senha" placeholder="Mínimo 8 caracteres · em branco gera uma provisória" autocomplete="new-password" style="padding-right:44px;">
                     <button type="button" onclick="const i=document.getElementById('admin-new-senha');i.type=i.type==='password'?'text':'password';this.textContent=i.type==='password'?'👁':'🙈';" title="Mostrar/ocultar senha" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;opacity:.6;">👁</button>
                 </div>
             </div>
@@ -9459,6 +9488,53 @@ window._htmlOperadoresCompartilhados = function () {
     return `<div style="margin-top:14px;padding-top:6px;border-top:1px dashed var(--border)">
       ${bloco('comercialmt@gfmedical.net', NOMES_CONTA_COMERCIALMT)}${bloco('comercial@gfmedical.net', NOMES_CONTA_COMERCIAL)}</div>`;
 };
+// ─── ➕ Criar logins da equipe: um usuário e uma senha provisória para cada nome da lista de operadores ───
+window._sugerirUsuario = function (nome, usados) {
+    const p = String(nome).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).filter(x => x && !/^(de|da|do|dos|das|e)$/.test(x));
+    const op = [p.slice(0, 1).concat(p.slice(-1)).join('.'), p.slice(0, 2).join('.'), p.join('.')];
+    let u = op.find(x => !usados.has(x)) || op[0], n = 2; const base = u;
+    while (usados.has(u)) u = base + (n++);
+    usados.add(u); return u;
+};
+window.abrirCriarLogins = async function () {
+    if (!window._podeGerenciarUsuarios()) return alert('Somente o Admin pode criar logins.');
+    let perfis = []; try { const { data } = await window._supabase.from('usuarios').select('email,nome,role'); perfis = data || []; } catch (e) {}
+    const usados = new Set(perfis.map(p => String(p.email || '').split('@')[0].toLowerCase())), nomes = [...new Set(_nomesOperadorAtivos())];
+    const papelDe = n => (window.ADMIN_TITULARES || []).includes(n) ? 'admin' : ADMIN_OPERADORES.includes(n) ? 'operador' : 'agendador';
+    const e = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const L = nomes.map(n => { const ja = perfis.find(p => p.nome === n && !/^comercial(mt)?@/.test(p.email || '')); return { n, ja, u: ja ? '' : window._sugerirUsuario(n, usados), r: papelDe(n) }; });
+    const ov = document.createElement('div'); ov.id = 'criarLoginsOv';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100001;display:flex;align-items:center;justify-content:center;padding:16px';
+    const cx = 'background:var(--surface,#fff);color:var(--text,#111);border-radius:16px;padding:18px;width:min(720px,100%);max-height:90vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)';
+    const inp = 'padding:6px 8px;border:1px solid var(--border,#ccc);border-radius:8px;background:var(--bg,#fff);color:var(--text);font-size:.78rem';
+    const bt = 'padding:8px 14px;border-radius:9px;border:1px solid var(--border,#ccc);background:transparent;color:var(--text);font-weight:700;cursor:pointer';
+    ov.innerHTML = `<div style="${cx}"><div style="font-weight:800;font-size:1rem;margin-bottom:4px">➕ Criar logins da equipe</div>
+      <div style="font-size:.76rem;color:var(--text-dim,#555);margin-bottom:10px">Cada pessoa recebe um usuário e uma senha provisória, e cria a própria senha no primeiro acesso. A conta compartilhada continua funcionando até você desligá-la.</div>
+      <table style="width:100%;border-collapse:collapse;font-size:.78rem"><thead><tr><th style="width:26px"></th><th style="text-align:left;padding:4px">Nome</th><th style="text-align:left;padding:4px">Usuário</th><th style="text-align:left;padding:4px">Perfil</th></tr></thead><tbody>
+      ${L.map((x, i) => `<tr style="border-top:1px solid var(--border,#eee)"><td><input type="checkbox" data-cl="${i}" ${x.ja ? 'disabled' : 'checked'}></td><td style="padding:5px 4px">${e(x.n)}</td>
+        <td style="padding:5px 4px">${x.ja ? `<span style="color:var(--text-dim)">já tem: ${e(x.ja.email)}</span>` : `<input data-clu="${i}" value="${e(x.u)}" style="${inp};width:170px;font-family:var(--mono)">`}</td>
+        <td style="padding:5px 4px">${x.ja ? '' : `<select data-clr="${i}" style="${inp}">${[['agendador', 'Agendador'], ['operador', 'Operador'], ['admin', 'Admin']].map(([v, t]) => `<option value="${v}" ${x.r === v ? 'selected' : ''}>${t}</option>`).join('')}</select>`}</td></tr>`).join('')}</tbody></table>
+      <div data-clmsg style="font-size:.78rem;margin-top:10px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button type="button" data-clx style="${bt}">Fechar</button><button type="button" data-clok style="${bt};background:#111827;color:#fff;border-color:#111827">Criar logins</button></div></div>`;
+    document.body.appendChild(ov);
+    const $ = s => ov.querySelector(s), fim = [];
+    $('[data-clx]').onclick = () => { if (fim.some(x => x.senha) && !confirm('As senhas provisórias não aparecem de novo. Já copiou?')) return; ov.remove(); window.doAdminLoadUsers && window.doAdminLoadUsers(); };
+    $('[data-clok]').onclick = async () => {
+        const marcados = L.map((x, i) => ({ ...x, i })).filter(x => !x.ja && $(`[data-cl="${x.i}"]`).checked); if (!marcados.length) return;
+        const b = $('[data-clok]'); b.disabled = true; let k = 0;
+        for (const x of marcados) {
+            const u = String($(`[data-clu="${x.i}"]`).value || '').trim().toLowerCase(), r = $(`[data-clr="${x.i}"]`).value; b.textContent = `Criando ${++k} de ${marcados.length}…`;
+            if (!/^[a-z0-9][a-z0-9._-]{2,}$/.test(u)) { fim.push({ n: x.n, u, erro: 'usuário inválido (use letras, números e ponto)' }); continue; }
+            const senha = window._senhaProvisoria(), erros = await window._chamarLogin({ acao: 'criar', email: window.gfLoginEmail(u), nome: x.n, role: r, senha });
+            fim.push(erros.length ? { n: x.n, u, erro: erros.join(' · ') } : { n: x.n, u, senha });
+        }
+        const ok = fim.filter(x => x.senha), txt = ok.map(x => `${x.n}: usuário ${x.u} · senha provisória ${x.senha}`).join('\n');
+        $('table').outerHTML = `<table style="width:100%;border-collapse:collapse;font-size:.8rem"><thead><tr><th style="text-align:left;padding:4px">Nome</th><th style="text-align:left;padding:4px">Usuário</th><th style="text-align:left;padding:4px">Senha provisória</th></tr></thead><tbody>${fim.map(x => `<tr style="border-top:1px solid var(--border,#eee)"><td style="padding:5px 4px">${e(x.n)}</td><td style="padding:5px 4px;font-family:var(--mono)">${e(x.u)}</td><td style="padding:5px 4px;font-family:var(--mono)">${x.senha ? e(x.senha) : `<span style="color:#b91c1c">⚠ ${e(x.erro)}</span>`}</td></tr>`).join('')}</tbody></table>`;
+        $('[data-clmsg]').innerHTML = `<b>${ok.length} login(s) criado(s).</b> Copie agora e passe a cada pessoa individualmente: as senhas provisórias não aparecem de novo.`;
+        b.remove();
+        if (ok.length) { const c = document.createElement('button'); c.type = 'button'; c.style.cssText = bt; c.textContent = '📋 Copiar a lista'; c.onclick = () => navigator.clipboard.writeText(txt).then(() => { c.textContent = '✅ Copiada'; }); $('[data-clx]').before(c); }
+    };
+};
 // ─── E-mail dos operadores da conta compartilhada: o operador confirma, o admin aprova ───
 window._emailsOperadores = [];
 window._carregarEmailsOperadores = async function () {
@@ -9554,7 +9630,7 @@ window._decidirEmailOperador = async function (id, status) {
             ov.querySelector('form').innerHTML = '<div style="font-weight:800;font-size:1rem;margin-bottom:8px">✅ E-mail enviado!</div><div style="font-size:.82rem;color:var(--text-dim,#555)">Assim que o administrador aprovar, você poderá entrar com o seu e-mail e senha.' + obs + '</div><button type="button" style="width:100%;margin-top:14px;padding:10px;border:none;border-radius:12px;background:#0e7490;color:#fff;font-weight:800;cursor:pointer" onclick="document.getElementById(\'emailOperadorOv\').remove()">OK</button>';
         };
     }
-    setInterval(verificar, 3000);
+    // não pergunta mais o e-mail pessoal: o login individual agora é por usuário (➕ Criar logins da equipe); os pedidos antigos seguem para aprovar
 })();
 window._htmlOperadoresCompartilhados_antigo = function () {
     const nomes = _nomesOperadorAtivos(), tit = window.ADMIN_TITULARES || [];

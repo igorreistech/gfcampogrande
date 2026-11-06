@@ -22,6 +22,7 @@
 </script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<script src="gf-login.js"></script>
 <title>Controle de Fretes · GF Medical</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -355,7 +356,7 @@ td.sel,th.sel{width:30px;padding-left:12px;padding-right:0}
     <select class="filial-sel login-filial-sel" id="login-filial-sel" aria-label="Filial" onchange="trocarFilial(this.value)"><option value="cgr">Campo Grande · MS</option><option value="cba">Cuiabá · MT</option></select>
     <div class="login-title">Entrar no sistema</div>
     <div class="login-sub">Use as mesmas credenciais do Monitor Cirúrgico</div>
-    <div class="login-field"><label class="login-label" for="l-email">E-mail</label><input class="login-input" type="email" id="l-email" placeholder="seu@email.com" autocomplete="email"></div>
+    <div class="login-field"><label class="login-label" for="l-email">Usuário ou e-mail</label><input class="login-input" type="text" id="l-email" placeholder="seu.usuario" autocapitalize="none" autocomplete="email"></div>
     <div class="login-field"><label class="login-label" for="l-senha">Senha</label><input class="login-input" type="password" id="l-senha" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
     <button class="login-btn" onclick="doLogin()">Entrar</button>
     <div class="login-err" id="l-err">E-mail ou senha incorretos.</div>
@@ -821,7 +822,7 @@ window.trocarFilial = code => {
 const FILIAL_LABEL = BR.cityLabel;
 // Versão desta página (atualizar a cada publicação). A aba aberta confere de tempos
 // em tempos se o servidor já tem outra e oferece recarregar.
-const VERSAO = '2026-10-31.1';
+const VERSAO = '2026-11-05.1';
 // Versão do banco que esta página espera (frete_config.versao_banco, gravada no fim do SQL de atualização).
 // Banco mais antigo = falta rodar o SQL de atualização → aviso fixo no topo.
 const VERSAO_BANCO = '20261030';
@@ -983,6 +984,7 @@ const diasEntre = (a, b) => Math.round((new Date(b + 'T00:00:00') - new Date(a +
 
 // ───────────────────────── Auth ─────────────────────────
 auth.onAuthStateChange((_event, session) => {
+  if (window.gfExigeTrocaSenha(session?.user)) return;
   const u = session?.user ?? null;
   if (u?.id === _user?.id) return;
   _user = u;
@@ -1013,7 +1015,7 @@ auth.onAuthStateChange((_event, session) => {
 });
 
 window.doLogin = async () => {
-  const email = $('l-email').value.trim();
+  const email = window.gfLoginEmail($('l-email').value);
   const password = $('l-senha').value;
   $('l-err').classList.remove('show');
   const { error } = await auth.signInWithPassword({ email, password });
@@ -1040,7 +1042,7 @@ async function garantirSessaoImport() {
 }
 let _resolverLoginImport = null;
 window.entrarDestinoImport = async () => {
-  const { error } = await supaImport.auth.signInWithPassword({ email: $('li-email').value.trim(), password: $('li-senha').value });
+  const { error } = await supaImport.auth.signInWithPassword({ email: window.gfLoginEmail($('li-email').value), password: $('li-senha').value });
   if (error) { $('li-err').classList.add('show'); return; }
   $('modal-login-import').classList.remove('open');
   await carregarDestinoImport();

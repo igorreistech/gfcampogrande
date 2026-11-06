@@ -4,6 +4,7 @@
 <script>if(new URLSearchParams(location.search).get('demo')==='1')document.documentElement.classList.add('modo-demo');</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<script src="gf-login.js"></script>
 <title>Fichas OPME · GF Medical · Campo Grande</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -274,7 +275,7 @@ tbody tr:hover .row-acts{opacity:1}
     <div class="login-filial-badge">🟢 Filial Campo Grande · MS</div>
     <div class="login-title">Entrar no sistema</div>
     <div class="login-sub">Use as mesmas credenciais do Monitor Cirúrgico</div>
-    <div class="login-field"><label class="login-label">E-mail</label><input class="login-input" type="email" id="l-email" placeholder="seu@email.com" autocomplete="email"></div>
+    <div class="login-field"><label class="login-label">Usuário ou e-mail</label><input class="login-input" type="text" id="l-email" placeholder="seu.usuario" autocapitalize="none" autocomplete="email"></div>
     <div class="login-field"><label class="login-label">Senha</label><input class="login-input" type="password" id="l-senha" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
     <button class="login-btn" onclick="doLogin()">Entrar</button>
     <div class="login-err" id="l-err">E-mail ou senha incorretos.</div>
@@ -536,6 +537,7 @@ setInterval(verificarLembreteEmailOpme, 60000);
 setTimeout(verificarLembreteEmailOpme, 5000);
 
 auth.onAuthStateChange((_event, session) => {
+  if (window.gfExigeTrocaSenha(session?.user)) return;
   const u = session?.user || null;
   _currentUser = u ? { uid: u.id, email: u.email } : null;
   const isDemo = !!u && (u.email||'').toLowerCase() === DEMO_EMAIL;
@@ -570,7 +572,7 @@ auth.onAuthStateChange((_event, session) => {
 });
 
 window.doLogin = async () => {
-  const email = document.getElementById('l-email').value.trim();
+  const email = window.gfLoginEmail(document.getElementById('l-email').value);
   const senha = document.getElementById('l-senha').value;
   const er = document.getElementById('l-err');
   er.classList.remove('show');

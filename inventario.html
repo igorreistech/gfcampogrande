@@ -19,6 +19,7 @@
 </script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<script src="gf-login.js"></script>
 <title>Inventário consignado · GF Medical</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -263,7 +264,7 @@ body:not(.fechado) .so-fechado{display:none!important}
   <div class="card">
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px"><img src="logo.jpg" alt="" style="width:46px;height:46px;border-radius:10px"><div><b style="font-family:var(--display)">GF Medical</b><div class="muted">Inventário consignado</div></div></div>
     <select id="login-filial" aria-label="Filial" onchange="trocarFilial(this.value)"><option value="cgr">Campo Grande · MS</option><option value="cba">Cuiabá · MT</option></select>
-    <label for="l-email">E-mail</label><input id="l-email" type="email" autocomplete="email" placeholder="seu@email.com">
+    <label for="l-email">Usuário ou e-mail</label><input id="l-email" type="text" autocomplete="username" autocapitalize="none" placeholder="seu.usuario">
     <label for="l-senha">Senha</label><input id="l-senha" type="password" autocomplete="current-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
     <button class="btn p" style="width:100%;justify-content:center;padding:11px" onclick="doLogin()">Entrar</button>
     <div id="l-err" style="display:none;color:var(--crit-c);font-size:.75rem;margin-top:10px;text-align:center"></div>
@@ -706,11 +707,12 @@ window.confirmarOperador = () => {
 };
 window.doLogin = async () => {
   $('l-err').style.display = 'none';
-  const { error } = await auth.signInWithPassword({ email: $('l-email').value.trim(), password: $('l-senha').value });
+  const { error } = await auth.signInWithPassword({ email: window.gfLoginEmail($('l-email').value), password: $('l-senha').value });
   if (error) { $('l-err').textContent = 'E-mail ou senha incorretos.'; $('l-err').style.display = 'block'; }
 };
 window.doLogout = async () => { try { sessionStorage.removeItem('gf_fretes_operador'); } catch (e) {} await auth.signOut(); location.reload(); };
 auth.onAuthStateChange((_e, session) => {
+  if (window.gfExigeTrocaSenha(session?.user)) return;
   const u = session?.user ?? null;
   if (u?.id === _user?.id) return;
   _user = u;
@@ -2085,7 +2087,7 @@ window.baixarAjuste = () => {
   XLSX.writeFile(wb, `Ajuste de estoque ${ui.inv.cliente.replace(/[\\/:*?"<>|]/g, '')} ${hojeISO()}.xlsx`);
 };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.inv) carregarLeituras().then(desenharInv); });
-const VERSAO = '2026-11-05.132831';
+const VERSAO = '2026-11-05.132832';
 async function conferirVersao() {
   try {
     const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];

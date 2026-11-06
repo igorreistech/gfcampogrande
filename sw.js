@@ -1,4 +1,4 @@
-const CACHE = 'monitor-cgr-v185';
+const CACHE = 'monitor-cgr-v186';
 const BASE = new URL('./', self.location).pathname;
 const LOCAL_ASSETS = [
   BASE,
@@ -8,6 +8,7 @@ const LOCAL_ASSETS = [
   BASE + 'supabase-shim.js',
   BASE + 'manifest.json',
   BASE + 'nf-import.js',
+  BASE + 'gf-login.js',
   BASE + 'icon-192.png',
   BASE + 'icon-512.png',
   BASE + 'icon-192-maskable.png',
