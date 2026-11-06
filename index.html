@@ -9500,8 +9500,8 @@ window.abrirCriarLogins = async function () {
       ${L.map((x, i) => `<tr style="border-top:1px solid var(--border,#eee)"><td><input type="checkbox" data-cl="${i}" ${x.ja ? 'disabled' : 'checked'}></td><td style="padding:5px 4px">${e(x.n)}</td>
         <td style="padding:5px 4px">${x.ja ? `<span style="color:var(--text-dim)">já tem: ${e(x.ja.email)}</span>` : `<input data-clu="${i}" value="${e(x.u)}" style="${inp};width:170px;font-family:var(--mono)">`}</td>
         <td style="padding:5px 4px">${x.ja ? '' : `<select data-clr="${i}" style="${inp}">${[['agendador', 'Agendador'], ['operador', 'Operador'], ['admin', 'Admin']].map(([v, t]) => `<option value="${v}" ${x.r === v ? 'selected' : ''}>${t}</option>`).join('')}</select>`}</td></tr>`).join('')}</tbody></table>
-      <div data-clmsg style="font-size:.78rem;margin-top:10px"></div>
-      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button type="button" data-clx style="${bt}">Fechar</button><button type="button" data-clok style="${bt};background:#111827;color:#fff;border-color:#111827">Criar logins</button></div></div>`;
+      <div data-clmsg style="font-size:.78rem;margin-top:10px">${L.some(x => !x.ja) ? '' : '<b>✅ Todos desta lista já têm login.</b> Quem perdeu a senha provisória recebe outra em 🔑 Nova senha, na lista de usuários.'}</div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button type="button" data-clx style="${bt}">Fechar</button><button type="button" data-clok style="${bt};background:#111827;color:#fff;border-color:#111827;${L.some(x => !x.ja) ? '' : 'display:none'}">Criar logins</button></div></div>`;
     document.body.appendChild(ov);
     const $ = s => ov.querySelector(s), fim = [];
     $('[data-clx]').onclick = () => { if (fim.some(x => x.senha) && !confirm('As senhas provisórias não aparecem de novo. Já copiou?')) return; ov.remove(); window.doAdminLoadUsers && window.doAdminLoadUsers(); };
