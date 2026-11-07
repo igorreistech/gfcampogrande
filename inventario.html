@@ -359,6 +359,7 @@ body:not(.fechado) .so-fechado{display:none!important}
     <button class="btn" onclick="abrirAssinatura()">✍️ Assinar na tela</button>
     <button class="btn so-aberto" id="b-cega" onclick="alternarCega()">🙈 Contagem cega</button>
     <button class="btn so-aberto" id="b-recont" onclick="abrirRecontagem()">🔁 Recontar divergentes</button>
+    <button class="btn so-aberto" onclick="abrirAtualizarRel()" title="Importa um relatório mais novo neste inventário: o saldo muda e tudo o que já foi bipado continua">📥 Atualizar relatório</button><input type="file" id="f-atualiza" accept="application/pdf,.pdf" multiple style="display:none">
     <button class="btn" id="b-ajuste" onclick="baixarAjuste()">🧾 Ajuste de estoque</button>
     <button class="btn p so-aberto" onclick="encerrar()">✔ Encerrar inventário</button>
     <button class="btn so-fechado" onclick="reabrir()">🔓 Reabrir</button>
@@ -437,6 +438,19 @@ body:not(.fechado) .so-fechado{display:none!important}
   <div class="mf" style="justify-content:center"><button class="btn" id="venc-foto" type="button" style="padding:13px 14px">📸 Foto de evidência</button><button class="btn p" id="venc-fechar" style="background:#dc2626;border-color:#dc2626;padding:13px 18px;font-size:.95rem">📦 Separei para devolução</button></div>
 </div></div>
 
+<div class="ov" id="m-atualiza"><div class="mod" style="max-width:640px">
+  <div class="mh"><span>📥 Atualizar o relatório deste inventário</span><button class="x" onclick="fecharModal('m-atualiza')">✕</button></div>
+  <div class="mb" id="atu-corpo"></div>
+  <div class="mf"><button class="btn" onclick="fecharModal('m-atualiza')">Cancelar</button><button class="btn p" id="atu-ok">Atualizar e continuar a contagem</button></div>
+</div></div>
+<div class="ov" id="m-ident"><div class="mod" style="max-width:460px">
+  <div class="mh"><span>✏️ Identificar a sobra</span><button class="x" onclick="fecharModal('m-ident')">✕</button></div>
+  <div class="mb"><div class="muted" id="ide-info" style="margin-bottom:10px"></div>
+    <label class="muted">Código de fábrica</label><input type="text" id="ide-cod" autocomplete="off" style="margin:3px 0 10px">
+    <label class="muted">Descrição do produto</label><input type="text" id="ide-prod" autocomplete="off" style="margin:3px 0 10px">
+    <label class="muted">Lote</label><input type="text" id="ide-lote" autocomplete="off" style="margin-top:3px"></div>
+  <div class="mf"><button class="btn" onclick="fecharModal('m-ident')">Cancelar</button><button class="btn p" id="ide-ok">Salvar</button></div>
+</div></div>
 <div class="ov" id="m-just"><div class="mod" style="max-width:680px">
   <div class="mh"><span>📝 Justificar os itens faltando</span><button class="x" onclick="fecharModal('m-just')">✕</button></div>
   <div class="mb" id="just-corpo"></div>
@@ -1171,7 +1185,7 @@ function desenharInv() {
   l.sort((x, y) => (C ? 0 : ordem[x.st] - ordem[y.st]) || String(x.cod).localeCompare(String(y.cod)) || String(x.lote).localeCompare(String(y.lote)));
   $('tb').innerHTML = `<thead><tr><th>Situação</th><th class="c-q"></th><th>Código</th><th>Produto</th><th>Lote</th><th>Validade</th><th>NF</th><th class="n">Saldo</th><th class="n">Bipado</th><th class="n">Valor un.</th></tr></thead><tbody>${l.map(r => `<tr class="st-${C ? (r.bip ? 'ok' : '') : r.st}">
     <td class="st c-st ${C ? (r.bip ? 'ok' : '') : r.st}">${C ? (r.bip ? '🔢 Contado' : '⬜ Não contado') : ST_TXT[r.st] + (r.st === 'falta' && r.bip ? ` (${qtd(r.saldo - r.bip)})` : r.st === 'exc' ? ` (+${qtd(r.bip - r.saldo)})` : '')}${C ? '' : `<button class="ev" type="button" title="Anexar foto de evidência" onclick="anexarFoto('${esc(kL(r.cod, r.lote))}')">📷</button>`}${extrasLinha(r, C)}</td>
-    <td class="c-q">${qtd(r.bip)}<small>/${r.tipo === 'esp' && !C ? qtd(r.saldo) : '—'}</small>${r.tipo === 'esp' && inv.status === 'aberto' ? `<button class="mais1" type="button" title="Etiqueta sem código de barras: contar 1 deste lote" onclick="contarManual('${esc(r.cod)}','${esc(r.lote)}')">+1</button>` : ''}</td><td class="mono c-cod">${esc(r.cod || '—')}</td><td class="c-prod">${esc(r.produto || (r.gtin ? 'GTIN ' + r.gtin : 'Não identificado'))}${r.bip ? `<div class="quem">👤 ${esc(quemNaLinha(r))}</div>` : ''}</td><td class="mono c-lote">${esc(r.lote || '—')}</td>
+    <td class="c-q">${qtd(r.bip)}<small>/${r.tipo === 'esp' && !C ? qtd(r.saldo) : '—'}</small>${r.tipo === 'esp' && inv.status === 'aberto' ? `<button class="mais1" type="button" title="Etiqueta sem código de barras: contar 1 deste lote" onclick="contarManual('${esc(r.cod)}','${esc(r.lote)}')">+1</button>` : ''}</td><td class="mono c-cod">${esc(r.cod || '—')}</td><td class="c-prod">${esc(r.produto || (r.gtin ? 'GTIN ' + r.gtin : 'Não identificado'))}${r.tipo === 'sobra' && !r.cod && inv.status === 'aberto' ? `<button type="button" class="bdg" style="margin-left:6px" title="Informar código, descrição e lote desta sobra" onclick="identificarSobra('${esc(r.gtin || '')}','${esc(r.lote || '')}')">✏️ Identificar</button>` : ''}${r.bip ? `<div class="quem">👤 ${esc(quemNaLinha(r))}</div>` : ''}</td><td class="mono c-lote">${esc(r.lote || '—')}</td>
     <td class="mono c-val ${r.venc != null && r.venc <= 90 ? 'venc' : ''}" title="${r.venc != null ? (r.venc < 0 ? 'vencido há ' + -r.venc + ' dias' : 'vence em ' + r.venc + ' dias') : ''}">${dataVal(r.validade)}${r.venc != null && r.venc < 0 ? ' ⛔' : r.venc != null && r.venc <= 90 ? ' ⌛' : ''}</td>
     <td class="mono c-nf">${esc((r.nfs || []).map(n => n.nf).join(', ') || '—')}</td><td class="n c-x">${r.tipo === 'esp' ? (C ? '•••' : qtd(r.saldo)) : '—'}</td><td class="n c-x"><b>${qtd(r.bip)}</b>${r.tipo === 'esp' && inv.status === 'aberto' ? `<button class="mais1" type="button" title="Etiqueta sem código de barras: contar 1 deste lote" onclick="contarManual('${esc(r.cod)}','${esc(r.lote)}')">+1</button>` : ''}</td><td class="n c-x">${r.vunit ? brl(r.vunit) : '—'}</td></tr>`).join('') || '<tr><td colspan="9" class="muted" style="padding:16px">Nada neste filtro.</td></tr>'}</tbody>`;
   const S = (f, ls = l) => ls.reduce((s, r) => s + f(r), 0), esp = l.filter(r => r.tipo === 'esp');
@@ -1189,7 +1203,7 @@ function desenharInv() {
   const temLoc = ult.some(x => x.local), podeX = inv.status === 'aberto';
   $('leituras').innerHTML = ult.length ? `<div class="tw"><table class="t-leit"><thead><tr><th>Hora</th><th>Código</th><th>Produto</th><th>Lote</th><th class="n">Qtd</th><th>Quem bipou</th><th>Como</th>${temLoc ? '<th>Local</th>' : ''}${podeX ? '<th></th>' : ''}</tr></thead><tbody>${ult.map(x => `<tr class="${x.codigo ? '' : 'sob'}">
     <td class="mono">${x._fila ? '📶 aguardando internet' : x._tmp ? 'enviando…' : (dataHoraBR(x.criado_em).match(/\d{1,2}:\d{2}/) || [''])[0]}</td>
-    <td class="mono"><b>${esc(x.codigo || (x.gtin ? 'GTIN ' + x.gtin : '—'))}</b>${x.codigo ? '' : ' <span class="bdg rep">sobra</span>'}</td>
+    <td class="mono"><b>${esc(x.codigo || (x.gtin ? 'GTIN ' + x.gtin : '—'))}</b>${(inv.esperado || []).some(e => norm(e.cod) === norm(x.codigo) && norm(e.lote) === norm(x.lote)) ? '' : ' <span class="bdg rep">sobra</span>'}</td>
     <td>${esc(x.produto || '—')}</td><td class="mono">${esc(x.lote || '—')}</td><td class="n">${Number(x.qtd) > 1 ? `<b style="color:#6d28d9">${qtd(x.qtd)}</b>` : qtd(x.qtd || 1)}</td>
     <td><b>👤 ${esc(nomeLeit(x))}</b></td><td>${x.origem === 'camera' ? '📷 câmera' : x.origem === 'manual' ? '✍️ manual' : x.origem === 'foto' ? '🖼 foto' : x.origem === 'varios' ? '🧩 vários' : '🔫 leitor'}</td>${temLoc ? `<td>${x.local ? '📍 ' + esc(x.local) : ''}</td>` : ''}
     ${podeX ? `<td>${!x._tmp || x._fila ? `<button class="x" title="Desfazer esta leitura" onclick="desfazer('${x.id}')">✕</button>` : ''}</td>` : ''}</tr>`).join('')}</tbody></table></div>` : '<div class="muted" style="padding:8px 0">Nenhuma leitura ainda.</div>';
@@ -1199,7 +1213,7 @@ $('busca').oninput = e => { ui.busca = e.target.value; desenharInv(); };
 const nomeLeit = l => nomeDe(l.usuario) || '—';
 let _idxLeit = null, _idxDe = null, _idxN = -1;
 const idxLeit = () => { if (_idxDe !== ui.leit || _idxN !== ui.leit.length) { _idxLeit = new Map(); ui.leit.forEach(l => { if (!l.codigo) return; const k = norm(l.codigo) + '|' + norm(l.lote), a = _idxLeit.get(k); a ? a.push(l) : _idxLeit.set(k, [l]); }); _idxDe = ui.leit; _idxN = ui.leit.length; } return _idxLeit; };
-const leitDaLinha = r => r.tipo === 'esp' ? idxLeit().get(norm(r.cod) + '|' + norm(r.lote)) || [] : ui.leit.filter(l => r.tipo === 'esp' ? false : !l.codigo && (l.gtin || '') === (r.gtin || '') && norm(l.lote || l.bruto) === norm(r.lote || l.bruto));
+const leitDaLinha = r => r.tipo === 'esp' ? idxLeit().get(norm(r.cod) + '|' + norm(r.lote)) || [] : ui.leit.filter(l => (l.gtin || '') === (r.gtin || '') && norm(l.lote || l.bruto) === norm(r.lote || l.bruto) && norm(l.codigo || l._cod) === norm(r.cod));
 function quemNaLinha(r) { const m = new Map(); leitDaLinha(r).forEach(l => m.set(nomeLeit(l), (m.get(nomeLeit(l)) || 0) + Number(l.qtd || 0))); return [...m].map(([n, q]) => `${n} (${qtd(q)})`).join(' · '); }
 function desenharEquipe() {
   const el = $('equipe'); if (!el) return;
@@ -1271,6 +1285,58 @@ function painelCruz(a) {
     <div class="muted" style="margin-bottom:4px">${est ? 'Estes lotes faltam no estoque e foram encontrados a mais em clientes: provavelmente saíram sem nota de consignação. Regularize a remessa.' : 'Estes lotes sobraram aqui e estão faltando no estoque da GF Medical: provavelmente saíram do estoque sem nota de consignação. Regularize a remessa.'}</div>
     ${ach.map(r => `<div style="font-size:.78rem;padding:6px 0;border-top:1px dashed var(--border)"><b class="mono">${esc(r.cod || (r.gtin ? 'GTIN ' + r.gtin : '—'))}</b> ${esc(r.produto || '')} · lote <b class="mono">${esc(r.lote)}</b> · ${est ? 'falta' : 'sobra'} <b>${qtd(r.q)}</b> aqui<br>${cruzDe(r).map(c => `<span class="bdg rep">${est ? '➕ sobra' : '⚠ falta'} ${qtd(c.q)} · ${invRot(c.inv)}${c.cod && c.cod !== r.cod ? ' · ' + esc(c.cod) + ' ' + esc(c.produto) : ''}</span>`).join(' ')}</div>`).join('')}`;
 }
+// 📥 relatório mais novo no mesmo inventário: troca o saldo e mantém todas as leituras (o relatório anterior fica no Antes × depois)
+window.abrirAtualizarRel = () => { if (semCega()) return; if (!navigator.onLine) return toast('Precisa de internet para atualizar o relatório.', 'err'); $('f-atualiza').click(); };
+$('f-atualiza').onchange = async e => {
+  const files = [...e.target.files]; e.target.value = ''; const inv = ui.inv; if (!files.length || !inv) return;
+  const lidos = [], erros = []; ultimo('📄 Lendo o relatório…');
+  for (const f of files) { try { const ls = await linhasPdf(f); lidos.push({ ...lerRelatorio(ls), idsGF: idsDoRelatorio(ls), arquivo: f.name }); } catch (er) { erros.push(f.name + ': ' + er.message); } }
+  ultimo('Relatório lido.');
+  if (!lidos.length) return toast(erros.join(' · ') || 'Não consegui ler o PDF.', 'err');
+  const novo = montarNovo(lidos), ids = Object.assign({}, ...lidos.map(r => r.idsGF || {}));
+  if (norm(novo.cliente) !== norm(inv.cliente) || escopo(novo) !== escopo(inv)) return toast(`Esse relatório é de ${novo.cliente}${novo.fornecedor ? ' · ' + novo.fornecedor : ''}, não deste inventário (${inv.cliente}${inv.fornecedor ? ' · ' + inv.fornecedor : ''}). Para outro cliente ou fornecedor, importe como inventário novo.`, 'err');
+  const c = compararArquivos(inv.esperado, novo.esperado), a = apurar(), chave = new Set(novo.esperado.map(x => kL(x.cod, x.lote))), viram = a.linhas.filter(r => r.bip > 0 && !chave.has(kL(r.cod, r.lote))), un = viram.reduce((t, r) => t + r.bip, 0);
+  $('atu-corpo').innerHTML = `<div><b>${esc(novo.arquivos)}</b><div class="muted">relatório de ${dataBR(novo.relatorio_data)} · o atual é de ${dataBR(inv.relatorio_data)}</div></div>
+    ${novo.relatorio_data && inv.relatorio_data && novo.relatorio_data < inv.relatorio_data ? '<div class="bdg rep" style="margin-top:8px">⚠ Esse relatório é mais antigo que o atual.</div>' : ''}
+    <div class="tot-tela"><div>Saldo atual<b>${qtd(c.antesUn)} un.</b></div><div>Saldo novo<b>${qtd(c.depoisUn)} un.</b></div><div>Já bipado<b>${qtd(a.bip)} un.</b></div></div>
+    <div style="margin-top:10px;font-size:.82rem">${resumoComp(c)}.</div>
+    <div style="margin-top:10px;font-size:.82rem"><b>Tudo o que já foi bipado continua.</b> A contagem segue de onde está, comparada com o saldo novo.</div>
+    ${viram.length ? `<div class="bdg rc" style="margin-top:8px">⚠ ${qtd(un)} un. já bipada(s) em ${viram.length} lote(s) que saíram do relatório passam a aparecer como sobra: ${viram.slice(0, 6).map(r => esc(r.cod + ' · ' + r.lote)).join(', ')}${viram.length > 6 ? '…' : ''}</div>` : ''}
+    ${erros.length ? `<div class="bdg rep" style="margin-top:8px">⚠ Ignorado: ${esc(erros.join(' · '))}</div>` : ''}`;
+  $('m-atualiza').classList.add('open');
+  $('atu-ok').disabled = false;
+  $('atu-ok').onclick = async () => {
+    $('atu-ok').disabled = true;
+    const { data: f, error: e0 } = await supabase.from('inventarios').select('extra,esperado,relatorio_data,arquivos,fornecedor,criado_em').eq('id', inv.id).maybeSingle();
+    if (e0 || !f) { $('atu-ok').disabled = false; return toast('Não atualizou: ' + (e0?.message || 'inventário não encontrado'), 'err'); }
+    const ex = { ...(f.extra || {}) }, agora = new Date().toISOString();
+    ex.anterior = { id: inv.id, criado_em: ex.relAtualizado || f.criado_em, relatorio_data: f.relatorio_data, arquivos: f.arquivos, fornecedor: f.fornecedor, esperado: f.esperado || [] };
+    ex.idsGF = { ...(ex.idsGF || {}), ...ids }; ex.relAtualizado = agora; ex.relAtualizadoPor = quemSou();
+    const { error } = await supabase.from('inventarios').update({ esperado: novo.esperado, relatorio_data: novo.relatorio_data, arquivos: novo.arquivos, extra: ex }).eq('id', inv.id);
+    if (error) { $('atu-ok').disabled = false; return toast('Não atualizou: ' + error.message, 'err'); }
+    fecharModal('m-atualiza'); _gfMapa.clear(); toast('📥 Relatório atualizado: a contagem continua.');
+    await abrirInv(inv.id);
+  };
+};
+// ✏️ sobra sem código nem descrição: grava nas leituras; o mesmo GTIN já sai identificado nas próximas leituras e a etiqueta GF nos próximos bipes
+window.identificarSobra = (gtin, lote) => {
+  const L = ui.leit.filter(l => !l.codigo && !l._cod && (l.gtin || '') === gtin && norm(l.lote || l.bruto) === norm(lote)), idGF = idGFde(lote);
+  if (!L.length) return;
+  $('ide-info').innerHTML = `${L.reduce((t, l) => t + Number(l.qtd || 0), 0)} un. bipada(s)${gtin ? ' · <span class="mono">GTIN ' + esc(gtin) + '</span>' : ''}${idGF ? ` · etiqueta GF nº <b class="mono">${esc(idGF)}</b>: informe o lote de fábrica` : ''}`;
+  $('ide-cod').value = ''; $('ide-prod').value = ''; $('ide-lote').value = idGF ? '' : lote; $('m-ident').classList.add('open'); setTimeout(() => $('ide-cod').focus(), 50);
+  $('ide-ok').disabled = false;
+  $('ide-ok').onclick = async () => {
+    const cod = $('ide-cod').value.trim(), produto = $('ide-prod').value.trim(), novoLote = $('ide-lote').value.trim();
+    if (!cod || !produto || !novoLote) return toast('Preencha código, descrição e lote.', 'err');
+    $('ide-ok').disabled = true;
+    const ids = L.map(l => l.id).filter(Boolean), { error } = await supabase.from('inventario_leituras').update({ codigo: cod, produto, lote: novoLote }).in('id', ids);
+    if (error) { $('ide-ok').disabled = false; return toast('Não salvou: ' + error.message, 'err'); }
+    L.forEach(l => { l.codigo = cod; l.produto = produto; l.lote = novoLote; });
+    if (idGF) { await salvarExtra(ex => { ex.idsGF = { ...(ex.idsGF || {}), [idGF]: [cod, produto, novoLote, L[0].validade || null] }; }, true); _gfMapa.delete(idGF); }
+    fecharModal('m-ident'); desenharInv(); guardarCache();
+    toast((ui.inv.esperado || []).some(e => norm(e.cod) === norm(cod) && norm(e.lote) === norm(novoLote)) ? '✅ Identificada: esse lote está no relatório e entrou na contagem.' : '✏️ Sobra identificada.');
+  };
+};
 // 📂 antes × depois: o arquivo anterior fica guardado no próprio inventário; nos antigos, procura o anterior do mesmo escopo
 async function carregarAnterior() {
   const inv = ui.inv; if (!inv) return;
@@ -1824,7 +1890,8 @@ function iniciarTempoReal() {
     try { await atualizar2(); } finally { _atualizando = false; }
   }, agendar = () => { const falta = (_stream || _h5 ? 20000 : 3000) - (Date.now() - _ultAtu); clearTimeout(_atuT); if (falta <= 0) atualizar(); else _atuT = setTimeout(atualizar, falta); }, atualizar2 = async () => {
     const antes = ui.leit.length; await carregarLeituras(); let mud = ui.leit.length !== antes;
-    const { data: x } = await comTempo(supabase.from('inventarios').select('cega:extra->cega,recont:extra->recont,just:extra->just').eq('id', id).maybeSingle(), 8000);
+    const { data: x } = await comTempo(supabase.from('inventarios').select('cega:extra->cega,recont:extra->recont,just:extra->just,rel:extra->relAtualizado').eq('id', id).maybeSingle(), 8000);
+    if (x && (x.rel || null) !== (EX().relAtualizado || null) && ui.inv?.id === id) { const { data: nv } = await comTempo(supabase.from('inventarios').select('*').eq('id', id).maybeSingle(), 8000); if (nv && ui.inv?.id === id) { ui.inv = nv; _gfMapa.clear(); corrigirLeiturasGF(ui.leit); await carregarAnterior(); mud = true; toast('📥 O relatório deste inventário foi atualizado.', 'info'); } }
     if (x && 'cega' in x && ui.inv?.id === id) { const ex = EX(), n = JSON.stringify([x.cega || false, x.recont || {}, x.just || {}]); if (n !== JSON.stringify([ex.cega || false, ex.recont || {}, ex.just || {}])) { ui.inv.extra = { ...ex, cega: x.cega || false, recont: x.recont || {}, just: x.just || {} }; mud = true; } }
     if (mud) desenharInv();
   };
@@ -2010,7 +2077,7 @@ window.imprimir = async modo => {
   w.document.close();
 };
 // quem bipou a sobra (para conferir depois)
-const quemBipou = r => [...new Set(ui.leit.filter(l => (r.tipo === 'esp' ? norm(l.codigo) === norm(r.cod) && norm(l.lote) === norm(r.lote) : !l.codigo && norm(l.lote || l.bruto) === norm(r.lote || '') && (l.gtin || '') === (r.gtin || ''))).map(l => String(l.usuario || '').replace(/\s*\(.*\)$/, '') + (l.local ? ' · ' + l.local : '')))].join(', ');
+const quemBipou = r => [...new Set(ui.leit.filter(l => (r.tipo === 'esp' ? norm(l.codigo) === norm(r.cod) && norm(l.lote) === norm(r.lote) : norm(l.codigo || l._cod) === norm(r.cod) && norm(l.lote || l.bruto) === norm(r.lote || '') && (l.gtin || '') === (r.gtin || ''))).map(l => String(l.usuario || '').replace(/\s*\(.*\)$/, '') + (l.local ? ' · ' + l.local : '')))].join(', ');
 // texto dos itens faltando, em dois formatos: WhatsApp (curto, *negrito*, em tópicos) e e-mail (formal, com saudação e assinatura)
 function textoFaltantes(comValor, fmt) {
   const inv = ui.inv, a = apurar(), wa = fmt !== 'mail', b = s => wa ? `*${s}*` : s, gf = GF[FILIAL] || GF.CGR;
@@ -2257,7 +2324,7 @@ window.baixarAjuste = async () => {
   await xBaixar(wb, xNomeArq('Ajuste de estoque'));
 };
 document.addEventListener('visibilitychange', () => { if (!document.hidden && ui.inv) carregarLeituras().then(desenharInv); });
-const VERSAO = '2026-11-06.125536';
+const VERSAO = '2026-11-06.125537';
 async function conferirVersao() {
   try {
     const t = await (await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' })).text(), v = (/const VERSAO = '([^']+)'/.exec(t) || [])[1];
